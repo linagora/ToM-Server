@@ -17,6 +17,9 @@ import { httpLogger } from "./middleware/http-logger";
 import { requestId } from "./middleware/request-id";
 import { createLandingRouter } from "./modules/landing/router";
 import { createLegacyRouter } from "./modules/legacy/router";
+import { MatrixAuth } from "./modules/visio/matrix-auth";
+import { createVisioRouter } from "./modules/visio/router";
+import type { VisioDeps, VisioRequest } from "./modules/visio/types";
 import { createWellKnownClientRouter } from "./modules/well-known/router";
 
 function mountWellKnownClient(config: Config, logger: Logger, app: Express): void {
@@ -44,6 +47,30 @@ function mountWellKnownClient(config: Config, logger: Logger, app: Express): voi
   );
   logger.info(`Mounting wellKnownRouter... client: ${config.well_known.client.enabled}`);
   app.use(wellKnownRouter);
+}
+
+function mountVisio(config: Config, logger: Logger, app: Express): void {
+  const visioLogger = logger.child({
+    module: "visio",
+  });
+  let deps: VisioDeps | undefined;
+  if (config.visio.enabled) {
+    const auth = new MatrixAuth(
+      {
+        serverUrl: config.synapse.server_url.replace(/\/+$/, ""),
+        serverName: config.server.name,
+        timeoutMs: config.visio.timeout_ms,
+      },
+      visioLogger,
+    );
+    deps = {
+      authenticate: auth.middleware(),
+      resolveEmail: (req: VisioRequest): Promise<string | null> =>
+        req.accessToken ? auth.resolveEmail(req.accessToken) : Promise.resolve(null),
+    };
+  }
+  logger.info(`Mounting visioRouter... enabled: ${config.visio.enabled}`);
+  app.use(createVisioRouter(config.visio, deps, visioLogger));
 }
 
 export async function createApp(
@@ -91,6 +118,7 @@ export async function createApp(
 
   // --- New modules routers here ---
   mountWellKnownClient(config, logger, app);
+  mountVisio(config, logger, app);
 
   // --- End of new modules ---
 
