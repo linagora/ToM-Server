@@ -290,6 +290,23 @@ email:
 #                     #     `federation` config
 
 # -----------------------------------------------------------------------------
+# Visio (video call rooms)
+# Optional. Disabled by default.
+# Serves POST /_twake/v1/video_call/rooms; answers 404 while disabled.
+# Tokens are checked on `synapse.server_url`; the user's email is the one the
+# homeserver knows (`/account/3pid`).
+# -----------------------------------------------------------------------------
+# visio:
+#   enabled: false                 # Default: false
+#   base_url: "https://visio.example.com" # Required when enabled
+#   client_id: ""                  # Required when enabled — Application
+#   client_secret: ""              # Required when enabled
+#   room_access_level: "trusted"   # Optional — "public" | "trusted" |
+#                                  # "restricted"; unset: service default.
+#                                  # Ignored by Meet before 1.17.0
+#   timeout_ms: 10000              # Default: 10000 — per request
+
+# -----------------------------------------------------------------------------
 # Telemetry (OpenTelemetry)
 # Disabled by default.
 # -----------------------------------------------------------------------------

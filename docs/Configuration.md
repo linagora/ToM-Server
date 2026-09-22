@@ -37,6 +37,7 @@ Optional fields are commented out with their defaults shown.
 - [Internationalisation](#internationalisation)
 - [Landing Page](#landing-page)
 - [Matrix Client Discovery (Well-Known)](#matrix-client-discovery-well-known)
+- [Visio](#visio)
 - [Telemetry (OpenTelemetry)](#telemetry-opentelemetry)
 
 ---
@@ -592,6 +593,70 @@ well_known:
 | ---------  ---------  ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `enabled`  `false`    Enable the well-known client endpoint.                                                                                                                                                                                                                     |
 | `extra`    `{}`       Extra entries shallow-merged into the document. Configured keys override these: `m.homeserver` (from `synapse.server_url`), `m.identity_server` (from `server.base_url`), `t.server` (from `server`), `m.federated_identity_services` (from `federation`). |
+
+---
+
+## Visio
+
+Disabled by default. Lets Twake Chat create video call rooms on the video
+conferencing service (currently [La Suite Meet](https://github.com/suitenumerique/meet))
+through its external API, on behalf of the authenticated user.
+
+```yaml
+visio:
+  enabled: true
+  base_url: "https://visio.example.com"
+  client_id: "<VISIO_APPLICATION_CLIENT_ID>"
+  client_secret: "<VISIO_APPLICATION_CLIENT_SECRET>"
+  room_access_level: "trusted"
+  timeout_ms: 10000
+```
+
+| Field                Default  Description                                                                                                            |
+| -------------------  -------  ---------------------------------------------------------------------------------------------------------------------- |
+| `enabled`            `false`  Enable video call room creation.                                                                                       |
+| `base_url`           —        Base URL of the service. Required when enabled.                                                                        |
+| `client_id`          —        Client ID of the service Application. Required when enabled.                                                           |
+| `client_secret`      —        Client secret of the service Application. Required when enabled.                                                       |
+| `room_access_level`  —        `"public"`, `"trusted"` or `"restricted"`. When unset, the service applies its default. Ignored by Meet before 1.17.0. |
+| `timeout_ms`         `10000`  Timeout of each request to the service, in milliseconds.                                                               |
+
+The route validates the Matrix access token against `synapse.server_url`
+(`/account/whoami`) and reads the user's email from the homeserver
+(`/account/3pid`): Synapse must store the email of its users, e.g. through the
+`email_template` of its OIDC user mapping.
+
+### Route
+
+`POST /_twake/v1/video_call/rooms`, authenticated with the user's Matrix
+access token (`Authorization: Bearer <token>`). The request body is ignored.
+
+| Status  Meaning                                                                                                                 |
+| ------  ----------------------------------------------------------------------------------------------------------------------- |
+| `201`   Room created: `{"url": "https://visio.example.com/abc-defg-hij"}`.                                                      |
+| `401`   Missing or invalid Matrix access token, or user of another homeserver.                                                  |
+| `404`   No room will be created: module disabled, user without email, or the service's token endpoint answered `404`.           |
+| `502`   The service refused the request or is unreachable (bad credentials, domain not allowed, timeout, response without URL). |
+
+The service's token endpoint answers `404` when its external API is disabled
+or when the user is unknown to it. On `404` the client is expected to build the room
+link itself.
+
+### Service prerequisites (Meet)
+
+- `EXTERNAL_API_ENABLED=True` and `APPLICATION_ENABLED=True`.
+- `APPLICATION_JWT_SECRET_KEY` set.
+- `APPLICATION_BASE_URL` equal to the `livekit_base_url` advertised to Twake
+  Chat in the well-known, without trailing slash.
+- An Application with the `rooms:create` scope, whose allowed domains cover
+  the users' email domains.
+- `EXTERNAL_API_ALLOW_PUBLIC_ACCESS=True` when `room_access_level` is
+  `"public"`.
+- Users already known to the service (matched by email), or it is allowed to create
+  them on their first room: `APPLICATION_ALLOW_USER_CREATION=True`,
+  `OIDC_FALLBACK_TO_EMAIL_FOR_IDENTIFICATION=True` and
+  `OIDC_USER_SUB_FIELD_IMMUTABLE=False`. Otherwise the route answers `404` for
+  them.
 
 ---
 
