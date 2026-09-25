@@ -3,11 +3,15 @@ import { Lru } from "toad-cache";
 import type { Logger } from "winston";
 
 import { DomainError } from "../../errors/domain-error";
-import { UNAUTHORIZED } from "../../errors/error-codes";
+import { BAD_GATEWAY, UNAUTHORIZED } from "../../errors/error-codes";
 import { threepidsSchema, whoamiSchema } from "./schema";
 import type { AuthenticatedRequest, MatrixAuthSettings } from "./types";
 
 const TOKEN_RE = /^Bearer (\S+)$/;
+const REJECTED_STATUSES = new Set([
+  401,
+  403,
+]);
 
 export class MatrixAuth {
   #config: MatrixAuthSettings;
@@ -75,12 +79,18 @@ export class MatrixAuth {
       });
     } catch (err) {
       this.#log.warn(`homeserver unreachable on ${path}: ${err instanceof Error ? err.message : "request failed"}`);
-      throw new DomainError(UNAUTHORIZED, "homeserver unreachable", {
-        cause: err,
+      throw new DomainError(BAD_GATEWAY, "homeserver unreachable", {
+        endpoint: path,
       });
     }
-    if (!response.ok) {
+    if (REJECTED_STATUSES.has(response.status)) {
       return undefined;
+    }
+    if (!response.ok) {
+      this.#log.warn(`homeserver answered ${response.status} on ${path}`);
+      throw new DomainError(BAD_GATEWAY, "homeserver failure", {
+        endpoint: path,
+      });
     }
 
     return response.json().catch(() => undefined);
