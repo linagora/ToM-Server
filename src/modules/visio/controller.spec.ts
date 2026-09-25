@@ -5,10 +5,11 @@ import { createLogger } from "winston";
 
 import { DomainError } from "../../errors/domain-error";
 import { NOT_FOUND, UNAUTHORIZED } from "../../errors/error-codes";
+import type { AuthenticatedRequest } from "../../middleware/auth/types";
 import { createVisioRoomController } from "./controller";
 import { VisioRoomUnavailableError } from "./errors";
 import { VisioService } from "./service";
-import type { VisioDeps, VisioRequest, VisioRoom } from "./types";
+import type { VisioDeps, VisioRoom } from "./types";
 
 const silentLogger = createLogger({
   silent: true,
@@ -51,10 +52,10 @@ const setup = (email: string | null): Setup => {
   };
 };
 
-const requestOf = (userId?: string): VisioRequest =>
+const requestOf = (userId?: string): AuthenticatedRequest =>
   ({
     userId,
-  }) as VisioRequest;
+  }) as AuthenticatedRequest;
 
 describe("createVisioRoomController", () => {
   it("should create the room with the email of the authenticated user", async () => {
