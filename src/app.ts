@@ -12,7 +12,7 @@ import type { Logger } from "winston";
 
 import type { Config } from "./config/types";
 import { errorMiddleware } from "./errors/error-middleware";
-import { MatrixAuth } from "./middleware/auth/index";
+import { TokenValidator } from "./middleware/auth/index";
 import type { AuthenticatedRequest } from "./middleware/auth/types";
 import { createCorsMiddleware } from "./middleware/cors";
 import { httpLogger } from "./middleware/http-logger";
@@ -57,7 +57,7 @@ function mountVisio(config: Config, logger: Logger, app: Express): void {
   });
   let deps: VisioDeps | undefined;
   if (config.visio.enabled) {
-    const auth = new MatrixAuth(
+    const tokenValidator = new TokenValidator(
       {
         serverUrl: config.synapse.server_url,
         serverName: config.server.name,
@@ -75,7 +75,7 @@ function mountVisio(config: Config, logger: Logger, app: Express): void {
       visioLogger,
     );
     deps = {
-      authenticate: auth.middleware(),
+      authenticate: tokenValidator.middleware(),
       resolveEmail: (req: AuthenticatedRequest): Promise<string | null> =>
         req.accessToken ? emailResolver.resolve(req.accessToken) : Promise.resolve(null),
     };
