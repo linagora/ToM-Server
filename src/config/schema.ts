@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { i18nSettingsSchema } from "../i18n/schema";
 import { loggerSettingsSchema } from "../logger/schema";
+import { authSettingsSchema } from "../middleware/auth/schema";
 import { landingSettingsSchema } from "../modules/landing/schema";
 import { visioSettingsSchema } from "../modules/visio/schema";
 import { wellKnownSettingsSchema } from "../modules/well-known/schema";
@@ -591,6 +592,10 @@ const wellKnownConfigSchema = z.object({
   well_known: wellKnownSettingsSchema.prefault({}),
 });
 
+const authConfigSchema = z.object({
+  auth: authSettingsSchema.prefault({}),
+});
+
 const visioConfigSchema = z.object({
   visio: visioSettingsSchema.prefault({}),
 });
@@ -620,5 +625,6 @@ export const configSchema = z.object({
 
   ...landingConfigSchema.shape,
   ...wellKnownConfigSchema.shape,
+  ...authConfigSchema.shape,
   ...visioConfigSchema.shape,
 });

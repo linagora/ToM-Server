@@ -8,17 +8,16 @@ import { threepidsSchema, whoamiSchema } from "./schema";
 import type { AuthenticatedRequest, MatrixAuthSettings } from "./types";
 
 const TOKEN_RE = /^Bearer (\S+)$/;
-const TOKEN_CACHE_SIZE = 1000;
-const TOKEN_CACHE_TTL_MS = 60_000;
 
 export class MatrixAuth {
   #config: MatrixAuthSettings;
   #log: Logger;
-  #tokens = new Lru<string>(TOKEN_CACHE_SIZE, TOKEN_CACHE_TTL_MS);
+  #tokens: Lru<string>;
 
   constructor(config: MatrixAuthSettings, logger: Logger) {
     this.#config = config;
     this.#log = logger;
+    this.#tokens = new Lru<string>(config.tokenCacheSize, config.tokenCacheTtlMs);
   }
 
   /** Validates the Matrix access token against the homeserver and sets `req.userId`. */

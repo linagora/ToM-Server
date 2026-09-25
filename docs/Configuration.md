@@ -37,6 +37,7 @@ Optional fields are commented out with their defaults shown.
 - [Internationalisation](#internationalisation)
 - [Landing Page](#landing-page)
 - [Matrix Client Discovery (Well-Known)](#matrix-client-discovery-well-known)
+- [Matrix Authentication](#matrix-authentication)
 - [Visio](#visio)
 - [Telemetry (OpenTelemetry)](#telemetry-opentelemetry)
 
@@ -596,6 +597,28 @@ well_known:
 
 ---
 
+## Matrix Authentication
+
+Used by the routes authenticated with the user's Matrix access token
+(`Authorization: Bearer <token>`). The token is validated against
+`synapse.server_url` (`/account/whoami`) and only users of `server.name` are
+accepted.
+
+```yaml
+auth:
+  token_cache_size: 1000
+  token_cache_ttl_ms: 60000
+  timeout_ms: 10000
+```
+
+| Field                 Default  Description                                                 |
+| --------------------  -------  ----------------------------------------------------------- |
+| `token_cache_size`    `1000`   Maximum number of validated tokens kept in memory.          |
+| `token_cache_ttl_ms`  `60000`  How long a validated token is trusted, in milliseconds.     |
+| `timeout_ms`          `10000`  Timeout of each request to the homeserver, in milliseconds. |
+
+---
+
 ## Visio
 
 Disabled by default. Lets Twake Chat create video call rooms on the video
@@ -621,10 +644,10 @@ visio:
 | `room_access_level`  —        `"public"`, `"trusted"` or `"restricted"`. When unset, the service applies its default. Ignored by Meet before 1.17.0. |
 | `timeout_ms`         `10000`  Timeout of each request to the service, in milliseconds.                                                               |
 
-The route validates the Matrix access token against `synapse.server_url`
-(`/account/whoami`) and reads the user's email from the homeserver
-(`/account/3pid`): Synapse must store the email of its users, e.g. through the
-`email_template` of its OIDC user mapping.
+The route authenticates the user as described in
+[Matrix Authentication](#matrix-authentication) and reads the user's email
+from the homeserver (`/account/3pid`): Synapse must store the email of its
+users, e.g. through the `email_template` of its OIDC user mapping.
 
 ### Route
 

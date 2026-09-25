@@ -290,10 +290,20 @@ email:
 #                     #     `federation` config
 
 # -----------------------------------------------------------------------------
+# Matrix authentication
+# Optional. Used by the routes authenticated with a Matrix access token.
+# Tokens are checked on `synapse.server_url` (`/account/whoami`).
+# -----------------------------------------------------------------------------
+# auth:
+#   token_cache_size: 1000         # Default: 1000 — validated tokens kept
+#   token_cache_ttl_ms: 60000      # Default: 60000 — validation lifetime
+#   timeout_ms: 10000              # Default: 10000 — per homeserver request
+
+# -----------------------------------------------------------------------------
 # Visio (video call rooms)
 # Optional. Disabled by default.
 # Serves POST /_twake/v1/video_call/rooms; answers 404 while disabled.
-# Tokens are checked on `synapse.server_url`; the user's email is the one the
+# Tokens are checked as described in `auth`; the user's email is the one the
 # homeserver knows (`/account/3pid`).
 # -----------------------------------------------------------------------------
 # visio:
@@ -304,7 +314,7 @@ email:
 #   room_access_level: "trusted"   # Optional — "public" | "trusted" |
 #                                  # "restricted"; unset: service default.
 #                                  # Ignored by Meet before 1.17.0
-#   timeout_ms: 10000              # Default: 10000 — per request
+#   timeout_ms: 10000              # Default: 10000 — per service request
 
 # -----------------------------------------------------------------------------
 # Telemetry (OpenTelemetry)
