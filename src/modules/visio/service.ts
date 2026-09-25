@@ -1,6 +1,7 @@
 import type { Logger } from "winston";
 import type { z } from "zod";
 
+import { HttpClient, readJson } from "../../net/http-client";
 import { VisioRoomUnavailableError, VisioUpstreamError } from "./errors";
 import { visioRoomResponseSchema, visioTokenResponseSchema } from "./schema";
 import type { VisioRoom, VisioSettings } from "./types";
@@ -10,12 +11,15 @@ const ROOMS_PATH = "/external-api/v1.0/rooms/";
 
 export class VisioService {
   #config: VisioSettings;
-  #baseUrl: string;
+  #http: HttpClient;
   #log: Logger;
 
   constructor(config: VisioSettings, logger: Logger) {
     this.#config = config;
-    this.#baseUrl = config.base_url?.replace(/\/+$/, "") ?? "";
+    this.#http = new HttpClient({
+      baseUrl: config.base_url ?? "",
+      timeoutMs: config.timeout_ms,
+    });
     this.#log = logger;
   }
 
@@ -52,21 +56,9 @@ export class VisioService {
 
   async #post(path: string, body: Record<string, unknown>, token?: string): Promise<Response> {
     try {
-      return await fetch(`${this.#baseUrl}${path}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token
-            ? {
-                Authorization: `Bearer ${token}`,
-              }
-            : {}),
-        },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(this.#config.timeout_ms),
-      });
+      return await this.#http.post(path, body, token);
     } catch (err) {
-      throw this.#upstreamError(path, err instanceof Error ? `${err.name}: ${err.message}` : "request failed");
+      throw this.#upstreamError(path, err instanceof Error ? err.message : "request failed");
     }
   }
 
@@ -75,13 +67,12 @@ export class VisioService {
       throw this.#upstreamError(path, `status ${response.status}`);
     }
 
-    const payload: unknown = await response.json().catch(() => undefined);
-    const result = schema.safeParse(payload);
-    if (!result.success) {
+    const body = await readJson(response, schema);
+    if (body === undefined) {
       throw this.#upstreamError(path, "unexpected body");
     }
 
-    return result.data;
+    return body;
   }
 
   #upstreamError(endpoint: string, reason: string): VisioUpstreamError {

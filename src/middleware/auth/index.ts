@@ -1,9 +1,11 @@
-import type { NextFunction, RequestHandler, Response } from "express";
+import type { Response as ExpressResponse, NextFunction, RequestHandler } from "express";
 import { Lru } from "toad-cache";
 import type { Logger } from "winston";
+import type { z } from "zod";
 
 import { DomainError } from "../../errors/domain-error";
 import { BAD_GATEWAY, UNAUTHORIZED } from "../../errors/error-codes";
+import { HttpClient, readJson } from "../../net/http-client";
 import { threepidsSchema, whoamiSchema } from "./schema";
 import type { AuthenticatedRequest, MatrixAuthSettings } from "./types";
 
@@ -17,16 +19,21 @@ export class MatrixAuth {
   #config: MatrixAuthSettings;
   #log: Logger;
   #tokens: Lru<string>;
+  #http: HttpClient;
 
   constructor(config: MatrixAuthSettings, logger: Logger) {
     this.#config = config;
     this.#log = logger;
     this.#tokens = new Lru<string>(config.tokenCacheSize, config.tokenCacheTtlMs);
+    this.#http = new HttpClient({
+      baseUrl: config.serverUrl,
+      timeoutMs: config.timeoutMs,
+    });
   }
 
   /** Validates the Matrix access token against the homeserver and sets `req.userId`. */
   middleware(): RequestHandler {
-    return async (req: AuthenticatedRequest, _res: Response, next: NextFunction): Promise<void> => {
+    return async (req: AuthenticatedRequest, _res: ExpressResponse, next: NextFunction): Promise<void> => {
       try {
         const token = TOKEN_RE.exec(req.headers.authorization ?? "")?.[1];
         if (!token) {
@@ -43,13 +50,9 @@ export class MatrixAuth {
 
   /** The user's email as known by the homeserver, or null. */
   async resolveEmail(token: string): Promise<string | null> {
-    const body = await this.#get("/_matrix/client/v3/account/3pid", token);
-    const result = threepidsSchema.safeParse(body);
-    if (!result.success) {
-      return null;
-    }
+    const body = await this.#get("/_matrix/client/v3/account/3pid", token, threepidsSchema);
 
-    return result.data.threepids.find((threepid) => threepid.medium === "email")?.address ?? null;
+    return body?.threepids.find((threepid) => threepid.medium === "email")?.address ?? null;
   }
 
   async #userId(token: string): Promise<string> {
@@ -58,41 +61,42 @@ export class MatrixAuth {
       return cached;
     }
 
-    const result = whoamiSchema.safeParse(await this.#get("/_matrix/client/v3/account/whoami", token));
+    const userId = (await this.#get("/_matrix/client/v3/account/whoami", token, whoamiSchema))?.user_id;
     // Only local users may act through this server
-    if (!result.success || !result.data.user_id.endsWith(`:${this.#config.serverName}`)) {
+    if (!userId?.endsWith(`:${this.#config.serverName}`)) {
       throw new DomainError(UNAUTHORIZED, "token rejected by the homeserver");
     }
-    this.#tokens.set(token, result.data.user_id);
+    this.#tokens.set(token, userId);
 
-    return result.data.user_id;
+    return userId;
   }
 
-  async #get(path: string, token: string): Promise<unknown> {
-    let response: globalThis.Response;
+  async #get<Schema extends z.ZodType>(
+    path: string,
+    token: string,
+    schema: Schema,
+  ): Promise<z.infer<Schema> | undefined> {
+    let response: Response;
     try {
-      response = await fetch(`${this.#config.serverUrl}${path}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        signal: AbortSignal.timeout(this.#config.timeoutMs),
-      });
+      response = await this.#http.get(path, token);
     } catch (err) {
-      this.#log.warn(`homeserver unreachable on ${path}: ${err instanceof Error ? err.message : "request failed"}`);
-      throw new DomainError(BAD_GATEWAY, "homeserver unreachable", {
-        endpoint: path,
-      });
+      throw this.#homeserverError(path, err instanceof Error ? err.message : "request failed");
     }
     if (REJECTED_STATUSES.has(response.status)) {
       return undefined;
     }
     if (!response.ok) {
-      this.#log.warn(`homeserver answered ${response.status} on ${path}`);
-      throw new DomainError(BAD_GATEWAY, "homeserver failure", {
-        endpoint: path,
-      });
+      throw this.#homeserverError(path, `status ${response.status}`);
     }
 
-    return response.json().catch(() => undefined);
+    return readJson(response, schema);
+  }
+
+  #homeserverError(endpoint: string, reason: string): DomainError {
+    this.#log.warn(`homeserver failure on ${endpoint}: ${reason}`);
+
+    return new DomainError(BAD_GATEWAY, "homeserver failure", {
+      endpoint,
+    });
   }
 }
