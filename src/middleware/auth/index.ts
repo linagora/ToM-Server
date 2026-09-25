@@ -1,28 +1,15 @@
 import type { NextFunction, RequestHandler, Response } from "express";
 import { Lru } from "toad-cache";
 import type { Logger } from "winston";
-import { z } from "zod";
 
 import { DomainError } from "../../errors/domain-error";
 import { UNAUTHORIZED } from "../../errors/error-codes";
+import { threepidsSchema, whoamiSchema } from "./schema";
 import type { AuthenticatedRequest, MatrixAuthSettings } from "./types";
 
 const TOKEN_RE = /^Bearer (\S+)$/;
 const TOKEN_CACHE_SIZE = 1000;
 const TOKEN_CACHE_TTL_MS = 60_000;
-
-const whoamiSchema = z.object({
-  user_id: z.string().min(1),
-});
-
-const threepidsSchema = z.object({
-  threepids: z.array(
-    z.object({
-      medium: z.string(),
-      address: z.string(),
-    }),
-  ),
-});
 
 export class MatrixAuth {
   #config: MatrixAuthSettings;
