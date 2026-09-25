@@ -7,7 +7,7 @@ import { DomainError } from "../../errors/domain-error";
 import { BAD_GATEWAY, UNAUTHORIZED } from "../../errors/error-codes";
 import { HttpClient, readJson } from "../../net/http-client";
 import { whoamiSchema } from "./schema";
-import type { AuthenticatedRequest, MatrixAuthSettings } from "./types";
+import type { AuthenticatedRequest, TokenValidatorSettings } from "./types";
 
 const TOKEN_RE = /^Bearer (\S+)$/;
 const REJECTED_STATUSES = new Set([
@@ -15,13 +15,13 @@ const REJECTED_STATUSES = new Set([
   403,
 ]);
 
-export class MatrixAuth {
-  #config: MatrixAuthSettings;
+export class TokenValidator {
+  #config: TokenValidatorSettings;
   #log: Logger;
   #tokens: Lru<string>;
   #http: HttpClient;
 
-  constructor(config: MatrixAuthSettings, logger: Logger) {
+  constructor(config: TokenValidatorSettings, logger: Logger) {
     this.#config = config;
     this.#log = logger;
     this.#tokens = new Lru<string>(config.tokenCacheSize, config.tokenCacheTtlMs);

@@ -1,6 +1,6 @@
 import type { Request } from "express";
 
-export interface MatrixAuthSettings {
+export interface TokenValidatorSettings {
   serverUrl: string;
   serverName: string;
   timeoutMs: number;
