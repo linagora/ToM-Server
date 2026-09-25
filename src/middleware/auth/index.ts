@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { DomainError } from "../../errors/domain-error";
 import { UNAUTHORIZED } from "../../errors/error-codes";
-import type { VisioRequest } from "./types";
+import type { AuthenticatedRequest, MatrixAuthSettings } from "./types";
 
 const TOKEN_RE = /^Bearer (\S+)$/;
 const TOKEN_CACHE_SIZE = 1000;
@@ -24,12 +24,6 @@ const threepidsSchema = z.object({
   ),
 });
 
-export interface MatrixAuthSettings {
-  serverUrl: string;
-  serverName: string;
-  timeoutMs: number;
-}
-
 export class MatrixAuth {
   #config: MatrixAuthSettings;
   #log: Logger;
@@ -42,7 +36,7 @@ export class MatrixAuth {
 
   /** Validates the Matrix access token against the homeserver and sets `req.userId`. */
   middleware(): RequestHandler {
-    return async (req: VisioRequest, _res: Response, next: NextFunction): Promise<void> => {
+    return async (req: AuthenticatedRequest, _res: Response, next: NextFunction): Promise<void> => {
       try {
         const token = TOKEN_RE.exec(req.headers.authorization ?? "")?.[1];
         if (!token) {

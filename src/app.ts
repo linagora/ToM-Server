@@ -12,14 +12,15 @@ import type { Logger } from "winston";
 
 import type { Config } from "./config/types";
 import { errorMiddleware } from "./errors/error-middleware";
+import { MatrixAuth } from "./middleware/auth/index";
+import type { AuthenticatedRequest } from "./middleware/auth/types";
 import { createCorsMiddleware } from "./middleware/cors";
 import { httpLogger } from "./middleware/http-logger";
 import { requestId } from "./middleware/request-id";
 import { createLandingRouter } from "./modules/landing/router";
 import { createLegacyRouter } from "./modules/legacy/router";
-import { MatrixAuth } from "./modules/visio/matrix-auth";
 import { createVisioRouter } from "./modules/visio/router";
-import type { VisioDeps, VisioRequest } from "./modules/visio/types";
+import type { VisioDeps } from "./modules/visio/types";
 import { createWellKnownClientRouter } from "./modules/well-known/router";
 
 function mountWellKnownClient(config: Config, logger: Logger, app: Express): void {
@@ -65,7 +66,7 @@ function mountVisio(config: Config, logger: Logger, app: Express): void {
     );
     deps = {
       authenticate: auth.middleware(),
-      resolveEmail: (req: VisioRequest): Promise<string | null> =>
+      resolveEmail: (req: AuthenticatedRequest): Promise<string | null> =>
         req.accessToken ? auth.resolveEmail(req.accessToken) : Promise.resolve(null),
     };
   }

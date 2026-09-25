@@ -6,8 +6,9 @@ import request from "supertest";
 import { createLogger } from "winston";
 
 import { BAD_GATEWAY, NOT_FOUND } from "../../errors/error-codes";
+import type { AuthenticatedRequest } from "../../middleware/auth/types";
 import { createVisioRouter } from "./router";
-import type { VisioDeps, VisioRequest, VisioSettings } from "./types";
+import type { VisioDeps, VisioSettings } from "./types";
 
 const ROUTE = "/_twake/v1/video_call/rooms";
 const ROOM_URL = "https://visio.example.com/abc-defg-hij";
@@ -30,7 +31,11 @@ interface MockedDeps extends VisioDeps {
   resolveEmail: Mock<VisioDeps["resolveEmail"]>;
 }
 
-const authenticated: RequestHandler = (req: VisioRequest, _res: express.Response, next: express.NextFunction): void => {
+const authenticated: RequestHandler = (
+  req: AuthenticatedRequest,
+  _res: express.Response,
+  next: express.NextFunction,
+): void => {
   req.userId = "@dwho:example.com";
   next();
 };

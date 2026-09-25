@@ -2,14 +2,15 @@ import type { Logger } from "winston";
 
 import { DomainError } from "../../errors/domain-error";
 import { UNAUTHORIZED } from "../../errors/error-codes";
+import type { AuthenticatedRequest } from "../../middleware/auth/types";
 import { VisioRoomUnavailableError } from "./errors";
 import type { VisioService } from "./service";
-import type { VisioDeps, VisioRequest, VisioRoom } from "./types";
+import type { VisioDeps, VisioRoom } from "./types";
 
 export const createVisioRoomController = async (
   service: VisioService,
   deps: VisioDeps,
-  req: VisioRequest,
+  req: AuthenticatedRequest,
   logger: Logger,
 ): Promise<VisioRoom> => {
   const mxid = req.userId;
