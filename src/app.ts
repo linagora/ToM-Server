@@ -12,11 +12,16 @@ import type { Logger } from "winston";
 
 import type { Config } from "./config/types";
 import { errorMiddleware } from "./errors/error-middleware";
+import { TokenValidator } from "./middleware/auth/index";
+import type { AuthenticatedRequest } from "./middleware/auth/types";
 import { createCorsMiddleware } from "./middleware/cors";
 import { httpLogger } from "./middleware/http-logger";
 import { requestId } from "./middleware/request-id";
 import { createLandingRouter } from "./modules/landing/router";
 import { createLegacyRouter } from "./modules/legacy/router";
+import { EmailResolver } from "./modules/visio/email-resolver";
+import { createVisioRouter } from "./modules/visio/router";
+import type { VisioDeps } from "./modules/visio/types";
 import { createWellKnownClientRouter } from "./modules/well-known/router";
 
 function mountWellKnownClient(config: Config, logger: Logger, app: Express): void {
@@ -44,6 +49,39 @@ function mountWellKnownClient(config: Config, logger: Logger, app: Express): voi
   );
   logger.info(`Mounting wellKnownRouter... client: ${config.well_known.client.enabled}`);
   app.use(wellKnownRouter);
+}
+
+function mountVisio(config: Config, logger: Logger, app: Express): void {
+  const visioLogger = logger.child({
+    module: "visio",
+  });
+  let deps: VisioDeps | undefined;
+  if (config.visio.enabled) {
+    const tokenValidator = new TokenValidator(
+      {
+        serverUrl: config.synapse.server_url,
+        serverName: config.server.name,
+        timeoutMs: config.auth.timeout_ms,
+        tokenCacheSize: config.auth.token_cache_size,
+        tokenCacheTtlMs: config.auth.token_cache_ttl_ms,
+      },
+      visioLogger,
+    );
+    const emailResolver = new EmailResolver(
+      {
+        serverUrl: config.synapse.server_url,
+        timeoutMs: config.auth.timeout_ms,
+      },
+      visioLogger,
+    );
+    deps = {
+      authenticate: tokenValidator.middleware(),
+      resolveEmail: (req: AuthenticatedRequest): Promise<string | null> =>
+        req.accessToken ? emailResolver.resolve(req.accessToken) : Promise.resolve(null),
+    };
+  }
+  logger.info(`Mounting visioRouter... enabled: ${config.visio.enabled}`);
+  app.use(createVisioRouter(config.visio, deps, visioLogger));
 }
 
 export async function createApp(
@@ -91,6 +129,7 @@ export async function createApp(
 
   // --- New modules routers here ---
   mountWellKnownClient(config, logger, app);
+  mountVisio(config, logger, app);
 
   // --- End of new modules ---
 
