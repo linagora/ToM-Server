@@ -4,6 +4,8 @@ export interface MatrixAuthSettings {
   serverUrl: string;
   serverName: string;
   timeoutMs: number;
+  tokenCacheSize: number;
+  tokenCacheTtlMs: number;
 }
 
 export interface AuthenticatedRequest extends Request {

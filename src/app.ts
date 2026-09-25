@@ -60,7 +60,9 @@ function mountVisio(config: Config, logger: Logger, app: Express): void {
       {
         serverUrl: config.synapse.server_url.replace(/\/+$/, ""),
         serverName: config.server.name,
-        timeoutMs: config.visio.timeout_ms,
+        timeoutMs: config.auth.timeout_ms,
+        tokenCacheSize: config.auth.token_cache_size,
+        tokenCacheTtlMs: config.auth.token_cache_ttl_ms,
       },
       visioLogger,
     );
