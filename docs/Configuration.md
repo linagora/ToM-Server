@@ -654,12 +654,12 @@ users, e.g. through the `email_template` of its OIDC user mapping.
 `POST /_twake/v1/video_call/rooms`, authenticated with the user's Matrix
 access token (`Authorization: Bearer <token>`). The request body is ignored.
 
-| Status  Meaning                                                                                                                 |
-| ------  ----------------------------------------------------------------------------------------------------------------------- |
-| `201`   Room created: `{"url": "https://visio.example.com/abc-defg-hij"}`.                                                      |
-| `401`   Missing or invalid Matrix access token, or user of another homeserver.                                                  |
-| `404`   No room will be created: module disabled, user without email, or the service's token endpoint answered `404`.           |
-| `502`   The service refused the request or is unreachable (bad credentials, domain not allowed, timeout, response without URL). |
+| Status  Meaning                                                                                                                                                           |
+| ------  ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `201`   Room created: `{"url": "https://visio.example.com/abc-defg-hij"}`.                                                                                                |
+| `401`   Missing or invalid Matrix access token, or user of another homeserver.                                                                                            |
+| `404`   No room will be created: module disabled, user without email, or the service's token endpoint answered `404`.                                                     |
+| `502`   The service refused the request, or the service or the homeserver is unreachable or failing (bad credentials, domain not allowed, timeout, response without URL). |
 
 The service's token endpoint answers `404` when its external API is disabled
 or when the user is unknown to it. On `404` the client is expected to build the room

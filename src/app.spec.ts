@@ -161,6 +161,32 @@ describe("createApp video call rooms", () => {
     expect(calledUrls(fetchMock)).toHaveLength(1);
   });
 
+  it("should answer 502 M_BAD_GATEWAY when the homeserver is unreachable", async () => {
+    // Arrange
+    globalThis.fetch = mock(() => Promise.reject(new TypeError("fetch failed"))) as unknown as typeof fetch;
+    const app = await createApp(config, silentLogger, undefined);
+
+    // Act
+    const response = await request(app).post(ROUTE).set("Authorization", `Bearer ${TOKEN}`).send({});
+
+    // Assert
+    expect(response.status).toBe(502);
+    expect(response.body.errcode).toBe("M_BAD_GATEWAY");
+  });
+
+  it("should answer 502 M_BAD_GATEWAY when the homeserver fails", async () => {
+    // Arrange
+    globalThis.fetch = mock(() => Promise.resolve(json(500, {}))) as unknown as typeof fetch;
+    const app = await createApp(config, silentLogger, undefined);
+
+    // Act
+    const response = await request(app).post(ROUTE).set("Authorization", `Bearer ${TOKEN}`).send({});
+
+    // Assert
+    expect(response.status).toBe(502);
+    expect(response.body.errcode).toBe("M_BAD_GATEWAY");
+  });
+
   it("should answer 401 for a user of another homeserver", async () => {
     // Arrange
     const fetchMock = mockFetch({
