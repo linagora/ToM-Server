@@ -6,7 +6,7 @@ import type { z } from "zod";
 import { DomainError } from "../../errors/domain-error";
 import { BAD_GATEWAY, UNAUTHORIZED } from "../../errors/error-codes";
 import { HttpClient, readJson } from "../../net/http-client";
-import { threepidsSchema, whoamiSchema } from "./schema";
+import { whoamiSchema } from "./schema";
 import type { AuthenticatedRequest, MatrixAuthSettings } from "./types";
 
 const TOKEN_RE = /^Bearer (\S+)$/;
@@ -46,13 +46,6 @@ export class MatrixAuth {
         next(err);
       }
     };
-  }
-
-  /** The user's email as known by the homeserver, or null. */
-  async resolveEmail(token: string): Promise<string | null> {
-    const body = await this.#get("/_matrix/client/v3/account/3pid", token, threepidsSchema);
-
-    return body?.threepids.find((threepid) => threepid.medium === "email")?.address ?? null;
   }
 
   async #userId(token: string): Promise<string> {

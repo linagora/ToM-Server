@@ -19,6 +19,7 @@ import { httpLogger } from "./middleware/http-logger";
 import { requestId } from "./middleware/request-id";
 import { createLandingRouter } from "./modules/landing/router";
 import { createLegacyRouter } from "./modules/legacy/router";
+import { EmailResolver } from "./modules/visio/email-resolver";
 import { createVisioRouter } from "./modules/visio/router";
 import type { VisioDeps } from "./modules/visio/types";
 import { createWellKnownClientRouter } from "./modules/well-known/router";
@@ -66,10 +67,17 @@ function mountVisio(config: Config, logger: Logger, app: Express): void {
       },
       visioLogger,
     );
+    const emailResolver = new EmailResolver(
+      {
+        serverUrl: config.synapse.server_url,
+        timeoutMs: config.auth.timeout_ms,
+      },
+      visioLogger,
+    );
     deps = {
       authenticate: auth.middleware(),
       resolveEmail: (req: AuthenticatedRequest): Promise<string | null> =>
-        req.accessToken ? auth.resolveEmail(req.accessToken) : Promise.resolve(null),
+        req.accessToken ? emailResolver.resolve(req.accessToken) : Promise.resolve(null),
     };
   }
   logger.info(`Mounting visioRouter... enabled: ${config.visio.enabled}`);
