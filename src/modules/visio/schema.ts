@@ -47,3 +47,12 @@ export const visioTokenResponseSchema = z.object({
 export const visioRoomResponseSchema = z.object({
   url: z.url(),
 });
+
+export const threepidsSchema = z.object({
+  threepids: z.array(
+    z.object({
+      medium: z.string(),
+      address: z.string(),
+    }),
+  ),
+});
