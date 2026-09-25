@@ -58,7 +58,7 @@ function mountVisio(config: Config, logger: Logger, app: Express): void {
   if (config.visio.enabled) {
     const auth = new MatrixAuth(
       {
-        serverUrl: config.synapse.server_url.replace(/\/+$/, ""),
+        serverUrl: config.synapse.server_url,
         serverName: config.server.name,
         timeoutMs: config.auth.timeout_ms,
         tokenCacheSize: config.auth.token_cache_size,
