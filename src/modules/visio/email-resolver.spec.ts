@@ -35,6 +35,7 @@ const threepids = (
     }),
   );
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: test suite
 describe("EmailResolver", () => {
   const originalFetch = globalThis.fetch;
 
@@ -66,13 +67,58 @@ describe("EmailResolver", () => {
 
   it("should return null when the user has no email", async () => {
     // Arrange
-    mockFetch(threepids());
+    mockFetch(
+      threepids({
+        medium: "msisdn",
+        address: "33600000000",
+      }),
+    );
 
     // Act
     const email = await resolver.resolve("t0ken");
 
     // Assert
     expect(email).toBeNull();
+  });
+
+  it("should return null when the user has several emails", async () => {
+    // Arrange
+    mockFetch(
+      threepids(
+        {
+          medium: "email",
+          address: "dwho@example.com",
+        },
+        {
+          medium: "email",
+          address: "doctor@example.org",
+        },
+      ),
+    );
+
+    // Act
+    const email = await resolver.resolve("t0ken");
+
+    // Assert
+    expect(email).toBeNull();
+  });
+
+  it.each([
+    401,
+    403,
+  ])("should throw a VisioUpstreamError when the homeserver rejects the token (%p)", async (status) => {
+    // Arrange
+    mockFetch(
+      new Response("{}", {
+        status,
+      }),
+    );
+
+    // Act
+    const error = await resolver.resolve("t0ken").catch((err: unknown) => err);
+
+    // Assert
+    expect(error).toBeInstanceOf(VisioUpstreamError);
   });
 
   it("should throw a VisioUpstreamError when the homeserver fails", async () => {

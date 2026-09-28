@@ -11,7 +11,7 @@ export interface EmailResolverSettings {
   timeoutMs: number;
 }
 
-/** Reads the user's email from the homeserver. */
+/** Reads the user's email from the homeserver; null when it has none or several. */
 export class EmailResolver {
   #http: HttpClient;
   #log: Logger;
@@ -31,16 +31,23 @@ export class EmailResolver {
     } catch (err) {
       throw this.#homeserverError(err instanceof Error ? err.message : "request failed");
     }
-    if (response.status === 401 || response.status === 403) {
-      return null;
-    }
     if (!response.ok) {
       throw this.#homeserverError(`status ${response.status}`);
     }
 
     const body = await readJson(response, threepidsSchema);
 
-    return body?.threepids.find((threepid) => threepid.medium === "email")?.address ?? null;
+    const emails = body?.threepids.filter((threepid) => threepid.medium === "email") ?? [];
+    const [email] = emails;
+    if (!email || emails.length > 1) {
+      this.#log.warn("cannot pick a single email for the user", {
+        count: emails.length,
+      });
+
+      return null;
+    }
+
+    return email.address;
   }
 
   #homeserverError(reason: string): VisioUpstreamError {
