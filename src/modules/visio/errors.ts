@@ -1,5 +1,5 @@
 import { DomainError } from "../../errors/domain-error";
-import { BAD_GATEWAY, NOT_FOUND } from "../../errors/error-codes";
+import { BAD_GATEWAY, NOT_FOUND, UNPROCESSABLE } from "../../errors/error-codes";
 
 export class VisioRoomUnavailableError extends DomainError {
   constructor(reason: string, context: Record<string, unknown> = {}) {
@@ -10,5 +10,11 @@ export class VisioRoomUnavailableError extends DomainError {
 export class VisioUpstreamError extends DomainError {
   constructor(reason: string, context: Record<string, unknown> = {}) {
     super(BAD_GATEWAY, reason, context);
+  }
+}
+
+export class VisioEmailUnresolvableError extends DomainError {
+  constructor(reason: string, context: Record<string, unknown> = {}) {
+    super(UNPROCESSABLE, reason, context);
   }
 }

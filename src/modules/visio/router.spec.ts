@@ -5,7 +5,7 @@ import express from "express";
 import request from "supertest";
 import { createLogger } from "winston";
 
-import { BAD_GATEWAY, NOT_FOUND } from "../../errors/error-codes";
+import { BAD_GATEWAY, NOT_FOUND, UNPROCESSABLE } from "../../errors/error-codes";
 import type { AuthenticatedRequest } from "../../middleware/auth/types";
 import { createVisioRouter } from "./router";
 import type { VisioDeps, VisioSettings } from "./types";
@@ -16,6 +16,7 @@ const ROOM_URL = "https://visio.example.com/abc-defg-hij";
 const STATUS: Record<string, number> = {
   [NOT_FOUND]: 404,
   [BAD_GATEWAY]: 502,
+  [UNPROCESSABLE]: 422,
 };
 
 const enabledConfig: VisioSettings = {
@@ -153,7 +154,7 @@ describe("VisioRouter", () => {
     expect(deps.resolveEmail).toHaveBeenCalledTimes(1);
   });
 
-  it("should return 404 when the user has no email", async () => {
+  it("should return 422 when the user has no single email", async () => {
     // Arrange
     const fetchMock = mockFetch();
     const deps = setupDeps();
@@ -164,7 +165,8 @@ describe("VisioRouter", () => {
     const response = await request(app).post(ROUTE).send({});
 
     // Assert
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(422);
+    expect(response.body.code).toBe(UNPROCESSABLE);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

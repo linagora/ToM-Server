@@ -203,7 +203,7 @@ describe("createApp video call rooms", () => {
     expect(calledUrls(fetchMock)).toHaveLength(1);
   });
 
-  it("should answer 404 M_NOT_FOUND when the user has no email", async () => {
+  it("should answer 422 M_UNPROCESSABLE when the user has no email", async () => {
     // Arrange
     const fetchMock = mockFetch({
       userId: "@dwho:example.com",
@@ -214,8 +214,8 @@ describe("createApp video call rooms", () => {
     const response = await request(app).post(ROUTE).set("Authorization", `Bearer ${TOKEN}`).send({});
 
     // Assert
-    expect(response.status).toBe(404);
-    expect(response.body.errcode).toBe("M_NOT_FOUND");
+    expect(response.status).toBe(422);
+    expect(response.body.errcode).toBe("M_UNPROCESSABLE");
     expect(calledUrls(fetchMock).some((url) => url.includes("visio.example.com"))).toBe(false);
   });
 

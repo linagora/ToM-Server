@@ -646,8 +646,8 @@ visio:
 
 The route authenticates the user as described in
 [Matrix Authentication](#matrix-authentication) and reads the user's email
-from the homeserver (`/account/3pid`): Synapse must store the email of its
-users, e.g. through the `email_template` of its OIDC user mapping.
+from the homeserver (`/account/3pid`): Synapse must store exactly one email
+for each user, e.g. through the `email_template` of its OIDC user mapping.
 
 ### Route
 
@@ -658,7 +658,8 @@ access token (`Authorization: Bearer <token>`). The request body is ignored.
 | ------  ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `201`   Room created: `{"url": "https://visio.example.com/abc-defg-hij"}`.                                                                                                |
 | `401`   Missing or invalid Matrix access token, or user of another homeserver.                                                                                            |
-| `404`   No room will be created: module disabled, user without email, or the service's token endpoint answered `404`.                                                     |
+| `404`   No room will be created: module disabled, or the service's token endpoint answered `404`.                                                                         |
+| `422`   The user has no email or several emails on the homeserver.                                                                                                        |
 | `502`   The service refused the request, or the service or the homeserver is unreachable or failing (bad credentials, domain not allowed, timeout, response without URL). |
 
 The service's token endpoint answers `404` when its external API is disabled

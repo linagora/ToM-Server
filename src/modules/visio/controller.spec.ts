@@ -4,10 +4,10 @@ import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { createLogger } from "winston";
 
 import { DomainError } from "../../errors/domain-error";
-import { NOT_FOUND, UNAUTHORIZED } from "../../errors/error-codes";
+import { UNAUTHORIZED, UNPROCESSABLE } from "../../errors/error-codes";
 import type { AuthenticatedRequest } from "../../middleware/auth/types";
 import { createVisioRoomController } from "./controller";
-import { VisioRoomUnavailableError } from "./errors";
+import { VisioEmailUnresolvableError } from "./errors";
 import { VisioService } from "./service";
 import type { VisioDeps, VisioRoom } from "./types";
 
@@ -75,7 +75,7 @@ describe("createVisioRoomController", () => {
   it.each([
     null,
     "",
-  ])("should throw NOT_FOUND when the user has no email (%p)", async (email) => {
+  ])("should throw UNPROCESSABLE when the user has no single email (%p)", async (email) => {
     // Arrange
     const { service, deps, createRoom } = setup(email);
 
@@ -85,8 +85,8 @@ describe("createVisioRoomController", () => {
     );
 
     // Assert
-    expect(error).toBeInstanceOf(VisioRoomUnavailableError);
-    expect((error as VisioRoomUnavailableError).code).toBe(NOT_FOUND);
+    expect(error).toBeInstanceOf(VisioEmailUnresolvableError);
+    expect((error as VisioEmailUnresolvableError).code).toBe(UNPROCESSABLE);
     expect(createRoom).not.toHaveBeenCalled();
   });
 
