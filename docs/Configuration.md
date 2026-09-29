@@ -33,6 +33,7 @@ Optional fields are commented out with their defaults shown.
 - [OIDC](#oidc)
 - [Twake Chat](#twake-chat)
 - [Features](#features)
+- [Account Deletion](#account-deletion)
 - [Logging](#logging)
 - [Internationalisation](#internationalisation)
 - [Landing Page](#landing-page)
@@ -528,6 +529,43 @@ features:
 | `default_preset`          `"private_chat"`  Default room preset.                                         |
 | `encryption`              `"allowed"`       Encryption mode: `"allowed"`, `"enforced"`, or `"disabled"`. |
 | `presets`                 `[]`              Custom room presets.                                         |
+
+---
+
+## Account Deletion
+
+Erases the Matrix account of a user deleted in the directory, from a RabbitMQ
+message carrying its `userId` and `internalEmail`. The account is the one
+Synapse's SSO mapping gives the user, on `server.name`: `localpart_from` names
+the login it was built from, which Synapse lowercases and escapes. Disabled by
+default.
+
+A shared server keeps the default binding and takes the localpart from the
+uid. A tenant server binds `user.deleted.<organization id>` on
+`cs.instances.out.exchange` with its own queue, and takes the localpart from
+the email. A message that still fails after `max_retries` goes to
+`<queue>.dlq`.
+
+```yaml
+account_deletion:
+  enabled: false
+  rabbitmq_url: "amqp://user:password@localhost:5672/vhost"
+  exchange: "auth"
+  routing_key: "user.deleted"
+  queue: "tom.user.deleted.queue"
+  localpart_from: "uid"
+  max_retries: 5
+```
+
+| Field             Default                     Description                                            |
+| ----------------  --------------------------  ------------------------------------------------------ |
+| `enabled`         `false`                     Consume deletion messages.                             |
+| `rabbitmq_url`    `""`                        AMQP connection URL.                                   |
+| `exchange`        `"auth"`                    Exchange the deletions are published on.               |
+| `routing_key`     `"user.deleted"`            Routing key to bind.                                   |
+| `queue`           `"tom.user.deleted.queue"`  Queue to consume.                                      |
+| `localpart_from`  `"uid"`                     `"uid"` (`userId`) or `"email"` (`internalEmail`).     |
+| `max_retries`     `5`                         Attempts before the message dead-letters.              |
 
 ---
 

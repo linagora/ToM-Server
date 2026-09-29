@@ -14,11 +14,14 @@ import type { PrometheusExporter } from "@opentelemetry/exporter-prometheus";
 import type { Express } from "express";
 import type { Logger } from "winston";
 
+import type { RabbitMQClient } from "@linagora/rabbitmq-client";
+
 import { createApp } from "./app";
 import { loadConfig } from "./config/index";
 import type { Config } from "./config/types";
 import { loadMessages } from "./i18n/index";
 import { createLogger } from "./logger/index";
+import { startAccountDeletionConsumer } from "./modules/account-deletion/consumer";
 
 const configPath: string | undefined = process.argv.includes("--config")
   ? process.argv[process.argv.indexOf("--config") + 1]
@@ -41,6 +44,8 @@ const prometheusExporter: PrometheusExporter | undefined = initTelemetry(
   }),
 );
 
+let accountDeletion: RabbitMQClient | undefined;
+
 // Initialize app asynchronously and start server
 (async () => {
   const app: Express = await createApp(config, logger, prometheusExporter);
@@ -48,6 +53,13 @@ const prometheusExporter: PrometheusExporter | undefined = initTelemetry(
   app.listen(config.server.port, config.server.host, () => {
     logger.info(`tom listening on ${config.server.host}:${config.server.port}`);
   });
+
+  accountDeletion = await startAccountDeletionConsumer(
+    config,
+    logger.child({
+      module: "account-deletion",
+    }),
+  );
 })().catch((err) => {
   logger.error("Failed to start application:", err);
   process.exit(1);
@@ -55,6 +67,7 @@ const prometheusExporter: PrometheusExporter | undefined = initTelemetry(
 
 // Graceful shutdown — flush pending spans and metrics
 process.on("SIGTERM", async () => {
+  await accountDeletion?.close();
   await shutdownTelemetry(
     logger.child({
       module: "telemetry",

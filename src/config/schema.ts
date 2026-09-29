@@ -508,6 +508,21 @@ const twakeChatSettingsSchema = z.object({
   enable_invitations: z.boolean().default(false),
 });
 
+const accountDeletionSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  rabbitmq_url: z.string().default(""),
+  exchange: z.string().default("auth"),
+  routing_key: z.string().default("user.deleted"),
+  queue: z.string().default("tom.user.deleted.queue"),
+  localpart_from: z
+    .enum([
+      "uid",
+      "email",
+    ])
+    .default("uid"),
+  max_retries: z.number().int().nonnegative().default(5),
+});
+
 const featuresSettingsSchema = z.object({
   common_settings: commonSettingsSchema.prefault({}),
   matrix_profile_updates_allowed: z.boolean().default(true),
@@ -567,6 +582,9 @@ const twakeChatConfigSchema = z.object({
 const featuresConfigSchema = z.object({
   features: featuresSettingsSchema.prefault({}),
 });
+const accountDeletionConfigSchema = z.object({
+  account_deletion: accountDeletionSettingsSchema.prefault({}),
+});
 
 const loggerConfigSchema = z.object({
   logger: loggerSettingsSchema.prefault({}),
@@ -608,6 +626,7 @@ export const configSchema = z.object({
   ...oidcConfigSchema.shape,
   ...twakeChatConfigSchema.shape,
   ...featuresConfigSchema.shape,
+  ...accountDeletionConfigSchema.shape,
 
   ...loggerConfigSchema.shape,
   ...i18nConfigSchema.shape,
