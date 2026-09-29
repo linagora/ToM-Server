@@ -187,7 +187,7 @@ describe("createApp video call rooms", () => {
     expect(response.body.errcode).toBe("M_BAD_GATEWAY");
   });
 
-  it("should answer 401 for a user of another homeserver", async () => {
+  it("should answer 403 M_FORBIDDEN for a user of another homeserver", async () => {
     // Arrange
     const fetchMock = mockFetch({
       userId: "@dwho:other.example",
@@ -199,7 +199,8 @@ describe("createApp video call rooms", () => {
     const response = await request(app).post(ROUTE).set("Authorization", `Bearer ${TOKEN}`).send({});
 
     // Assert
-    expect(response.status).toBe(401);
+    expect(response.status).toBe(403);
+    expect(response.body.errcode).toBe("M_FORBIDDEN");
     expect(calledUrls(fetchMock)).toHaveLength(1);
   });
 

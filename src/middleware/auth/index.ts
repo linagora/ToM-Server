@@ -4,7 +4,7 @@ import type { Logger } from "winston";
 import type { z } from "zod";
 
 import { DomainError } from "../../errors/domain-error";
-import { BAD_GATEWAY, UNAUTHORIZED } from "../../errors/error-codes";
+import { BAD_GATEWAY, FORBIDDEN, UNAUTHORIZED } from "../../errors/error-codes";
 import { HttpClient, readJson } from "../../net/http-client";
 import { whoamiSchema } from "./schema";
 import type { AuthenticatedRequest, TokenValidatorSettings } from "./types";
@@ -55,9 +55,12 @@ export class TokenValidator {
     }
 
     const userId = (await this.#get("/_matrix/client/v3/account/whoami", token, whoamiSchema))?.user_id;
-    // Only local users may act through this server
-    if (!userId?.endsWith(`:${this.#config.serverName}`)) {
+    if (!userId) {
       throw new DomainError(UNAUTHORIZED, "token rejected by the homeserver");
+    }
+    // Only local users may act through this server
+    if (!userId.endsWith(`:${this.#config.serverName}`)) {
+      throw new DomainError(FORBIDDEN, "user is not local to this server");
     }
     this.#tokens.set(token, userId);
 
