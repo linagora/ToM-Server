@@ -89,6 +89,9 @@ export default class DeactivateAccountService implements IAdminService {
   /**
    * Deactivate user account in matrix server
    *
+   * Synapse answers 200 for an account that is already deactivated and 404 for
+   * one that does not exist; both mean there is nothing left to erase.
+   *
    * @param {string} userId - The ID of the user to deactivate
    * @param {string} token - The access token to be used for authentication
    * @returns {Promise<void>}
@@ -98,7 +101,7 @@ export default class DeactivateAccountService implements IAdminService {
     token: string
   ): Promise<void> => {
     try {
-      await fetch(
+      const response = await fetch(
         buildUrl(
           this.config.matrix_server,
           `/_synapse/admin/v1/deactivate/${userId}`
@@ -114,6 +117,19 @@ export default class DeactivateAccountService implements IAdminService {
           })
         }
       )
+
+      if (response.status === 404) {
+        this.logger.info(
+          `[DeactivateAccountService] User account ${userId} not found, nothing to disable`
+        )
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          `Synapse answered ${response.status}: ${await response.text()}`
+        )
+      }
 
       this.logger.info(
         `[DeactivateAccountService] Disabled user account ${userId}`

@@ -40,7 +40,11 @@ describe('the admin service', () => {
   describe('the removeAccount method', () => {
     it('should try to get an admin access token', async () => {
       tokenServiceSpy.mockResolvedValueOnce('some_access_token')
-      global.fetch = mock()
+      global.fetch = mock().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: mock().mockResolvedValue({ total: 0 })
+      })
       await service.removeAccount('some_user_id')
 
       expect(tokenServiceSpy).toHaveBeenCalledWith('admin', 'XXXXX')
@@ -159,6 +163,30 @@ describe('the admin service', () => {
       await expect(
         service.disableUserAccount('some_user_id', 'some_access_token')
       ).rejects.toThrow()
+    })
+
+    it('should throw an error if the synapse admin API answers an error', async () => {
+      global.fetch = mock().mockResolvedValue({
+        ok: false,
+        status: 500,
+        text: mock().mockResolvedValue('boom')
+      })
+
+      await expect(
+        service.disableUserAccount('some_user_id', 'some_access_token')
+      ).rejects.toThrow()
+    })
+
+    it('should succeed when synapse does not know the user', async () => {
+      global.fetch = mock().mockResolvedValue({
+        ok: false,
+        status: 404,
+        text: mock().mockResolvedValue('{"errcode":"M_NOT_FOUND"}')
+      })
+
+      await expect(
+        service.disableUserAccount('some_user_id', 'some_access_token')
+      ).resolves.toBeUndefined()
     })
   })
 })
