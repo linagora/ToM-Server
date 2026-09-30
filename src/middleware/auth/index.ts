@@ -5,6 +5,7 @@ import type { z } from "zod";
 
 import { DomainError } from "../../errors/domain-error";
 import { BAD_GATEWAY, FORBIDDEN, UNAUTHORIZED } from "../../errors/error-codes";
+import { translate } from "../../i18n/index";
 import { HttpClient, readJson } from "../../net/http-client";
 import { whoamiSchema } from "./schema";
 import type { AuthenticatedRequest, TokenValidatorSettings } from "./types";
@@ -37,7 +38,7 @@ export class TokenValidator {
       try {
         const token = TOKEN_RE.exec(req.headers.authorization ?? "")?.[1];
         if (!token) {
-          throw new DomainError(UNAUTHORIZED, "missing bearer token");
+          throw new DomainError(UNAUTHORIZED, "auth.missing_token");
         }
         req.userId = await this.#userId(token);
         req.accessToken = token;
@@ -56,11 +57,11 @@ export class TokenValidator {
 
     const userId = (await this.#get("/_matrix/client/v3/account/whoami", token, whoamiSchema))?.user_id;
     if (!userId) {
-      throw new DomainError(UNAUTHORIZED, "token rejected by the homeserver");
+      throw new DomainError(UNAUTHORIZED, "auth.token_rejected");
     }
     // Only local users may act through this server
     if (!userId.endsWith(`:${this.#config.serverName}`)) {
-      throw new DomainError(FORBIDDEN, "user is not local to this server");
+      throw new DomainError(FORBIDDEN, "auth.user_not_local");
     }
     this.#tokens.set(token, userId);
 
@@ -76,22 +77,32 @@ export class TokenValidator {
     try {
       response = await this.#http.get(path, token);
     } catch (err) {
-      throw this.#homeserverError(path, err instanceof Error ? err.message : "request failed");
+      throw this.#homeserverError(path, err instanceof Error ? err.message : translate("log.net.request_failed"));
     }
     if (REJECTED_STATUSES.has(response.status)) {
       return undefined;
     }
     if (!response.ok) {
-      throw this.#homeserverError(path, `status ${response.status}`);
+      throw this.#homeserverError(
+        path,
+        translate("log.net.status", {
+          status: response.status,
+        }),
+      );
     }
 
     return readJson(response, schema);
   }
 
   #homeserverError(endpoint: string, reason: string): DomainError {
-    this.#log.warn(`homeserver failure on ${endpoint}: ${reason}`);
+    this.#log.warn(
+      translate("log.auth.homeserver_failure", {
+        endpoint,
+        reason,
+      }),
+    );
 
-    return new DomainError(BAD_GATEWAY, "homeserver failure", {
+    return new DomainError(BAD_GATEWAY, "auth.homeserver_failure", {
       endpoint,
     });
   }

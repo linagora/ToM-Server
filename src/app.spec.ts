@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, type Mock, mock } from "bun:test";
+import { afterEach, beforeAll, describe, expect, it, type Mock, mock } from "bun:test";
 
 import { Router } from "express";
 import request from "supertest";
@@ -6,6 +6,7 @@ import { createLogger } from "winston";
 
 import { createApp } from "./app";
 import { configSchema } from "./config/schema";
+import { loadMessages } from "./i18n/index";
 
 const ROUTE = "/_twake/v1/video_call/rooms";
 const ROOM_URL = "https://visio.example.com/abc-defg-hij";
@@ -106,6 +107,10 @@ const calledUrls = (fetchMock: FetchMock): string[] => fetchMock.mock.calls.map(
 describe("createApp video call rooms", () => {
   const originalFetch = globalThis.fetch;
 
+  beforeAll(() => {
+    loadMessages("assets/i18n", silentLogger);
+  });
+
   afterEach(() => {
     globalThis.fetch = originalFetch;
   });
@@ -144,7 +149,10 @@ describe("createApp video call rooms", () => {
 
     // Assert
     expect(response.status).toBe(401);
-    expect(response.body.errcode).toBe("M_UNAUTHORIZED");
+    expect(response.body).toEqual({
+      errcode: "M_UNAUTHORIZED",
+      error: "Missing access token",
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -154,10 +162,15 @@ describe("createApp video call rooms", () => {
     const app = await createApp(config, silentLogger, undefined);
 
     // Act
-    const response = await request(app).post(ROUTE).set("Authorization", "Bearer bad").send({});
+    const response = await request(app)
+      .post(ROUTE)
+      .set("Authorization", "Bearer bad")
+      .set("Accept-Language", "fr-FR,fr;q=0.9")
+      .send({});
 
     // Assert
     expect(response.status).toBe(401);
+    expect(response.body.error).toBe("Le jeton d'accès a été refusé par le serveur Matrix");
     expect(calledUrls(fetchMock)).toHaveLength(1);
   });
 

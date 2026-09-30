@@ -18,3 +18,9 @@ landing.not_found: "La page d'accueil n'est pas disponible"
 well_known.disabled: "La découverte du client Matrix est désactivée"
 well_known.empty: "Le document de découverte du client Matrix est vide"
 well_known.invalid: "La découverte du client Matrix est mal configurée"
+
+# Authentification Matrix
+auth.missing_token: "Jeton d'accès manquant"
+auth.token_rejected: "Le jeton d'accès a été refusé par le serveur Matrix"
+auth.user_not_local: "Seuls les utilisateurs de ce serveur sont autorisés"
+auth.homeserver_failure: "Le serveur Matrix n'a pas pu traiter la requête"

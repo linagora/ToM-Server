@@ -1,5 +1,7 @@
 import type { z } from "zod";
 
+import { translate } from "../i18n/index";
+
 export interface HttpClientSettings {
   baseUrl: string;
   timeoutMs: number;
@@ -61,9 +63,12 @@ export class HttpClient {
         signal: AbortSignal.timeout(this.#timeoutMs),
       });
     } catch (err) {
-      throw new UnreachableError(err instanceof Error ? `${err.name}: ${err.message}` : "request failed", {
-        cause: err,
-      });
+      throw new UnreachableError(
+        err instanceof Error ? `${err.name}: ${err.message}` : translate("log.net.request_failed"),
+        {
+          cause: err,
+        },
+      );
     }
   }
 }

@@ -18,3 +18,14 @@ landing.not_found: "The landing page is not available"
 well_known.disabled: "Matrix client discovery is disabled"
 well_known.empty: "The Matrix client discovery document is empty"
 well_known.invalid: "Matrix client discovery is misconfigured"
+
+# Matrix authentication
+auth.missing_token: "Missing access token"
+auth.token_rejected: "The access token was rejected by the homeserver"
+auth.user_not_local: "Only users of this server are allowed"
+auth.homeserver_failure: "The homeserver failed to process the request"
+
+# Log messages: English only, read with translate()
+log.net.request_failed: "request failed"
+log.net.status: "status {{status}}"
+log.auth.homeserver_failure: "homeserver failure on {{endpoint}}: {{reason}}"
