@@ -10,3 +10,11 @@ M_UNKNOWN: "An internal error occurred"
 M_SERVICE_UNAVAILABLE: "Service temporarily unavailable"
 M_BAD_GATEWAY: "The upstream service failed to process the request"
 M_UNPROCESSABLE: "The request cannot be processed for this user"
+
+# Landing page
+landing.not_found: "The landing page is not available"
+
+# Matrix client discovery (well-known)
+well_known.disabled: "Matrix client discovery is disabled"
+well_known.empty: "The Matrix client discovery document is empty"
+well_known.invalid: "Matrix client discovery is misconfigured"

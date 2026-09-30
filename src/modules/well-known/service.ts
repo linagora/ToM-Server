@@ -39,7 +39,7 @@ export class WellKnownClientService {
       issues: result.error.issues,
     });
 
-    throw new DomainError(INTERNAL, `well-known-client ${label} failed validation`, {
+    throw new DomainError(INTERNAL, "well_known.invalid", {
       label,
       issues: result.error.issues,
     });

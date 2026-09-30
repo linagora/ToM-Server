@@ -29,7 +29,7 @@ export function errorMiddleware(i18nConfig: I18nConfig) {
 
       res.status(status).json({
         errcode: err.code,
-        error: resolveMessage(locale, err.code, err.context),
+        error: resolveMessage(locale, err.message, err.context),
       });
       return;
     }
