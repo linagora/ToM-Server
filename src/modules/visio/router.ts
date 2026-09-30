@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type { Logger } from "winston";
 
+import { translate } from "../../i18n/index";
 import { createVisioRoomController } from "./controller";
 import { VisioRoomUnavailableError } from "./errors";
 import { VisioService } from "./service";
@@ -13,11 +14,10 @@ export const createVisioRouter = (config: VisioSettings, deps: VisioDeps | undef
 
   if (!config.enabled || !deps) {
     router.post(ROUTE, (_req, _res, next) => {
-      const msg = "video call room creation disabled";
-      logger.info(msg);
+      logger.info(translate("log.visio.disabled"));
 
       next(
-        new VisioRoomUnavailableError(msg, {
+        new VisioRoomUnavailableError("visio.disabled", {
           route: ROUTE,
         }),
       );

@@ -12,6 +12,7 @@ import type { Logger } from "winston";
 
 import type { Config } from "./config/types";
 import { errorMiddleware } from "./errors/error-middleware";
+import { translate } from "./i18n/index";
 import { TokenValidator } from "./middleware/auth/index";
 import type { AuthenticatedRequest } from "./middleware/auth/types";
 import { createCorsMiddleware } from "./middleware/cors";
@@ -80,7 +81,11 @@ function mountVisio(config: Config, logger: Logger, app: Express): void {
         req.accessToken ? emailResolver.resolve(req.accessToken) : Promise.resolve(null),
     };
   }
-  logger.info(`Mounting visioRouter... enabled: ${config.visio.enabled}`);
+  logger.info(
+    translate("log.visio.mounting", {
+      enabled: String(config.visio.enabled),
+    }),
+  );
   app.use(createVisioRouter(config.visio, deps, visioLogger));
 }
 

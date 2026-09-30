@@ -25,7 +25,23 @@ auth.token_rejected: "The access token was rejected by the homeserver"
 auth.user_not_local: "Only users of this server are allowed"
 auth.homeserver_failure: "The homeserver failed to process the request"
 
+# Visio
+visio.no_authenticated_user: "No authenticated user"
+visio.disabled: "Video call room creation is disabled"
+visio.email_unresolvable: "No single email address is known for this user"
+visio.room_unavailable: "The video conferencing service cannot create a room for this user"
+visio.upstream_failure: "The video conferencing service failed to process the request"
+visio.homeserver_failure: "The homeserver failed to process the request"
+
 # Log messages: English only, read with translate()
 log.net.request_failed: "request failed"
 log.net.status: "status {{status}}"
+log.net.unexpected_body: "unexpected body"
 log.auth.homeserver_failure: "homeserver failure on {{endpoint}}: {{reason}}"
+log.visio.mounting: "Mounting visioRouter... enabled: {{enabled}}"
+log.visio.disabled: "video call room creation disabled"
+log.visio.email_unresolvable: "no single email found for user"
+log.visio.email_count: "cannot pick a single email for the user"
+log.visio.room_unavailable: "visio token endpoint answered 404: external API disabled or user unknown to the service"
+log.visio.upstream_failure: "visio upstream failure on {{endpoint}}: {{reason}}"
+log.visio.homeserver_failure: "homeserver failure on {{endpoint}}: {{reason}}"

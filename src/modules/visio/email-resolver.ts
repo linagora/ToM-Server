@@ -1,5 +1,6 @@
 import type { Logger } from "winston";
 
+import { translate } from "../../i18n/index";
 import { HttpClient, readJson } from "../../net/http-client";
 import { VisioUpstreamError } from "./errors";
 import { threepidsSchema } from "./schema";
@@ -29,10 +30,14 @@ export class EmailResolver {
     try {
       response = await this.#http.get(THREEPIDS_PATH, token);
     } catch (err) {
-      throw this.#homeserverError(err instanceof Error ? err.message : "request failed");
+      throw this.#homeserverError(err instanceof Error ? err.message : translate("log.net.request_failed"));
     }
     if (!response.ok) {
-      throw this.#homeserverError(`status ${response.status}`);
+      throw this.#homeserverError(
+        translate("log.net.status", {
+          status: response.status,
+        }),
+      );
     }
 
     const body = await readJson(response, threepidsSchema);
@@ -40,7 +45,7 @@ export class EmailResolver {
     const emails = body?.threepids.filter((threepid) => threepid.medium === "email") ?? [];
     const [email] = emails;
     if (!email || emails.length > 1) {
-      this.#log.warn("cannot pick a single email for the user", {
+      this.#log.warn(translate("log.visio.email_count"), {
         count: emails.length,
       });
 
@@ -51,11 +56,16 @@ export class EmailResolver {
   }
 
   #homeserverError(reason: string): VisioUpstreamError {
-    const msg = `homeserver failure on ${THREEPIDS_PATH}: ${reason}`;
-    this.#log.warn(msg);
+    this.#log.warn(
+      translate("log.visio.homeserver_failure", {
+        endpoint: THREEPIDS_PATH,
+        reason,
+      }),
+    );
 
-    return new VisioUpstreamError(msg, {
+    return new VisioUpstreamError("visio.homeserver_failure", {
       endpoint: THREEPIDS_PATH,
+      reason,
     });
   }
 }

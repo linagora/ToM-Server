@@ -1,9 +1,10 @@
-import { afterEach, describe, expect, it, type Mock, mock } from "bun:test";
+import { afterEach, beforeAll, describe, expect, it, type Mock, mock } from "bun:test";
 import { Writable } from "node:stream";
 
 import { createLogger, transports } from "winston";
 
 import { BAD_GATEWAY, NOT_FOUND } from "../../errors/error-codes";
+import { loadMessages } from "../../i18n/index";
 import { VisioRoomUnavailableError, VisioUpstreamError } from "./errors";
 import { VisioService } from "./service";
 import type { VisioSettings } from "./types";
@@ -67,6 +68,10 @@ const mockFetch = (...results: Array<Response | Error>): FetchMock => {
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: test suite
 describe("VisioService", () => {
   const originalFetch = globalThis.fetch;
+
+  beforeAll(() => {
+    loadMessages("assets/i18n", silentLogger);
+  });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
@@ -189,7 +194,7 @@ describe("VisioService", () => {
     // Assert
     expect(error).toBeInstanceOf(VisioUpstreamError);
     expect((error as VisioUpstreamError).code).toBe(BAD_GATEWAY);
-    expect((error as VisioUpstreamError).message).toContain(`status ${status}`);
+    expect((error as VisioUpstreamError).context.reason).toBe(`status ${status}`);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -278,7 +283,7 @@ describe("VisioService", () => {
 
     // Assert
     expect(error).toBeInstanceOf(VisioUpstreamError);
-    expect((error as VisioUpstreamError).message).toContain("TimeoutError");
+    expect((error as VisioUpstreamError).context.reason).toContain("TimeoutError");
   });
 
   it("should never log nor report the secret, the token or the email", async () => {
