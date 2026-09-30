@@ -28,7 +28,9 @@ auth.homeserver_failure: "Le serveur Matrix n'a pas pu traiter la requête"
 # Visio
 visio.no_authenticated_user: "Aucun utilisateur authentifié"
 visio.disabled: "La création de salles de visio est désactivée"
-visio.email_unresolvable: "Aucune adresse email unique n'est connue pour cet utilisateur"
-visio.room_unavailable: "Le service de visio ne peut pas créer de salle pour cet utilisateur"
+visio.email_unresolvable: "Aucune adresse email unique n'est connue pour cet
+  utilisateur"
+visio.room_unavailable: "Le service de visio ne peut pas créer de salle pour
+  cet utilisateur"
 visio.upstream_failure: "Le service de visio n'a pas pu traiter la requête"
 visio.homeserver_failure: "Le serveur Matrix n'a pas pu traiter la requête"
