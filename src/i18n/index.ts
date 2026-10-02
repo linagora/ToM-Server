@@ -93,3 +93,8 @@ export function resolveMessage(locale: string, code: string, context: Record<str
   const template = dict?.[code] ?? code;
   return interpolate(template, context);
 }
+
+/** The English message of `key`, for the English-only `log.*` keys. */
+export function translate(key: string, context: Record<string, unknown> = {}): string {
+  return resolveMessage("en", key, context);
+}

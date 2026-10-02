@@ -16,6 +16,8 @@ const STATUS_MAP: Record<ErrorCode, number> = {
   M_INVALID_PEPPER: 400,
   M_UNKNOWN: 500,
   M_SERVICE_UNAVAILABLE: 503,
+  M_BAD_GATEWAY: 502,
+  M_UNPROCESSABLE: 422,
 };
 
 export function errorMiddleware(i18nConfig: I18nConfig) {
@@ -27,7 +29,7 @@ export function errorMiddleware(i18nConfig: I18nConfig) {
 
       res.status(status).json({
         errcode: err.code,
-        error: resolveMessage(locale, err.code, err.context),
+        error: resolveMessage(locale, err.message, err.context),
       });
       return;
     }

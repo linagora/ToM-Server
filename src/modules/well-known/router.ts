@@ -14,10 +14,9 @@ export const createWellKnownClientRouter = (config: WellKnownClientSettings, log
   router.get("/.well-known/matrix/client", (_req, res, next) => {
     try {
       if (!config.enabled) {
-        const msg = "well-known matrix client route disabled";
-        logger.info(msg);
+        logger.info("well-known matrix client route disabled");
 
-        throw new DomainError(NOT_FOUND, msg, {
+        throw new DomainError(NOT_FOUND, "well_known.disabled", {
           route: "/.well-known/matrix/client",
         });
       }
@@ -25,10 +24,9 @@ export const createWellKnownClientRouter = (config: WellKnownClientSettings, log
       const document = wellKnownClientController(service);
 
       if (Object.keys(document).length === 0) {
-        const msg = "well-known matrix client document is empty";
-        logger.info(msg);
+        logger.info("well-known matrix client document is empty");
 
-        throw new DomainError(NOT_FOUND, msg, {
+        throw new DomainError(NOT_FOUND, "well_known.empty", {
           route: "/.well-known/matrix/client",
         });
       }

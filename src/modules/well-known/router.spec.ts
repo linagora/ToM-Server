@@ -34,7 +34,7 @@ describe("WellKnownClientRouter", () => {
     const response = await request(app).get("/.well-known/matrix/client");
 
     expect(response.status).toBe(404);
-    expect(response.body.message).toBe("well-known matrix client route disabled");
+    expect(response.body.message).toBe("well_known.disabled");
   });
 
   it("should throw DomainError(NOT_FOUND) and return 404 if document resolves to empty", async () => {
@@ -46,7 +46,7 @@ describe("WellKnownClientRouter", () => {
     const response = await request(app).get("/.well-known/matrix/client");
 
     expect(response.status).toBe(404);
-    expect(response.body.message).toBe("well-known matrix client document is empty");
+    expect(response.body.message).toBe("well_known.empty");
   });
 
   it("should return 200 with the formatted document payload on success", async () => {

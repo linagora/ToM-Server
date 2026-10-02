@@ -8,3 +8,29 @@ M_TERMS_NOT_SIGNED: "Vous devez accepter les conditions d'utilisation"
 M_INVALID_PEPPER: "Valeur de pepper invalide"
 M_UNKNOWN: "Une erreur interne est survenue"
 M_SERVICE_UNAVAILABLE: "Service temporairement indisponible"
+M_BAD_GATEWAY: "Le service amont n'a pas pu traiter la requête"
+M_UNPROCESSABLE: "La requête ne peut pas être traitée pour cet utilisateur"
+
+# Page d'accueil
+landing.not_found: "La page d'accueil n'est pas disponible"
+
+# Découverte du client Matrix (well-known)
+well_known.disabled: "La découverte du client Matrix est désactivée"
+well_known.empty: "Le document de découverte du client Matrix est vide"
+well_known.invalid: "La découverte du client Matrix est mal configurée"
+
+# Authentification Matrix
+auth.missing_token: "Jeton d'accès manquant"
+auth.token_rejected: "Le jeton d'accès a été refusé par le serveur Matrix"
+auth.user_not_local: "Seuls les utilisateurs de ce serveur sont autorisés"
+auth.homeserver_failure: "Le serveur Matrix n'a pas pu traiter la requête"
+
+# Visio
+visio.no_authenticated_user: "Aucun utilisateur authentifié"
+visio.disabled: "La création de salles de visio est désactivée"
+visio.email_unresolvable: "Aucune adresse email unique n'est connue pour cet
+  utilisateur"
+visio.room_unavailable: "Le service de visio ne peut pas créer de salle pour
+  cet utilisateur"
+visio.upstream_failure: "Le service de visio n'a pas pu traiter la requête"
+visio.homeserver_failure: "Le serveur Matrix n'a pas pu traiter la requête"

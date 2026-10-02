@@ -7,6 +7,8 @@ export const ERROR_CODES = [
   "M_INVALID_PEPPER",
   "M_UNKNOWN",
   "M_SERVICE_UNAVAILABLE",
+  "M_BAD_GATEWAY",
+  "M_UNPROCESSABLE",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -20,3 +22,5 @@ export const TERMS_NOT_SIGNED: ErrorCode = "M_TERMS_NOT_SIGNED";
 export const INVALID_PEPPER: ErrorCode = "M_INVALID_PEPPER";
 export const INTERNAL: ErrorCode = "M_UNKNOWN";
 export const SERVICE_UNAVAILABLE: ErrorCode = "M_SERVICE_UNAVAILABLE";
+export const BAD_GATEWAY: ErrorCode = "M_BAD_GATEWAY";
+export const UNPROCESSABLE: ErrorCode = "M_UNPROCESSABLE";
