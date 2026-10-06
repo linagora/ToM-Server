@@ -54,6 +54,8 @@ log.bots.mounting: "Mounting botsRouter... enabled: {{enabled}}"
 log.bots.disabled: "assistants désactivés"
 log.bots.provisioned: "assistant provisionné"
 log.bots.not_ready: "clés de l'assistant pas encore publiées"
-log.bots.upstream_failure: "échec du serveur Matrix sur {{endpoint}} : {{reason}}"
-log.bots.commands_failed: "publication des commandes des assistants échouée : {{reason}}"
+log.bots.upstream_failure: "échec du serveur Matrix sur {{endpoint}} :
+  {{reason}}"
+log.bots.commands_failed: "publication des commandes des assistants échouée :
+  {{reason}}"
 log.bots.commands_refused: "un salon a refusé les commandes d'un assistant"

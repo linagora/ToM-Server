@@ -9,7 +9,7 @@ import { loadMessages } from "../../i18n/index";
 import { decodeJwtPayload } from "./livekit-token";
 import { OpenIdValidator } from "./openid";
 import { VisioService } from "./service";
-import { SFU_ROUTE, createSfuRouter } from "./sfu-router";
+import { createSfuRouter, SFU_ROUTE } from "./sfu-router";
 import { SynapseAdmin } from "./synapse-admin";
 import type { LivekitSettings, SfuDeps, VisioSettings } from "./types";
 
@@ -269,7 +269,9 @@ describe("SfuRouter", () => {
       username: "Alice",
       role: "administrator",
     });
-    expect((fetchMock.mock.calls[7]?.[1].headers as Record<string, string>).Authorization).toBe("Bearer meet-app-jwt");
+    expect((fetchMock.mock.calls[7]?.[1]?.headers as Record<string, string> | undefined)?.Authorization).toBe(
+      "Bearer meet-app-jwt",
+    );
 
     // The room is made once: a second request mints only
     mockFetch(userInfo(), members(), profile(), moderators(), appToken(), meetToken());

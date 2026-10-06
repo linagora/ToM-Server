@@ -651,10 +651,10 @@ for each user, e.g. through the `email_template` of its OIDC user mapping.
 
 Two more fields serve the calls of Twake Chat (see [LiveKit](#livekit)):
 
-| Field                   | Default                                                                                   | Description                                                                                           |
-| ----------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `service_account_email` | —                                                                                         | The account that owns the rooms made for the Matrix rooms. Required for Meet to mint the call tokens. |
-| `room_configuration`    | `{screen_recording_permission: authenticated, transcript_permission: authenticated, everyone_can_mute: false}` | The configuration of those rooms (`admin_owner` restricts to the owner of the room).           |
+| Field                   | Default                                                                                                        | Description                                                                                           |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `service_account_email` | —                                                                                                              | The account that owns the rooms made for the Matrix rooms. Required for Meet to mint the call tokens. |
+| `room_configuration`    | `{screen_recording_permission: authenticated, transcript_permission: authenticated, everyone_can_mute: false}` | The configuration of those rooms (`admin_owner` restricts to the owner of the room).                  |
 
 ## LiveKit
 
@@ -696,14 +696,14 @@ so that its recording, transcription and moderation know the participant.
 Without `visio`, or when Meet fails, ToM signs the token itself for the Meet
 room already made, or for a LiveKit room named after the Matrix room.
 
-| Status | Meaning                                                                     |
-| ------ | --------------------------------------------------------------------------- |
-| `200`  | `{"url": "wss://…", "jwt": "…"}`                                           |
-| `400`  | The body is not an MSC4195 request.                                         |
-| `401`  | The homeserver rejected the OpenID token.                                   |
-| `403`  | The token is for another homeserver, or the user is not in the room.        |
-| `404`  | The service is disabled.                                                    |
-| `502`  | The homeserver is unreachable or failing.                                   |
+| Status | Meaning                                                              |
+| ------ | -------------------------------------------------------------------- |
+| `200`  | `{"url": "wss://…", "jwt": "…"}`                                     |
+| `400`  | The body is not an MSC4195 request.                                  |
+| `401`  | The homeserver rejected the OpenID token.                            |
+| `403`  | The token is for another homeserver, or the user is not in the room. |
+| `404`  | The service is disabled.                                             |
+| `502`  | The homeserver is unreachable or failing.                            |
 
 ### Route
 

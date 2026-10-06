@@ -12,7 +12,7 @@ this module attests.
 optional body `{ "timezone": "Europe/Paris" }` (the IANA zone of the browser).
 
 | Answer | When |
-|---|---|
+| --- | --- |
 | `200 { userId, deviceId, masterKey }` | The bot exists and has published its keys. Idempotent. |
 | `503 M_SERVICE_UNAVAILABLE` | The bot was just provisioned, Hermes has not published its keys yet: call again in a moment. |
 | `502 M_BAD_GATEWAY` | The homeserver refused or could not be reached. |

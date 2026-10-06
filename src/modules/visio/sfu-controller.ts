@@ -45,7 +45,8 @@ export async function sfuGetController(
     },
   };
 
-  const jwt = (await mintWithMeet(request, participant, profile, deps, logger)) ?? degraded(request, participant, deps, livekit);
+  const jwt =
+    (await mintWithMeet(request, participant, profile, deps, logger)) ?? degraded(request, participant, deps, livekit);
 
   return {
     url: livekit.url ?? "",
@@ -89,7 +90,12 @@ async function mintWithMeet(
 }
 
 /** ToM signs the token itself, for the Meet room of the Matrix room when there is one (R20). */
-function degraded(request: SfuGetRequest, participant: CallParticipant, deps: SfuDeps, livekit: LivekitSettings): string {
+function degraded(
+  request: SfuGetRequest,
+  participant: CallParticipant,
+  deps: SfuDeps,
+  livekit: LivekitSettings,
+): string {
   return signLivekitToken({
     apiKey: livekit.api_key ?? "",
     apiSecret: livekit.api_secret ?? "",

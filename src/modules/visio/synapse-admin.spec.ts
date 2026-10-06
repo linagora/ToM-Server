@@ -84,7 +84,9 @@ describe("SynapseAdmin", () => {
     expect(fetchMock.mock.calls[1]?.[0]).toBe(
       "https://localhost:8448/_synapse/admin/v1/rooms/!room%3Alocalhost/members",
     );
-    expect((fetchMock.mock.calls[1]?.[1].headers as Record<string, string>).Authorization).toBe("Bearer admin-token");
+    expect((fetchMock.mock.calls[1]?.[1]?.headers as Record<string, string> | undefined)?.Authorization).toBe(
+      "Bearer admin-token",
+    );
   });
 
   it("should use the configured access token without logging in", async () => {
@@ -111,7 +113,7 @@ describe("SynapseAdmin", () => {
     // Assert
     expect(member).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect((fetchMock.mock.calls[0]?.[1].headers as Record<string, string>).Authorization).toBe(
+    expect((fetchMock.mock.calls[0]?.[1]?.headers as Record<string, string> | undefined)?.Authorization).toBe(
       "Bearer configured-token",
     );
   });
