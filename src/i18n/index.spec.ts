@@ -19,7 +19,11 @@ function readLocale(file: string): Record<string, string> {
 }
 
 function placeholders(message: string): string[] {
-  return [...message.matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1] ?? "").sort();
+  return [
+    ...message.matchAll(/\{\{(\w+)\}\}/g),
+  ]
+    .map((m) => m[1] ?? "")
+    .sort();
 }
 
 describe("i18n", () => {
