@@ -48,3 +48,16 @@ log.visio.room_unavailable: "visio token endpoint answered 404: external API
   disabled or user unknown to the service"
 log.visio.upstream_failure: "visio upstream failure on {{endpoint}}: {{reason}}"
 log.visio.homeserver_failure: "homeserver failure on {{endpoint}}: {{reason}}"
+
+# Bots
+bots.no_authenticated_user: "No authenticated user"
+bots.disabled: "The assistants are disabled"
+bots.not_ready: "The assistant is being prepared, try again in a moment"
+bots.upstream_failure: "The homeserver failed to process the request"
+log.bots.mounting: "Mounting botsRouter... enabled: {{enabled}}"
+log.bots.disabled: "assistants disabled"
+log.bots.provisioned: "assistant provisioned"
+log.bots.not_ready: "assistant keys not published yet"
+log.bots.upstream_failure: "homeserver failure on {{endpoint}}: {{reason}}"
+log.bots.commands_failed: "publishing the commands of the assistants failed: {{reason}}"
+log.bots.commands_refused: "a room refused the commands of an assistant"

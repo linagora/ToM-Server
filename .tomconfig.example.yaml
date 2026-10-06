@@ -326,3 +326,24 @@ email:
 #   otlp_endpoint: ""             # Optional — OTLP collector for export
 #   trace_sample_ratio: 1.0        # Default: 1.0 (sample everything)
 #   diag_log_level: "NONE"        # Default: "NONE" — for OTel debugging
+
+# The assistants of the users (Twake Chat): one bot per user, a profile each on
+# the shared Hermes agent. `POST /_twake/v1/bots/me` provisions and answers
+# { userId, deviceId, masterKey }.
+# bots:
+#   enabled: false
+#   hermes_profiles_dir: /opt/hermes/profiles  # $HERMES_HOME/profiles of the agent
+#   hermes_homeserver_url: http://synapse:8008  # as Hermes reaches it; the public URL when unset
+#   model:
+#     provider: openrouter
+#     name: anthropic/claude-haiku-4.5
+#     api_key: ""
+#   bot_localpart_prefix: bot_
+#   device_id_prefix: HERMES
+#   ready_timeout_ms: 12000
+#   publish_interval_ms: 60000
+#   commands:
+#     - name: help
+#       syntax: help
+#       description: What the assistant can do
+

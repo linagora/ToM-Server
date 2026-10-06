@@ -1,0 +1,284 @@
+import { randomBytes } from "node:crypto";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+
+import type { Logger } from "winston";
+import type { z } from "zod";
+
+import { translate } from "../../i18n/index";
+import { HttpClient, readJson } from "../../net/http-client";
+import { BotNotReadyError, BotsUpstreamError } from "./errors";
+import { keysQueryResponseSchema, loginResponseSchema } from "./schema";
+import type { BotsSettings, MyBot, SynapseAccess } from "./types";
+
+const LOGIN_PATH = "/_matrix/client/v3/login";
+const KEYS_QUERY_PATH = "/_matrix/client/v3/keys/query";
+const READY_POLL_MS = 1000;
+
+export const botIds = (
+  ownerId: string,
+  config: Pick<BotsSettings, "bot_localpart_prefix" | "device_id_prefix">,
+  serverName: string,
+): {
+  localpart: string;
+  userId: string;
+  deviceId: string;
+} => {
+  const ownerLocalpart = ownerId.slice(1, ownerId.indexOf(":"));
+  const localpart = `${config.bot_localpart_prefix}${ownerLocalpart}`;
+  return {
+    localpart,
+    userId: `@${localpart}:${serverName}`,
+    deviceId: `${config.device_id_prefix}${ownerLocalpart.toUpperCase().replace(/[^A-Z0-9]/g, "")}`,
+  };
+};
+
+/**
+ * Provisions the assistant of a user (DECISION.md D27 of Twake Chat): the Matrix
+ * account of the bot, a device for the shared Hermes agent, its profile on disk,
+ * and the master key the client checks before trusting the bot. Hermes makes the
+ * identity of the bot itself at its first start (cross-signing bootstrap): until
+ * its keys are published, `bots/me` answers 503 and the client tries later.
+ */
+export class BotsService {
+  #config: BotsSettings;
+  #synapse: SynapseAccess;
+  #http: HttpClient;
+  #log: Logger;
+  #adminToken: string | null = null;
+
+  constructor(config: BotsSettings, synapse: SynapseAccess, logger: Logger) {
+    this.#config = config;
+    this.#synapse = synapse;
+    this.#http = new HttpClient({
+      baseUrl: synapse.serverUrl,
+      timeoutMs: config.timeout_ms,
+    });
+    this.#log = logger;
+  }
+
+  async provision(ownerId: string, ownerToken: string): Promise<MyBot> {
+    const bot = botIds(ownerId, this.#config, this.#synapse.serverName);
+    const profileDir = join(this.#config.hermes_profiles_dir ?? "", bot.localpart);
+
+    if (!existsSync(join(profileDir, ".env"))) {
+      await this.#createAccount(bot.userId, ownerId);
+      const token = await this.#login(bot.localpart, bot.deviceId);
+      this.#writeProfile(profileDir, bot.userId, bot.deviceId, token, ownerId);
+      this.#log.info(translate("log.bots.provisioned"), {
+        bot: bot.userId,
+      });
+    }
+
+    const masterKey = await this.#waitForKeys(bot.userId, bot.deviceId, ownerToken);
+    return {
+      userId: bot.userId,
+      deviceId: bot.deviceId,
+      masterKey,
+    };
+  }
+
+  /** The admin API of Synapse: the account, kept out of the directory and the stats. */
+  async #createAccount(botUserId: string, ownerId: string): Promise<void> {
+    const path = `/_synapse/admin/v2/users/${encodeURIComponent(botUserId)}`;
+    const admin = await this.#admin();
+    const response = await this.#request(() =>
+      this.#http.put(
+        path,
+        {
+          password: this.#password(botUserId),
+          displayname: `${ownerId.slice(1, ownerId.indexOf(":"))} — assistant`,
+          admin: false,
+          user_type: "bot",
+        },
+        admin,
+      ),
+    );
+    if (!response.ok) {
+      throw this.#upstreamError(path, await this.#status(response));
+    }
+  }
+
+  async #login(localpart: string, deviceId: string): Promise<string> {
+    const response = await this.#request(() =>
+      this.#http.post(LOGIN_PATH, {
+        type: "m.login.password",
+        identifier: {
+          type: "m.id.user",
+          user: localpart,
+        },
+        password: this.#password(`@${localpart}:${this.#synapse.serverName}`),
+        device_id: deviceId,
+        initial_device_display_name: "Twake assistant",
+      }),
+    );
+    const login = await this.#parse(LOGIN_PATH, response, loginResponseSchema);
+    return login.access_token;
+  }
+
+  /**
+   * The profile of the shared Hermes agent, as its `hermes profile create` lays it
+   * out: `.env` (credentials), `config.yaml` (model), `SOUL.md`. Hermes talks to
+   * its owner only, listens to `!command`, makes its own cross-signing identity
+   * and writes the recovery key once next to the profile.
+   */
+  #writeProfile(dir: string, botUserId: string, deviceId: string, token: string, ownerId: string): void {
+    mkdirSync(dir, {
+      recursive: true,
+      mode: 0o700,
+    });
+    const { model } = this.#config;
+    writeFileSync(
+      join(dir, ".env"),
+      [
+        `MATRIX_HOMESERVER=${this.#config.hermes_homeserver_url ?? this.#synapse.serverUrl}`,
+        `MATRIX_ACCESS_TOKEN=${token}`,
+        `MATRIX_USER_ID=${botUserId}`,
+        `MATRIX_DEVICE_ID=${deviceId}`,
+        "MATRIX_E2EE_MODE=optional",
+        `MATRIX_RECOVERY_KEY_OUTPUT_FILE=${join(dir, "recovery-key")}`,
+        `MATRIX_ALLOWED_USERS=${ownerId}`,
+        "MATRIX_REQUIRE_MENTION=false",
+        "MATRIX_AUTO_THREAD=false",
+        "MATRIX_REACTIONS=false",
+        ...(model.api_key
+          ? [
+              `${model.provider.toUpperCase()}_API_KEY=${model.api_key}`,
+            ]
+          : []),
+        "",
+      ].join("\n"),
+      {
+        mode: 0o600,
+      },
+    );
+    writeFileSync(
+      join(dir, "config.yaml"),
+      [
+        "model:",
+        `  provider: ${model.provider}`,
+        `  default: ${model.name}`,
+        "  api_mode: chat_completions",
+        "agent:",
+        "  max_turns: 8",
+        "gateway:",
+        "  progress: false",
+        "",
+      ].join("\n"),
+      {
+        mode: 0o600,
+      },
+    );
+    writeFileSync(
+      join(dir, "SOUL.md"),
+      `You are the personal assistant of ${ownerId} in Twake Chat. Answer briefly, in the language of the message.\n`,
+    );
+  }
+
+  /** The keys the bot publishes, once Hermes has started with the profile. */
+  async #waitForKeys(botUserId: string, deviceId: string, ownerToken: string): Promise<string> {
+    const deadline = Date.now() + this.#config.ready_timeout_ms;
+    for (;;) {
+      const response = await this.#request(() =>
+        this.#http.post(
+          KEYS_QUERY_PATH,
+          {
+            device_keys: {
+              [botUserId]: [],
+            },
+          },
+          ownerToken,
+        ),
+      );
+      const keys = await this.#parse(KEYS_QUERY_PATH, response, keysQueryResponseSchema);
+      const masterKey = Object.values(keys.master_keys?.[botUserId]?.keys ?? {})[0];
+      const hasDevice = keys.device_keys?.[botUserId]?.[deviceId] !== undefined;
+      if (masterKey && hasDevice) {
+        return masterKey;
+      }
+      if (Date.now() >= deadline) {
+        this.#log.warn(translate("log.bots.not_ready"), {
+          bot: botUserId,
+        });
+        throw new BotNotReadyError("bots.not_ready", {
+          bot: botUserId,
+        });
+      }
+      await new Promise((resolve) => setTimeout(resolve, READY_POLL_MS));
+    }
+  }
+
+  async #admin(): Promise<string> {
+    if (this.#adminToken) {
+      return this.#adminToken;
+    }
+    if (this.#synapse.admin.accessToken) {
+      this.#adminToken = this.#synapse.admin.accessToken;
+      return this.#adminToken;
+    }
+    const response = await this.#request(() =>
+      this.#http.post(LOGIN_PATH, {
+        type: "m.login.password",
+        identifier: {
+          type: "m.id.user",
+          user: this.#synapse.admin.login,
+        },
+        password: this.#synapse.admin.password,
+        initial_device_display_name: "ToM bots",
+      }),
+    );
+    const login = await this.#parse(LOGIN_PATH, response, loginResponseSchema);
+    this.#adminToken = login.access_token;
+    return this.#adminToken;
+  }
+
+  /**
+   * ponytail: the password of a bot is derived from a secret kept in memory for
+   * the life of the process; it is only needed between the creation of the
+   * account and the login a moment later, and a restart makes a new one. A bot
+   * created by an earlier process keeps its profile, which holds its token.
+   */
+  #password(botUserId: string): string {
+    this.#secret ??= randomBytes(32).toString("base64url");
+    return `${this.#secret}:${botUserId}`;
+  }
+  #secret: string | null = null;
+
+  async #request(send: () => Promise<Response>): Promise<Response> {
+    try {
+      return await send();
+    } catch (err) {
+      throw this.#upstreamError("homeserver", err instanceof Error ? err.message : translate("log.net.request_failed"));
+    }
+  }
+
+  async #parse<Schema extends z.ZodType>(path: string, response: Response, schema: Schema): Promise<z.infer<Schema>> {
+    if (!response.ok) {
+      throw this.#upstreamError(path, await this.#status(response));
+    }
+    const body = await readJson(response, schema);
+    if (body === undefined) {
+      throw this.#upstreamError(path, translate("log.net.unexpected_body"));
+    }
+    return body;
+  }
+
+  async #status(response: Response): Promise<string> {
+    return translate("log.net.status", {
+      status: String(response.status),
+      body: (await response.text()).slice(0, 200),
+    });
+  }
+
+  #upstreamError(endpoint: string, reason: string): BotsUpstreamError {
+    this.#log.error(
+      translate("log.bots.upstream_failure", {
+        endpoint,
+        reason,
+      }),
+    );
+    return new BotsUpstreamError("bots.upstream_failure", {
+      endpoint,
+    });
+  }
+}

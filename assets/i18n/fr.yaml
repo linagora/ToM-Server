@@ -34,3 +34,16 @@ visio.room_unavailable: "Le service de visio ne peut pas créer de salle pour
   cet utilisateur"
 visio.upstream_failure: "Le service de visio n'a pas pu traiter la requête"
 visio.homeserver_failure: "Le serveur Matrix n'a pas pu traiter la requête"
+
+# Bots
+bots.no_authenticated_user: "Aucun utilisateur authentifié"
+bots.disabled: "Les assistants sont désactivés"
+bots.not_ready: "L'assistant se prépare, réessayez dans un instant"
+bots.upstream_failure: "Le serveur Matrix n'a pas pu traiter la requête"
+log.bots.mounting: "Mounting botsRouter... enabled: {{enabled}}"
+log.bots.disabled: "assistants désactivés"
+log.bots.provisioned: "assistant provisionné"
+log.bots.not_ready: "clés de l'assistant pas encore publiées"
+log.bots.upstream_failure: "échec du serveur Matrix sur {{endpoint}} : {{reason}}"
+log.bots.commands_failed: "publication des commandes des assistants échouée : {{reason}}"
+log.bots.commands_refused: "un salon a refusé les commandes d'un assistant"

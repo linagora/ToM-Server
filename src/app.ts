@@ -18,6 +18,10 @@ import type { AuthenticatedRequest } from "./middleware/auth/types";
 import { createCorsMiddleware } from "./middleware/cors";
 import { httpLogger } from "./middleware/http-logger";
 import { requestId } from "./middleware/request-id";
+import { BotCommandsPublisher } from "./modules/bots/commands";
+import { createBotsRouter } from "./modules/bots/router";
+import { BotsService } from "./modules/bots/service";
+import type { BotsDeps } from "./modules/bots/types";
 import { createLandingRouter } from "./modules/landing/router";
 import { createLegacyRouter } from "./modules/legacy/router";
 import { EmailResolver } from "./modules/visio/email-resolver";
@@ -89,6 +93,49 @@ function mountVisio(config: Config, logger: Logger, app: Express): void {
   app.use(createVisioRouter(config.visio, deps, visioLogger));
 }
 
+function mountBots(config: Config, logger: Logger, app: Express): void {
+  const botsLogger = logger.child({
+    module: "bots",
+  });
+  let deps: BotsDeps | undefined;
+  let service: BotsService | undefined;
+  if (config.bots.enabled) {
+    const tokenValidator = new TokenValidator(
+      {
+        serverUrl: config.synapse.server_url,
+        serverName: config.server.name,
+        timeoutMs: config.auth.timeout_ms,
+        tokenCacheSize: config.auth.token_cache_size,
+        tokenCacheTtlMs: config.auth.token_cache_ttl_ms,
+      },
+      botsLogger,
+    );
+    deps = {
+      authenticate: tokenValidator.middleware(),
+    };
+    service = new BotsService(
+      config.bots,
+      {
+        serverUrl: config.synapse.server_url,
+        serverName: config.server.name,
+        admin: {
+          login: config.synapse.admin?.login ?? "",
+          password: config.synapse.admin?.password ?? "",
+          accessToken: config.synapse.admin?.access_token ?? "",
+        },
+      },
+      botsLogger,
+    );
+    new BotCommandsPublisher(config.bots, config.synapse.server_url, botsLogger).start();
+  }
+  logger.info(
+    translate("log.bots.mounting", {
+      enabled: String(config.bots.enabled),
+    }),
+  );
+  app.use(createBotsRouter(config.bots, deps, service, botsLogger));
+}
+
 export async function createApp(
   config: Config,
   logger: Logger,
@@ -135,6 +182,7 @@ export async function createApp(
   // --- New modules routers here ---
   mountWellKnownClient(config, logger, app);
   mountVisio(config, logger, app);
+  mountBots(config, logger, app);
 
   // --- End of new modules ---
 
