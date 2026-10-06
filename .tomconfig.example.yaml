@@ -315,6 +315,30 @@ email:
 #                                  # "restricted"; unset: service default.
 #                                  # Ignored by Meet before 1.17.0
 #   timeout_ms: 10000              # Default: 10000 — per service request
+#   # The calls of Twake Chat (D30): the rooms Meet makes for the Matrix rooms
+#   # belong to this account (no human enters through Meet's UI), with this
+#   # configuration. Needs `livekit` below.
+#   service_account_email: "visio@example.com"
+#   room_configuration:
+#     screen_recording_permission: authenticated  # Default — or admin_owner
+#     transcript_permission: authenticated        # Default — or admin_owner
+#     everyone_can_mute: false                    # Default
+
+# -----------------------------------------------------------------------------
+# LiveKit: the MatrixRTC token service of the calls of Twake Chat (MSC4195)
+# Optional. Disabled by default.
+# Serves POST /_twake/v1/video_call/sfu/get: the well-known of the homeserver
+# names it as `org.matrix.msc4143.rtc_foci[].livekit_service_url` (without
+# the `/sfu/get`). With `visio` enabled, Meet mints the token so that its
+# functions (recording, transcription…) know the participant; without it, or
+# when Meet fails, ToM signs the token itself with the key below.
+# -----------------------------------------------------------------------------
+# livekit:
+#   enabled: false                 # Default: false
+#   url: "wss://livekit.example.com"  # Required when enabled — as the browsers reach it
+#   api_key: ""                    # Required when enabled — the key LiveKit and Meet share
+#   api_secret: ""                 # Required when enabled
+#   token_ttl_seconds: 21600       # Default: 6 hours — LiveKit refreshes it while connected
 
 # -----------------------------------------------------------------------------
 # Telemetry (OpenTelemetry)

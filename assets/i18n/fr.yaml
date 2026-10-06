@@ -34,6 +34,14 @@ visio.room_unavailable: "Le service de visio ne peut pas créer de salle pour
   cet utilisateur"
 visio.upstream_failure: "Le service de visio n'a pas pu traiter la requête"
 visio.homeserver_failure: "Le serveur Matrix n'a pas pu traiter la requête"
+visio.invalid_request: "Requête de jeton d'appel invalide : {{detail}}"
+visio.user_not_local: "Seuls les utilisateurs de ce serveur peuvent rejoindre un
+  appel ici"
+visio.openid_rejected: "Le jeton OpenID a été refusé par le serveur Matrix"
+visio.not_a_member: "Vous n'êtes pas membre de ce salon"
+visio.sfu_disabled: "Le service de jeton d'appel est désactivé"
+visio.no_service_account: "Le service de visio n'a pas de compte de service pour
+  posséder les salles"
 
 # Bots
 bots.no_authenticated_user: "Aucun utilisateur authentifié"

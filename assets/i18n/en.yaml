@@ -34,6 +34,13 @@ visio.room_unavailable: "The video conferencing service cannot create a room
 visio.upstream_failure: "The video conferencing service failed to process the
   request"
 visio.homeserver_failure: "The homeserver failed to process the request"
+visio.invalid_request: "Invalid call token request: {{detail}}"
+visio.user_not_local: "Only users of this server may join a call here"
+visio.openid_rejected: "The OpenID token was rejected by the homeserver"
+visio.not_a_member: "You are not a member of this room"
+visio.sfu_disabled: "The call token service is disabled"
+visio.no_service_account: "The video conferencing service has no service account
+  to own the rooms"
 
 # Log messages: English only, read with translate()
 log.net.request_failed: "request failed"
@@ -48,6 +55,9 @@ log.visio.room_unavailable: "visio token endpoint answered 404: external API
   disabled or user unknown to the service"
 log.visio.upstream_failure: "visio upstream failure on {{endpoint}}: {{reason}}"
 log.visio.homeserver_failure: "homeserver failure on {{endpoint}}: {{reason}}"
+log.visio.sfu_mounting: "Mounting sfuRouter... enabled: {{enabled}}, meet: {{meet}}"
+log.visio.sfu_disabled: "call token service disabled"
+log.visio.degraded: "Meet could not mint the call token, ToM signs it itself: {{reason}}"
 
 # Bots
 bots.no_authenticated_user: "No authenticated user"

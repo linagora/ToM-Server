@@ -25,8 +25,12 @@ import type { BotsDeps } from "./modules/bots/types";
 import { createLandingRouter } from "./modules/landing/router";
 import { createLegacyRouter } from "./modules/legacy/router";
 import { EmailResolver } from "./modules/visio/email-resolver";
+import { OpenIdValidator } from "./modules/visio/openid";
 import { createVisioRouter } from "./modules/visio/router";
-import type { VisioDeps } from "./modules/visio/types";
+import { VisioService } from "./modules/visio/service";
+import { createSfuRouter } from "./modules/visio/sfu-router";
+import { SynapseAdmin } from "./modules/visio/synapse-admin";
+import type { SfuDeps, VisioDeps } from "./modules/visio/types";
 import { createWellKnownClientRouter } from "./modules/well-known/router";
 
 function mountWellKnownClient(config: Config, logger: Logger, app: Express): void {
@@ -54,6 +58,46 @@ function mountWellKnownClient(config: Config, logger: Logger, app: Express): voi
   );
   logger.info(`Mounting wellKnownRouter... client: ${config.well_known.client.enabled}`);
   app.use(wellKnownRouter);
+}
+
+/** The MatrixRTC token service of the calls of Twake Chat (D30): Meet behind it when `visio` is enabled. */
+function mountSfu(config: Config, logger: Logger, app: Express): void {
+  const sfuLogger = logger.child({
+    module: "visio-sfu",
+  });
+  let deps: SfuDeps | undefined;
+  if (config.livekit.enabled) {
+    deps = {
+      openId: new OpenIdValidator(
+        {
+          serverUrl: config.synapse.server_url,
+          serverName: config.server.name,
+          timeoutMs: config.auth.timeout_ms,
+        },
+        sfuLogger,
+      ),
+      admin: new SynapseAdmin(
+        {
+          serverUrl: config.synapse.server_url,
+          timeoutMs: config.auth.timeout_ms,
+          admin: {
+            login: config.synapse.admin?.login ?? "",
+            password: config.synapse.admin?.password ?? "",
+            accessToken: config.synapse.admin?.access_token ?? "",
+          },
+        },
+        sfuLogger,
+      ),
+      service: config.visio.enabled ? new VisioService(config.visio, sfuLogger) : undefined,
+    };
+  }
+  logger.info(
+    translate("log.visio.sfu_mounting", {
+      enabled: String(config.livekit.enabled),
+      meet: String(config.livekit.enabled && config.visio.enabled),
+    }),
+  );
+  app.use(createSfuRouter(config.livekit, deps, sfuLogger));
 }
 
 function mountVisio(config: Config, logger: Logger, app: Express): void {
@@ -182,6 +226,7 @@ export async function createApp(
   // --- New modules routers here ---
   mountWellKnownClient(config, logger, app);
   mountVisio(config, logger, app);
+  mountSfu(config, logger, app);
   mountBots(config, logger, app);
 
   // --- End of new modules ---
