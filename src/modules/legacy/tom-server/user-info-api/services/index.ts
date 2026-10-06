@@ -497,6 +497,9 @@ class UserInfoService implements IUserInfoService {
             )
             userInfo.timezone = settingsRow.timezone
           }
+          if (isMyProfile && settingsRow.theme) {
+            userInfo.theme = settingsRow.theme
+          }
         }
 
         // Addressbook (fourth source) - override display_name if present
