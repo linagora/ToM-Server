@@ -35,6 +35,7 @@ let profilesDir = "";
 const settings = (overrides: Partial<BotsSettings> = {}): BotsSettings => ({
   enabled: true,
   hermes_profiles_dir: profilesDir,
+  hermes_home: "/opt/data",
   model: {
     provider: "openrouter",
     name: "anthropic/claude-haiku-4.5",
@@ -155,6 +156,7 @@ describe("BotsService", () => {
     expect(env).toContain(`MATRIX_DEVICE_ID=${DEVICE}`);
     expect(env).toContain(`MATRIX_ALLOWED_USERS=${OWNER}`);
     expect(env).toContain("OPENROUTER_API_KEY=sk-or-test");
+    expect(env).toContain("MATRIX_RECOVERY_KEY_OUTPUT_FILE=/opt/data/profiles/bot_dwho/recovery-key");
     expect(statSync(join(profilesDir, "bot_dwho", ".env")).mode & 0o777).toBe(0o600);
     expect(readFileSync(join(profilesDir, "bot_dwho", "config.yaml"), "utf8")).toContain(
       "default: anthropic/claude-haiku-4.5",

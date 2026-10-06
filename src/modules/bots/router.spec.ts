@@ -19,6 +19,7 @@ const silentLogger = createLogger({
 const settings = (enabled: boolean): BotsSettings => ({
   enabled,
   hermes_profiles_dir: "/tmp/profiles",
+  hermes_home: "/opt/data",
   model: {
     provider: "openrouter",
     name: "model",

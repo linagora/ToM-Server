@@ -136,7 +136,7 @@ export class BotsService {
         `MATRIX_USER_ID=${botUserId}`,
         `MATRIX_DEVICE_ID=${deviceId}`,
         "MATRIX_E2EE_MODE=optional",
-        `MATRIX_RECOVERY_KEY_OUTPUT_FILE=${join(dir, "recovery-key")}`,
+        `MATRIX_RECOVERY_KEY_OUTPUT_FILE=${this.#config.hermes_home}/profiles/${botUserId.slice(1, botUserId.indexOf(":"))}/recovery-key`,
         `MATRIX_ALLOWED_USERS=${ownerId}`,
         "MATRIX_REQUIRE_MENTION=false",
         "MATRIX_AUTO_THREAD=false",

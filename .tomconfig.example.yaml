@@ -332,7 +332,8 @@ email:
 # { userId, deviceId, masterKey }.
 # bots:
 #   enabled: false
-#   hermes_profiles_dir: /opt/hermes/profiles  # $HERMES_HOME/profiles of the agent
+#   hermes_profiles_dir: /opt/hermes/profiles  # $HERMES_HOME/profiles of the agent, as ToM sees it
+#   hermes_home: /opt/data  # the home of the agent as the agent sees it
 #   hermes_homeserver_url: http://synapse:8008  # as Hermes reaches it; the public URL when unset
 #   model:
 #     provider: openrouter

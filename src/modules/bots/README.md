@@ -54,4 +54,6 @@ moderator, and are tried again at the next round.
 
 See `.tomconfig.example.yaml`, section `bots`. `hermes_profiles_dir` is the
 `profiles` directory of the Hermes home, shared with the agent (a volume).
-`hermes_homeserver_url` is the homeserver as the agent reaches it.
+`hermes_homeserver_url` is the homeserver as the agent reaches it, and
+`hermes_home` the home of the agent as the agent sees it (the paths written in
+a profile, such as the recovery key file, are for the agent).

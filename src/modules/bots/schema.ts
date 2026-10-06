@@ -14,8 +14,10 @@ const commandSchema = z.object({
 export const botsSettingsSchema = z
   .object({
     enabled: z.boolean().default(false),
-    /** Where the shared Hermes agent reads its profiles (`$HERMES_HOME/profiles`). */
+    /** Where the shared Hermes agent reads its profiles (`$HERMES_HOME/profiles`), as ToM sees it. */
     hermes_profiles_dir: z.string().optional(),
+    /** The home of the agent as the agent sees it (`/opt/data` in its image): paths written in a profile. */
+    hermes_home: z.string().default("/opt/data"),
     /** The homeserver as Hermes reaches it; the public one when unset. */
     hermes_homeserver_url: z.url().optional(),
     model: z
