@@ -85,6 +85,18 @@ export const joinedRoomsSchema = z.object({
   joined_rooms: z.array(z.string()),
 });
 
+/**
+ * The IANA timezone of the owner's browser, sent by the client (`bots/me`). Written in a
+ * YAML file: the name only, never a newline. Anything else is ignored.
+ */
+export const myBotRequestSchema = z.object({
+  timezone: z
+    .string()
+    .regex(/^[A-Za-z0-9_+\-/]{1,64}$/)
+    .optional()
+    .catch(undefined),
+});
+
 /** The direct room of the owner with the bot, sent by the client (`bots/me/home`). */
 export const homeRequestSchema = z.object({
   room_id: z.string().regex(/^![^:]+:.+$/),

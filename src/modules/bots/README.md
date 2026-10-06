@@ -8,7 +8,8 @@ this module attests.
 
 ## Route
 
-`POST /_twake/v1/bots/me` — `Authorization: Bearer <Matrix access token of the user>`.
+`POST /_twake/v1/bots/me` — `Authorization: Bearer <Matrix access token of the user>`,
+optional body `{ "timezone": "Europe/Paris" }` (the IANA zone of the browser).
 
 | Answer | When |
 |---|---|
@@ -40,6 +41,16 @@ Hermes (v0.21.5 and later, `gateway.multiplex_profiles: true`) reads
 `$HERMES_HOME/profiles` every 30 s and serves a new profile with no restart.
 The first `bots/me` of a user may answer `503` in the meantime: the client
 tries again until `200`.
+
+## Timezone
+
+The client sends the timezone of the browser with every `bots/me`. ToM writes
+it as `timezone:` in the `config.yaml` of the profile, where Hermes reads it
+under `multiplex_profiles` (`HERMES_TIMEZONE` speaks for the default profile
+only): the clock of the agent and of its cron jobs. The file is rewritten only
+when the zone changes; something that is not a zone name is ignored. Hermes
+caches the zone of a profile once read: a new profile has it before its first
+start, a change to an existing one applies at the next restart of Hermes.
 
 ## Home channel
 

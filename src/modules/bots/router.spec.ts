@@ -100,6 +100,41 @@ describe("bots router", () => {
     expect(response.body).toEqual(bot);
   });
 
+  it("hands the timezone of the browser to the service, and drops one that is not a zone name", async () => {
+    const timezones: (string | undefined)[] = [];
+    const service = {
+      provision: (_owner: string, _token: string, timezone?: string) => {
+        timezones.push(timezone);
+        return Promise.resolve({});
+      },
+    } as unknown as BotsService;
+    const app = makeApp(
+      createBotsRouter(
+        settings(true),
+        {
+          authenticate: authenticated,
+        },
+        service,
+        silentLogger,
+      ),
+    );
+
+    await request(app).post(MY_BOT_ROUTE).send({
+      timezone: "Europe/Paris",
+    });
+    const injected = await request(app).post(MY_BOT_ROUTE).send({
+      timezone: "UTC\nmodel: evil",
+    });
+    await request(app).post(MY_BOT_ROUTE);
+
+    expect(injected.status).toBe(200);
+    expect(timezones).toEqual([
+      "Europe/Paris",
+      undefined,
+      undefined,
+    ]);
+  });
+
   it("refuses a request without a valid token", async () => {
     const app = makeApp(
       createBotsRouter(

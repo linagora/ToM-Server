@@ -211,6 +211,30 @@ describe("BotsService", () => {
     expect(fetchMock.mock.calls).toHaveLength(1);
   });
 
+  it("writes the timezone of the owner in the profile, and replaces it when it changes", async () => {
+    profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
+    mockFetch(
+      json(201, {}),
+      json(200, {
+        access_token: "syt_bot",
+      }),
+      keysPublished(),
+    );
+    const service = new BotsService(settings(), synapse, silentLogger);
+    const configFile = join(profilesDir, "bot_dwho", "config.yaml");
+
+    await service.provision(OWNER, OWNER_TOKEN, "Europe/Paris");
+    expect(readFileSync(configFile, "utf8")).toMatch(/^timezone: Europe\/Paris$/m);
+
+    mockFetch(keysPublished());
+    await service.provision(OWNER, OWNER_TOKEN, "America/New_York");
+    const config = readFileSync(configFile, "utf8");
+    expect(config).toMatch(/^timezone: America\/New_York$/m);
+    expect(config).not.toContain("Europe/Paris");
+    expect(config).toContain("default: anthropic/claude-haiku-4.5");
+    expect(statSync(configFile).mode & 0o777).toBe(0o600);
+  });
+
   it("says the bot is not ready while Hermes has not published its keys", async () => {
     profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
     mockFetch(

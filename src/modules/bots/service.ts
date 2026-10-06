@@ -57,7 +57,7 @@ export class BotsService {
     this.#log = logger;
   }
 
-  async provision(ownerId: string, ownerToken: string): Promise<MyBot> {
+  async provision(ownerId: string, ownerToken: string, timezone?: string): Promise<MyBot> {
     const bot = botIds(ownerId, this.#config, this.#synapse.serverName);
     const profileDir = join(this.#config.hermes_profiles_dir ?? "", bot.localpart);
 
@@ -69,6 +69,7 @@ export class BotsService {
         bot: bot.userId,
       });
     }
+    if (timezone) this.#saveTimezone(profileDir, timezone);
 
     const masterKey = await this.#waitForKeys(bot.userId, bot.deviceId, ownerToken);
     return {
@@ -104,6 +105,31 @@ export class BotsService {
     );
     // The profile holds the token of the bot: its owner only, as when written
     chmodSync(envFile, 0o600);
+  }
+
+  /**
+   * The timezone of the owner, where Hermes reads it under the multiplexed gateway
+   * (`timezone` of `config.yaml`; `HERMES_TIMEZONE` speaks for the default profile only):
+   * the clock of the agent and its cron jobs. Rewritten only when it changes.
+   */
+  // ponytail: Hermes caches the timezone of a profile once read, so a change to an
+  // existing profile applies at its next restart; a new profile gets it before its first start
+  #saveTimezone(profileDir: string, timezone: string): void {
+    const configFile = join(profileDir, "config.yaml");
+    const lines = readFileSync(configFile, "utf8")
+      .split("\n")
+      .filter((line) => line !== "");
+    const line = `timezone: ${timezone}`;
+    if (lines.includes(line)) return;
+    writeFileSync(
+      configFile,
+      [
+        ...lines.filter((l) => !l.startsWith("timezone:")),
+        line,
+        "",
+      ].join("\n"),
+    );
+    chmodSync(configFile, 0o600);
   }
 
   /** The admin API of Synapse: the account, kept out of the directory and the stats. */
