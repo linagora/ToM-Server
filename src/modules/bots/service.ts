@@ -82,7 +82,7 @@ export class BotsService {
   /**
    * The room where Hermes delivers what the bot does on its own (cron jobs):
    * the direct room of the owner with the bot, set by the client as soon as
-   * it opens it, as `/sethome` would (`MATRIX_HOME_CHANNEL` of the profile).
+   * it opens it, as `/sethome` would (`MATRIX_HOME_ROOM` of the profile).
    */
   setHome(ownerId: string, roomId: string): void {
     const bot = botIds(ownerId, this.#config, this.#synapse.serverName);
@@ -94,12 +94,12 @@ export class BotsService {
     }
     const lines = readFileSync(envFile, "utf8")
       .split("\n")
-      .filter((line) => line !== "" && !line.startsWith("MATRIX_HOME_CHANNEL="));
+      .filter((line) => line !== "" && !line.startsWith("MATRIX_HOME_ROOM="));
     writeFileSync(
       envFile,
       [
         ...lines,
-        `MATRIX_HOME_CHANNEL=${roomId}`,
+        `MATRIX_HOME_ROOM=${roomId}`,
         "",
       ].join("\n"),
     );
@@ -194,7 +194,7 @@ export class BotsService {
         `MATRIX_ALLOWED_USERS=${ownerId}`,
         // Until the client gives the direct room (setHome): never empty, or
         // Hermes asks the owner to type /sethome in the chat
-        `MATRIX_HOME_CHANNEL=${ownerId}`,
+        `MATRIX_HOME_ROOM=${ownerId}`,
         "MATRIX_REQUIRE_MENTION=false",
         "MATRIX_AUTO_THREAD=false",
         "MATRIX_REACTIONS=false",

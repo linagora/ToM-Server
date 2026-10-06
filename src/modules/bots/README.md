@@ -56,7 +56,7 @@ start, a change to an existing one applies at the next restart of Hermes.
 
 `POST /_twake/v1/bots/me/home` — `{ "room_id": "!dm:example.com" }`, same
 authorization. The client sends the direct room of the user with the bot as
-soon as it opens it: ToM writes `MATRIX_HOME_CHANNEL` in the profile, where
+soon as it opens it: ToM writes `MATRIX_HOME_ROOM` in the profile, where
 Hermes delivers what the bot does on its own (cron jobs), as `/sethome` would.
 Until then the profile holds the owner's id, so that Hermes never asks the
 user to type `/sethome`. `204`; `400` for something that is not a room id;

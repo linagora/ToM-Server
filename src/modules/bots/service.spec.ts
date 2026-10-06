@@ -108,14 +108,14 @@ describe("BotsService", () => {
     mkdirSync(dir, {
       recursive: true,
     });
-    writeFileSync(join(dir, ".env"), `MATRIX_USER_ID=${BOT}\nMATRIX_HOME_CHANNEL=${OWNER}\n`);
+    writeFileSync(join(dir, ".env"), `MATRIX_USER_ID=${BOT}\nMATRIX_HOME_ROOM=${OWNER}\n`);
     const service = new BotsService(settings(), synapse, silentLogger);
 
     service.setHome(OWNER, "!dm:example.com");
     service.setHome(OWNER, "!dm:example.com");
 
     const env = readFileSync(join(dir, ".env"), "utf8");
-    expect(env).toBe(`MATRIX_USER_ID=${BOT}\nMATRIX_HOME_CHANNEL=!dm:example.com\n`);
+    expect(env).toBe(`MATRIX_USER_ID=${BOT}\nMATRIX_HOME_ROOM=!dm:example.com\n`);
     expect(statSync(join(dir, ".env")).mode & 0o777).toBe(0o600);
   });
 
@@ -180,7 +180,7 @@ describe("BotsService", () => {
     });
     const env = readFileSync(join(profilesDir, "bot_dwho", ".env"), "utf8");
     expect(env).toContain("MATRIX_ACCESS_TOKEN=syt_bot");
-    expect(env).toMatch(/^MATRIX_HOME_CHANNEL=@/m);
+    expect(env).toMatch(/^MATRIX_HOME_ROOM=@/m);
     expect(env).toContain(`MATRIX_USER_ID=${BOT}`);
     expect(env).toContain(`MATRIX_DEVICE_ID=${DEVICE}`);
     expect(env).toContain(`MATRIX_ALLOWED_USERS=${OWNER}`);
