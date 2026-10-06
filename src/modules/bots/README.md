@@ -36,11 +36,20 @@ the homeserver publishes before marking the device verified.
    the profile, makes the cross-signing identity itself and publishes its
    device. Not there yet: `503`.
 
-Hermes learns about a new profile at its start (the container boot
-reconciles `$HERMES_HOME/profiles`, `hermes profile create` registers at run
-time): the deployment restarts the agent, or runs its profile reconciliation,
-after a provisioning. Until that is automated, the first `bots/me` of a user
-answers `503` and the next one, after the restart, `200`.
+Hermes (v0.21.5 and later, `gateway.multiplex_profiles: true`) reads
+`$HERMES_HOME/profiles` every 30 s and serves a new profile with no restart.
+The first `bots/me` of a user may answer `503` in the meantime: the client
+tries again until `200`.
+
+## Home channel
+
+`POST /_twake/v1/bots/me/home` — `{ "room_id": "!dm:example.com" }`, same
+authorization. The client sends the direct room of the user with the bot as
+soon as it opens it: ToM writes `MATRIX_HOME_CHANNEL` in the profile, where
+Hermes delivers what the bot does on its own (cron jobs), as `/sethome` would.
+Until then the profile holds the owner's id, so that Hermes never asks the
+user to type `/sethome`. `204`; `400` for something that is not a room id;
+`404` when the user has no assistant yet.
 
 ## Commands (MSC4332)
 

@@ -84,3 +84,8 @@ export const keysQueryResponseSchema = z.object({
 export const joinedRoomsSchema = z.object({
   joined_rooms: z.array(z.string()),
 });
+
+/** The direct room of the owner with the bot, sent by the client (`bots/me/home`). */
+export const homeRequestSchema = z.object({
+  room_id: z.string().regex(/^![^:]+:.+$/),
+});

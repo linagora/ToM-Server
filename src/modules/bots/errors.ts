@@ -8,6 +8,13 @@ export class BotsDisabledError extends DomainError {
   }
 }
 
+/** The user has no assistant yet: `bots/me` first (404). */
+export class BotNotProvisionedError extends DomainError {
+  constructor(messageKey: string, context: Record<string, unknown> = {}) {
+    super(NOT_FOUND, messageKey, context);
+  }
+}
+
 /** The bot is provisioned but its keys are not published yet: try again later (503). */
 export class BotNotReadyError extends DomainError {
   constructor(messageKey: string, context: Record<string, unknown> = {}) {

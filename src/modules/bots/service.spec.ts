@@ -1,11 +1,11 @@
 import { afterEach, beforeAll, describe, expect, it, type Mock, mock } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { createLogger } from "winston";
 
-import { BAD_GATEWAY, SERVICE_UNAVAILABLE } from "../../errors/error-codes";
+import { BAD_GATEWAY, NOT_FOUND, SERVICE_UNAVAILABLE } from "../../errors/error-codes";
 import { loadMessages } from "../../i18n/index";
 import { BotsService, botIds } from "./service";
 import type { BotsSettings, SynapseAccess } from "./types";
@@ -102,6 +102,34 @@ describe("BotsService", () => {
     profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
   });
 
+  it("sets the direct room as the home channel of the bot, once, whatever was there", () => {
+    profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
+    const dir = join(profilesDir, "bot_dwho");
+    mkdirSync(dir, {
+      recursive: true,
+    });
+    writeFileSync(join(dir, ".env"), `MATRIX_USER_ID=${BOT}\nMATRIX_HOME_CHANNEL=${OWNER}\n`);
+    const service = new BotsService(settings(), synapse, silentLogger);
+
+    service.setHome(OWNER, "!dm:example.com");
+    service.setHome(OWNER, "!dm:example.com");
+
+    const env = readFileSync(join(dir, ".env"), "utf8");
+    expect(env).toBe(`MATRIX_USER_ID=${BOT}\nMATRIX_HOME_CHANNEL=!dm:example.com\n`);
+    expect(statSync(join(dir, ".env")).mode & 0o777).toBe(0o600);
+  });
+
+  it("refuses a home channel for a user without an assistant", () => {
+    profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
+    const service = new BotsService(settings(), synapse, silentLogger);
+
+    expect(() => service.setHome(OWNER, "!dm:example.com")).toThrow(
+      expect.objectContaining({
+        code: NOT_FOUND,
+      }),
+    );
+  });
+
   it("names the bot and its device after the owner", () => {
     expect(botIds("@jean-luc.picard:example.com", settings(), "example.com")).toEqual({
       localpart: "bot_jean-luc.picard",
@@ -152,6 +180,7 @@ describe("BotsService", () => {
     });
     const env = readFileSync(join(profilesDir, "bot_dwho", ".env"), "utf8");
     expect(env).toContain("MATRIX_ACCESS_TOKEN=syt_bot");
+    expect(env).toMatch(/^MATRIX_HOME_CHANNEL=@/m);
     expect(env).toContain(`MATRIX_USER_ID=${BOT}`);
     expect(env).toContain(`MATRIX_DEVICE_ID=${DEVICE}`);
     expect(env).toContain(`MATRIX_ALLOWED_USERS=${OWNER}`);

@@ -8,7 +8,7 @@ import { createLogger } from "winston";
 import { NOT_FOUND } from "../../errors/error-codes";
 import { loadMessages } from "../../i18n/index";
 import type { AuthenticatedRequest } from "../../middleware/auth/types";
-import { createBotsRouter, MY_BOT_ROUTE } from "./router";
+import { createBotsRouter, MY_BOT_HOME_ROUTE, MY_BOT_ROUTE } from "./router";
 import type { BotsService } from "./service";
 import type { BotsSettings } from "./types";
 
@@ -47,10 +47,11 @@ const rejecting: RequestHandler = (_req, res): void => {
 
 const makeApp = (router: express.Router): express.Express => {
   const app = express();
+  app.use(express.json());
   app.use(router);
   // biome-ignore lint/suspicious/noExplicitAny: Express err is loosely typed
   app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    res.status(err.code === NOT_FOUND ? 404 : 500).json({
+    res.status(err.code === NOT_FOUND ? 404 : err.code === "M_INVALID_PARAM" ? 400 : 500).json({
       errcode: err.code,
     });
   });
@@ -114,5 +115,46 @@ describe("bots router", () => {
     const response = await request(app).post(MY_BOT_ROUTE);
 
     expect(response.status).toBe(401);
+  });
+
+  it("takes the direct room of the user as the home channel of the bot", async () => {
+    const homes: [
+      string,
+      string,
+    ][] = [];
+    const service = {
+      setHome: (ownerId: string, roomId: string) => {
+        homes.push([
+          ownerId,
+          roomId,
+        ]);
+      },
+    } as unknown as BotsService;
+    const app = makeApp(
+      createBotsRouter(
+        settings(true),
+        {
+          authenticate: authenticated,
+        },
+        service,
+        silentLogger,
+      ),
+    );
+
+    const accepted = await request(app).post(MY_BOT_HOME_ROUTE).send({
+      room_id: "!dm:example.com",
+    });
+    const refused = await request(app).post(MY_BOT_HOME_ROUTE).send({
+      room_id: "not a room",
+    });
+
+    expect(accepted.status).toBe(204);
+    expect(refused.status).toBe(400);
+    expect(homes).toEqual([
+      [
+        "@dwho:example.com",
+        "!dm:example.com",
+      ],
+    ]);
   });
 });

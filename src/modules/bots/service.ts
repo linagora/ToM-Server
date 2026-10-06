@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { Logger } from "winston";
@@ -7,7 +7,7 @@ import type { z } from "zod";
 
 import { translate } from "../../i18n/index";
 import { HttpClient, readJson } from "../../net/http-client";
-import { BotNotReadyError, BotsUpstreamError } from "./errors";
+import { BotNotProvisionedError, BotNotReadyError, BotsUpstreamError } from "./errors";
 import { keysQueryResponseSchema, loginResponseSchema } from "./schema";
 import type { BotsSettings, MyBot, SynapseAccess } from "./types";
 
@@ -78,6 +78,34 @@ export class BotsService {
     };
   }
 
+  /**
+   * The room where Hermes delivers what the bot does on its own (cron jobs):
+   * the direct room of the owner with the bot, set by the client as soon as
+   * it opens it, as `/sethome` would (`MATRIX_HOME_CHANNEL` of the profile).
+   */
+  setHome(ownerId: string, roomId: string): void {
+    const bot = botIds(ownerId, this.#config, this.#synapse.serverName);
+    const envFile = join(this.#config.hermes_profiles_dir ?? "", bot.localpart, ".env");
+    if (!existsSync(envFile)) {
+      throw new BotNotProvisionedError("bots.not_provisioned", {
+        bot: bot.userId,
+      });
+    }
+    const lines = readFileSync(envFile, "utf8")
+      .split("\n")
+      .filter((line) => line !== "" && !line.startsWith("MATRIX_HOME_CHANNEL="));
+    writeFileSync(
+      envFile,
+      [
+        ...lines,
+        `MATRIX_HOME_CHANNEL=${roomId}`,
+        "",
+      ].join("\n"),
+    );
+    // The profile holds the token of the bot: its owner only, as when written
+    chmodSync(envFile, 0o600);
+  }
+
   /** The admin API of Synapse: the account, kept out of the directory and the stats. */
   async #createAccount(botUserId: string, ownerId: string): Promise<void> {
     const path = `/_synapse/admin/v2/users/${encodeURIComponent(botUserId)}`;
@@ -138,6 +166,9 @@ export class BotsService {
         "MATRIX_E2EE_MODE=optional",
         `MATRIX_RECOVERY_KEY_OUTPUT_FILE=${this.#config.hermes_home}/profiles/${botUserId.slice(1, botUserId.indexOf(":"))}/recovery-key`,
         `MATRIX_ALLOWED_USERS=${ownerId}`,
+        // Until the client gives the direct room (setHome): never empty, or
+        // Hermes asks the owner to type /sethome in the chat
+        `MATRIX_HOME_CHANNEL=${ownerId}`,
         "MATRIX_REQUIRE_MENTION=false",
         "MATRIX_AUTO_THREAD=false",
         "MATRIX_REACTIONS=false",
