@@ -1,5 +1,5 @@
 import { DomainError } from "../../errors/domain-error";
-import { BAD_GATEWAY, NOT_FOUND, SERVICE_UNAVAILABLE } from "../../errors/error-codes";
+import { BAD_GATEWAY, NOT_FOUND, SERVICE_UNAVAILABLE, UNPROCESSABLE } from "../../errors/error-codes";
 
 /** The feature is off: the client hides its action (404). */
 export class BotsDisabledError extends DomainError {
@@ -19,6 +19,27 @@ export class BotNotProvisionedError extends DomainError {
 export class BotNotReadyError extends DomainError {
   constructor(messageKey: string, context: Record<string, unknown> = {}) {
     super(SERVICE_UNAVAILABLE, messageKey, context);
+  }
+}
+
+/** The agent harness serves no assistant for this user: not on its homeserver (422). */
+export class BotOwnerNotServedError extends DomainError {
+  constructor(messageKey: string, context: Record<string, unknown> = {}) {
+    super(UNPROCESSABLE, messageKey, context);
+  }
+}
+
+/** The harness refuses the room as the home of the bot: someone else is in it (422). */
+export class BotHomeRefusedError extends DomainError {
+  constructor(messageKey: string, context: Record<string, unknown> = {}) {
+    super(UNPROCESSABLE, messageKey, context);
+  }
+}
+
+/** The identity of the bot waits for its owner's recovery at the harness: retrying does not help (422). */
+export class BotRecoveryNeededError extends DomainError {
+  constructor(messageKey: string, context: Record<string, unknown> = {}) {
+    super(UNPROCESSABLE, messageKey, context);
   }
 }
 

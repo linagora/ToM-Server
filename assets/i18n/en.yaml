@@ -68,14 +68,22 @@ bots.not_ready: "The assistant is being prepared, try again in a moment"
 bots.upstream_failure: "The homeserver failed to process the request"
 bots.invalid_room: "The room is not a Matrix room id"
 bots.not_provisioned: "The user has no assistant yet"
+bots.recovery_needed: "The assistant waits for its owner to recover its identity"
+bots.owner_not_served: "The assistants do not serve this user's homeserver"
+bots.home_not_direct: "Someone other than the user and the assistant is in
+  this room"
+bots.harness_failure: "The assistants service failed to process the request"
 log.bots.mounting: "Mounting botsRouter... enabled: {{enabled}}"
 log.bots.disabled: "assistants disabled"
 log.bots.provisioned: "assistant provisioned"
 log.bots.not_ready: "assistant keys not published yet"
+log.bots.not_in_room: "the assistant has not joined its home room yet"
 log.bots.upstream_failure: "homeserver failure on {{endpoint}}: {{reason}}"
 log.bots.commands_failed: "publishing the commands of the assistants failed:
   {{reason}}"
 log.bots.commands_refused: "a room refused the commands of an assistant"
+log.bots.harness_failure: "assistants service failure on {{endpoint}}:
+  {{reason}}"
 
 # GIFs
 gifs.no_authenticated_user: "No authenticated user"

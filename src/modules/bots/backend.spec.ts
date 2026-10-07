@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 
 import { createLogger } from "winston";
 
@@ -34,7 +34,14 @@ const common: Omit<BotsSettings, "backend"> = {
   publish_interval_ms: 60000,
 };
 
+let server: ReturnType<typeof Bun.serve> | null = null;
+
 describe("bots backend", () => {
+  afterEach(() => {
+    server?.stop(true);
+    server = null;
+  });
+
   it("keeps Hermes and its announcer of commands as the default backend", () => {
     const backend = makeBotsBackend(
       {
@@ -49,22 +56,64 @@ describe("bots backend", () => {
     expect(backend.commands).not.toBeNull();
   });
 
-  it("refuses to start a ToM configured for the harness rather than fall back to Hermes", () => {
+  it("asks the harness for the bots, and announces no command itself, when the harness serves them", async () => {
+    const paths: string[] = [];
+    server = Bun.serve({
+      port: 0,
+      fetch(req: Request): Response {
+        const path = new URL(req.url).pathname;
+        paths.push(path);
+        return Response.json(
+          path === "/oauth2/token"
+            ? {
+                access_token: "tok",
+                expires_in: 300,
+              }
+            : {
+                userId: "@bot_dwho:example.com",
+                deviceId: "DEVICE",
+                masterKey: "mk",
+              },
+        );
+      },
+    });
+
+    const backend = makeBotsBackend(
+      {
+        ...common,
+        ready_timeout_ms: 2000,
+        backend: "harness",
+        harness: {
+          url: `http://127.0.0.1:${server.port}`,
+          token_url: `http://127.0.0.1:${server.port}/oauth2/token`,
+          client_id: "tom",
+          client_secret: "s3cret",
+          scope: "openid",
+        },
+      },
+      synapse,
+      silentLogger,
+    );
+    const bot = await backend.service.provision("@dwho:example.com", "syt_owner");
+
+    expect(bot.userId).toBe("@bot_dwho:example.com");
+    expect(paths).toEqual([
+      "/oauth2/token",
+      "/v1/provisioning/assistants/%40dwho%3Aexample.com",
+    ]);
+    expect(backend.commands).toBeNull();
+  });
+
+  it("never falls back to Hermes on a ToM the harness serves", () => {
     expect(() =>
       makeBotsBackend(
         {
           ...common,
           backend: "harness",
-          harness: {
-            url: "https://gateway.example.com/agents",
-            token_url: "https://auth.example.com/oauth2/token",
-            client_id: "tom",
-            client_secret: "s3cret",
-          },
         },
         synapse,
         silentLogger,
       ),
-    ).toThrow("bots.backend harness is not available in this version of ToM");
+    ).toThrow("bots.harness is required when bots.backend is harness");
   });
 });
