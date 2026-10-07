@@ -10,10 +10,34 @@ const commandSchema = z.object({
   description: z.string().default(""),
 });
 
-/** The assistants of the users (Twake Chat, DECISION.md D27): one Hermes profile per user. */
+/**
+ * The agent harness of the platform (linagora/twake-harness), which owns the
+ * assistants as its application service: ToM asks it for the bot of a user,
+ * with a token of its own OIDC client (client credentials grant).
+ */
+const harnessSettingsSchema = z.object({
+  /** The base of the harness API (its `/v1` routes), as ToM reaches it. */
+  url: z.url(),
+  /** The token endpoint of the OIDC provider. */
+  token_url: z.url(),
+  client_id: z.string().min(1),
+  client_secret: z.string().min(1),
+});
+
+/**
+ * The assistants of the users (Twake Chat, DECISION.md D27): one Hermes profile
+ * per user, or the agent harness of the platform. One backend or the other.
+ */
 export const botsSettingsSchema = z
   .object({
     enabled: z.boolean().default(false),
+    backend: z
+      .enum([
+        "hermes",
+        "harness",
+      ])
+      .default("hermes"),
+    harness: harnessSettingsSchema.optional(),
     /** Where the shared Hermes agent reads its profiles (`$HERMES_HOME/profiles`), as ToM sees it. */
     hermes_profiles_dir: z.string().optional(),
     /** The home of the agent as the agent sees it (`/opt/data` in its image): paths written in a profile. */
@@ -47,6 +71,29 @@ export const botsSettingsSchema = z
       return;
     }
 
+    if (value.backend === "harness") {
+      if (!value.harness) {
+        ctx.addIssue({
+          code: "custom",
+          path: [
+            "harness",
+          ],
+          message: "bots.harness is required when bots.backend is harness",
+        });
+      }
+      // Hermes and the harness would both claim the same accounts
+      if (value.hermes_profiles_dir) {
+        ctx.addIssue({
+          code: "custom",
+          path: [
+            "hermes_profiles_dir",
+          ],
+          message: "a ToM served by the harness runs no Hermes profile: unset bots.hermes_profiles_dir",
+        });
+      }
+      return;
+    }
+
     if (!value.hermes_profiles_dir) {
       ctx.addIssue({
         code: "custom",
@@ -54,6 +101,16 @@ export const botsSettingsSchema = z
           "hermes_profiles_dir",
         ],
         message: "bots.hermes_profiles_dir is required when bots.enabled is true",
+      });
+    }
+    if (value.harness) {
+      ctx.addIssue({
+        code: "custom",
+        path: [
+          "harness",
+        ],
+        message:
+          "bots.harness is only read when bots.backend is harness: Hermes and the harness never serve one ToM together",
       });
     }
   });
