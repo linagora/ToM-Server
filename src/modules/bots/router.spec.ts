@@ -9,7 +9,7 @@ import { NOT_FOUND } from "../../errors/error-codes";
 import { loadMessages } from "../../i18n/index";
 import type { AuthenticatedRequest } from "../../middleware/auth/types";
 import { BotNotProvisionedError } from "./errors";
-import { createBotsRouter, MY_BOT_HOME_ROUTE, MY_BOT_ROUTE } from "./router";
+import { createBotsRouter, MY_BOT_HOME_ROUTE, MY_BOT_RECOVER_ROUTE, MY_BOT_ROUTE } from "./router";
 import type { BotsService } from "./service";
 import type { BotsSettings } from "./types";
 
@@ -224,5 +224,31 @@ describe("bots router", () => {
 
     expect(accepted.status).toBe(204);
     expect(unknown.status).toBe(404);
+  });
+
+  it("asks for the recovery of the bot of the authenticated user", async () => {
+    const asked: string[] = [];
+    const service = {
+      recover: (ownerId: string) => {
+        asked.push(ownerId);
+      },
+    } as unknown as BotsService;
+    const app = makeApp(
+      createBotsRouter(
+        settings(true),
+        {
+          authenticate: authenticated,
+        },
+        service,
+        silentLogger,
+      ),
+    );
+    const disabled = makeApp(createBotsRouter(settings(false), undefined, undefined, silentLogger));
+
+    expect((await request(app).post(MY_BOT_RECOVER_ROUTE)).status).toBe(202);
+    expect((await request(disabled).post(MY_BOT_RECOVER_ROUTE)).status).toBe(404);
+    expect(asked).toEqual([
+      "@dwho:example.com",
+    ]);
   });
 });

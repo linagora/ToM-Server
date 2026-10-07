@@ -7,7 +7,7 @@ import type { z } from "zod";
 
 import { translate } from "../../i18n/index";
 import { HttpClient, readJson } from "../../net/http-client";
-import { BotNotProvisionedError, BotNotReadyError, BotsUpstreamError } from "./errors";
+import { BotNotProvisionedError, BotNotReadyError, BotsDisabledError, BotsUpstreamError } from "./errors";
 import { keysQueryResponseSchema, loginResponseSchema } from "./schema";
 import type { BotsSettings, MyBot, SynapseAccess } from "./types";
 
@@ -84,6 +84,11 @@ export class BotsService {
    * the direct room of the owner with the bot, set by the client as soon as
    * it opens it, as `/sethome` would (`MATRIX_HOME_ROOM` of the profile).
    */
+  /** Hermes keeps the keys of its bots on its volume: there is nothing to recover (404). */
+  recover(_ownerId: string): void {
+    throw new BotsDisabledError("bots.recovery_unsupported");
+  }
+
   setHome(ownerId: string, roomId: string): void {
     const bot = botIds(ownerId, this.#config, this.#synapse.serverName);
     const envFile = join(this.#config.hermes_profiles_dir ?? "", bot.localpart, ".env");

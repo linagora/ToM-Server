@@ -4,7 +4,7 @@ import { Writable } from "node:stream";
 
 import { createLogger, format, type Logger, transports } from "winston";
 
-import { BAD_GATEWAY, NOT_FOUND, SERVICE_UNAVAILABLE, UNPROCESSABLE } from "../../errors/error-codes";
+import { BAD_GATEWAY, BOT_RECOVERY_NEEDED, NOT_FOUND, SERVICE_UNAVAILABLE, UNPROCESSABLE } from "../../errors/error-codes";
 import { loadMessages } from "../../i18n/index";
 import { HarnessBotsService } from "./harness";
 import type { BotsSettings } from "./types";
@@ -400,10 +400,45 @@ describe("HarnessBotsService", () => {
     });
 
     await expect(serviceOf(settings(fake.url)).provision(OWNER, "syt_owner")).rejects.toMatchObject({
-      code: UNPROCESSABLE,
+      code: BOT_RECOVERY_NEEDED,
       message: "bots.recovery_needed",
     });
     expect(calls).toBe(1);
+  });
+
+  it("asks the harness for the owner's recovery, and says when the owner has no bot", async () => {
+    const token = tokens();
+    let known = true;
+    fake = startFake((request) => {
+      const answer = token(request);
+      if (answer) return answer;
+      return known
+        ? json(202, {
+            queued: true,
+          })
+        : json(404, {
+            error: "no assistant",
+          });
+    });
+    const service = serviceOf(settings(fake.url));
+
+    await service.recover(OWNER);
+    known = false;
+    await expect(service.recover(OWNER)).rejects.toMatchObject({
+      code: NOT_FOUND,
+    });
+    const asked = fake.seen.filter((request) => request.path !== "/oauth2/token");
+    expect(asked.map((request) => [request.method, request.path])).toEqual([
+      [
+        "POST",
+        `${OWNER_PATH}/recover`,
+      ],
+      [
+        "POST",
+        `${OWNER_PATH}/recover`,
+      ],
+    ]);
+    expect(asked[0]?.authorization).toBe("Bearer tok-1");
   });
 
   it("reports a harness that fails, answers nonsense or cannot be reached as a bad gateway", async () => {
