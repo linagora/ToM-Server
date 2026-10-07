@@ -142,6 +142,21 @@ describe("HarnessBotsService", () => {
     });
   });
 
+  it("form-encodes the client credentials before Basic, as RFC 6749 §2.3.1 says", async () => {
+    const token = tokens();
+    fake = startFake((request) => token(request) ?? json(200, BOT));
+    const config = settings(fake.url);
+    if (!config.harness) throw new Error("no harness");
+    config.harness.client_id = "tom:b2b";
+    config.harness.client_secret = "p@ss w:rd/+&é";
+
+    await serviceOf(config).provision(OWNER, "syt_owner");
+
+    expect(fake.seen[0]?.authorization).toBe(
+      `Basic ${Buffer.from("tom%3Ab2b:p%40ss+w%3Ard%2F%2B%26%C3%A9").toString("base64")}`,
+    );
+  });
+
   it("asks again while the harness prepares the identity of the bot, as it says when", async () => {
     const token = tokens();
     let asked = 0;

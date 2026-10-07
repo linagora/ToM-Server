@@ -13,6 +13,14 @@ const READY_POLL_MS = 1000;
 /** A token is renewed this long before it expires. */
 const TOKEN_MARGIN_MS = 30000;
 
+/** A client id or secret as RFC 6749 §2.3.1 wants it before Basic: application/x-www-form-urlencoded. */
+const formEncode = (value: string): string =>
+  new URLSearchParams({
+    value,
+  })
+    .toString()
+    .slice("value=".length);
+
 const tokenResponseSchema = z.object({
   access_token: z.string().min(1),
   expires_in: z.number().positive().optional(),
@@ -164,7 +172,7 @@ export class HarnessBotsService {
       response = await fetch(this.#harness.token_url, {
         method: "POST",
         headers: {
-          Authorization: `Basic ${Buffer.from(`${this.#harness.client_id}:${this.#harness.client_secret}`).toString("base64")}`,
+          Authorization: `Basic ${Buffer.from(`${formEncode(this.#harness.client_id)}:${formEncode(this.#harness.client_secret)}`).toString("base64")}`,
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: new URLSearchParams({
