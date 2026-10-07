@@ -4,8 +4,7 @@ import type { Logger } from "winston";
 import { translate } from "../../i18n/index";
 import { myBotController, myBotHomeController } from "./controller";
 import { BotsDisabledError } from "./errors";
-import type { BotsService } from "./service";
-import type { BotsDeps, BotsSettings } from "./types";
+import type { BotsDeps, BotsProvisioner, BotsSettings } from "./types";
 
 export const MY_BOT_ROUTE = "/_twake/v1/bots/me";
 export const MY_BOT_HOME_ROUTE = "/_twake/v1/bots/me/home";
@@ -13,7 +12,7 @@ export const MY_BOT_HOME_ROUTE = "/_twake/v1/bots/me/home";
 export const createBotsRouter = (
   config: BotsSettings,
   deps: BotsDeps | undefined,
-  service: BotsService | undefined,
+  service: BotsProvisioner | undefined,
   logger: Logger,
 ): Router => {
   const router = Router();
@@ -44,9 +43,9 @@ export const createBotsRouter = (
     }
   });
 
-  router.post(MY_BOT_HOME_ROUTE, deps.authenticate, (req, res, next) => {
+  router.post(MY_BOT_HOME_ROUTE, deps.authenticate, async (req, res, next) => {
     try {
-      myBotHomeController(service, req);
+      await myBotHomeController(service, req);
       res.status(204).end();
     } catch (err) {
       next(err);
