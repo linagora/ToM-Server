@@ -1,6 +1,8 @@
 import { afterEach, beforeAll, describe, expect, it } from "bun:test";
+import { join } from "node:path";
+import { Writable } from "node:stream";
 
-import { createLogger } from "winston";
+import { createLogger, format, type Logger, transports } from "winston";
 
 import { BAD_GATEWAY, NOT_FOUND, SERVICE_UNAVAILABLE, UNPROCESSABLE } from "../../errors/error-codes";
 import { loadMessages } from "../../i18n/index";
@@ -104,16 +106,41 @@ const settings = (url: string, overrides: Partial<BotsSettings> = {}): BotsSetti
   ...overrides,
 });
 
-const serviceOf = (config: BotsSettings): HarnessBotsService => {
+const serviceOf = (config: BotsSettings, logger: Logger = silentLogger): HarnessBotsService => {
   if (!config.harness) throw new Error("no harness");
-  return new HarnessBotsService(config, config.harness, silentLogger);
+  return new HarnessBotsService(config, config.harness, logger);
+};
+
+/** A logger that keeps every line it writes, as JSON. */
+const capturing = (): {
+  logger: Logger;
+  lines: string[];
+} => {
+  const lines: string[] = [];
+  const stream = new Writable({
+    write(chunk: Buffer, _encoding: string, next: () => void): void {
+      lines.push(String(chunk));
+      next();
+    },
+  });
+  return {
+    logger: createLogger({
+      format: format.json(),
+      transports: [
+        new transports.Stream({
+          stream,
+        }),
+      ],
+    }),
+    lines,
+  };
 };
 
 let fake: ReturnType<typeof startFake> | null = null;
 
 describe("HarnessBotsService", () => {
   beforeAll(() => {
-    loadMessages(undefined, silentLogger);
+    loadMessages(join(import.meta.dir, "../../../assets/i18n"), silentLogger);
   });
 
   afterEach(() => {
@@ -140,6 +167,41 @@ describe("HarnessBotsService", () => {
     expect(JSON.parse(put?.body ?? "")).toEqual({
       timezone: "Europe/Paris",
     });
+  });
+
+  it("logs the endpoints it calls, never the owner it calls them for", async () => {
+    const { logger, lines } = capturing();
+    const token = tokens();
+    fake = startFake(
+      (request) =>
+        token(request) ??
+        (request.path.endsWith("/home")
+          ? json(500, {})
+          : json(503, {
+              error: "not_ready",
+            })),
+    );
+    const config = settings(fake.url, {
+      ready_timeout_ms: 300,
+    });
+    const unreachable = settings("http://127.0.0.1:1");
+    if (!unreachable.harness || !config.harness) throw new Error("no harness");
+    unreachable.harness.token_url = config.harness.token_url;
+
+    await serviceOf(config, logger)
+      .provision(OWNER, "syt_owner")
+      .catch(() => undefined);
+    await serviceOf(config, logger)
+      .setHome(OWNER, "!dm:example.com")
+      .catch(() => undefined);
+    await serviceOf(unreachable, logger)
+      .provision(OWNER, "syt_owner")
+      .catch(() => undefined);
+
+    expect(lines.length).toBeGreaterThanOrEqual(3);
+    expect(lines.filter((line) => line.includes("dwho"))).toEqual([]);
+    expect(lines.some((line) => line.includes("PUT /v1/provisioning/assistants/{owner}/home"))).toBe(true);
+    expect(lines.some((line) => line.includes("PUT /v1/provisioning/assistants/{owner}:"))).toBe(true);
   });
 
   it("form-encodes the client credentials before Basic, as RFC 6749 §2.3.1 says", async () => {

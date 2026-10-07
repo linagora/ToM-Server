@@ -8,6 +8,10 @@ import { myBotResponseSchema } from "./schema";
 import type { BotsSettings, HarnessSettings, MyBot } from "./types";
 
 const PROVISIONING_PATH = "/v1/provisioning/assistants";
+/** The endpoints as the logs name them: the owner never appears in a log. */
+const PROVISION_ENDPOINT = `PUT ${PROVISIONING_PATH}/{owner}`;
+const HOME_ENDPOINT = `PUT ${PROVISIONING_PATH}/{owner}/home`;
+const TOKEN_ENDPOINT = "token";
 /** Between two calls while the harness prepares a bot, unless it says otherwise. */
 const READY_POLL_MS = 1000;
 /** A token is renewed this long before it expires. */
@@ -29,6 +33,17 @@ const tokenResponseSchema = z.object({
 /** What a fetch cut by its AbortSignal.timeout throws. */
 const isTimeout = (err: unknown): boolean =>
   err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
+
+/** Why a call failed, by the error's code or name: its message may carry the URL, and so the owner. */
+const reasonOf = (err: unknown): string => {
+  if (!(err instanceof Error)) return translate("log.net.request_failed");
+  const code = (
+    err as {
+      code?: unknown;
+    }
+  ).code;
+  return typeof code === "string" ? code : err.name;
+};
 
 /**
  * The assistants served by the agent harness of the platform, which owns them
@@ -71,29 +86,27 @@ export class HarnessBotsService {
         }
       : {};
     for (;;) {
-      const response = await this.#put(path, body, deadline, ownerId);
+      const response = await this.#put(PROVISION_ENDPOINT, path, body, deadline);
       if (response.status !== 503) {
-        return this.#botOf(response, ownerId);
+        return this.#botOf(response);
       }
-      await this.#waitOrGiveUp(response, deadline, ownerId, "log.bots.not_ready");
+      await this.#waitOrGiveUp(response, deadline, "log.bots.not_ready");
     }
   }
 
   /** The bot in the harness's answer, or why there is none. */
-  async #botOf(response: Response, ownerId: string): Promise<MyBot> {
+  async #botOf(response: Response): Promise<MyBot> {
     if (response.status === 422) {
       await response.body?.cancel();
-      throw new BotOwnerNotServedError("bots.owner_not_served", {
-        owner: ownerId,
-      });
+      throw new BotOwnerNotServedError("bots.owner_not_served");
     }
     if (!response.ok) {
       await response.body?.cancel();
-      throw this.#upstreamError(PROVISIONING_PATH, String(response.status));
+      throw this.#upstreamError(PROVISION_ENDPOINT, String(response.status));
     }
     const bot = await readJson(response, myBotResponseSchema);
     if (!bot) {
-      throw this.#upstreamError(PROVISIONING_PATH, translate("log.net.unexpected_body"));
+      throw this.#upstreamError(PROVISION_ENDPOINT, translate("log.net.unexpected_body"));
     }
     return bot;
   }
@@ -109,25 +122,23 @@ export class HarnessBotsService {
     const path = `${PROVISIONING_PATH}/${encodeURIComponent(ownerId)}/home`;
     for (;;) {
       const response = await this.#put(
+        HOME_ENDPOINT,
         path,
         {
           roomId,
         },
         deadline,
-        ownerId,
       );
       if (response.status === 409) {
-        await this.#waitOrGiveUp(response, deadline, ownerId, "log.bots.not_in_room");
+        await this.#waitOrGiveUp(response, deadline, "log.bots.not_in_room");
         continue;
       }
       await response.body?.cancel();
       if (response.status === 404) {
-        throw new BotNotProvisionedError("bots.not_provisioned", {
-          owner: ownerId,
-        });
+        throw new BotNotProvisionedError("bots.not_provisioned");
       }
       if (!response.ok) {
-        throw this.#upstreamError(`${PROVISIONING_PATH}/home`, String(response.status));
+        throw this.#upstreamError(HOME_ENDPOINT, String(response.status));
       }
       return;
     }
@@ -138,38 +149,37 @@ export class HarnessBotsService {
    * it does not say. A wait the time left cannot afford ends the route at once:
    * the client tries later (503).
    */
-  async #waitOrGiveUp(response: Response, deadline: number, ownerId: string, logKey: string): Promise<void> {
+  async #waitOrGiveUp(response: Response, deadline: number, logKey: string): Promise<void> {
     await response.body?.cancel();
     const header = response.headers.get("Retry-After");
     const asked = header === null ? Number.NaN : Number(header);
     const wait = Number.isFinite(asked) && asked >= 0 ? asked * 1000 : READY_POLL_MS;
     if (Date.now() + wait >= deadline) {
-      throw this.#notReady(logKey, ownerId);
+      throw this.#notReady(logKey);
     }
     await new Promise((resolve) => setTimeout(resolve, wait));
   }
 
-  #notReady(logKey: string, ownerId: string): BotNotReadyError {
-    this.#log.warn(translate(logKey), {
-      owner: ownerId,
-    });
-    return new BotNotReadyError("bots.not_ready", {
-      owner: ownerId,
-    });
+  #notReady(logKey: string): BotNotReadyError {
+    this.#log.warn(translate(logKey));
+    return new BotNotReadyError("bots.not_ready");
   }
 
-  /** A PUT to the harness with ToM's token; a token it refuses is replaced once (expired, revoked). */
-  async #put(path: string, body: Record<string, unknown>, deadline: number, ownerId: string): Promise<Response> {
-    const response = await this.#putOnce(path, body, deadline, ownerId);
+  /**
+   * A PUT to the harness with ToM's token; a token it refuses is replaced once
+   * (expired, revoked). `endpoint` names the call in the logs, without the owner.
+   */
+  async #put(endpoint: string, path: string, body: Record<string, unknown>, deadline: number): Promise<Response> {
+    const response = await this.#putOnce(endpoint, path, body, deadline);
     if (response.status !== 401) return response;
     await response.body?.cancel();
     this.#token = null;
-    return this.#putOnce(path, body, deadline, ownerId);
+    return this.#putOnce(endpoint, path, body, deadline);
   }
 
-  async #putOnce(path: string, body: Record<string, unknown>, deadline: number, ownerId: string): Promise<Response> {
-    const token = await this.#accessToken(deadline, ownerId);
-    return this.#within(deadline, path, ownerId, (signal) =>
+  async #putOnce(endpoint: string, path: string, body: Record<string, unknown>, deadline: number): Promise<Response> {
+    const token = await this.#accessToken(deadline);
+    return this.#within(deadline, endpoint, (signal) =>
       fetch(`${this.#baseUrl}${path}`, {
         method: "PUT",
         headers: {
@@ -190,21 +200,20 @@ export class HarnessBotsService {
   async #within(
     deadline: number,
     endpoint: string,
-    ownerId: string,
     call: (signal: AbortSignal) => Promise<Response>,
   ): Promise<Response> {
     const remaining = deadline - Date.now();
     if (remaining <= 0) {
-      throw this.#notReady("log.bots.not_ready", ownerId);
+      throw this.#notReady("log.bots.not_ready");
     }
     const deadlineFirst = remaining < this.#config.timeout_ms;
     try {
       return await call(AbortSignal.timeout(Math.min(remaining, this.#config.timeout_ms)));
     } catch (err) {
       if (deadlineFirst && isTimeout(err)) {
-        throw this.#notReady("log.bots.not_ready", ownerId);
+        throw this.#notReady("log.bots.not_ready");
       }
-      throw this.#upstreamError(endpoint, err instanceof Error ? err.message : translate("log.net.request_failed"));
+      throw this.#upstreamError(endpoint, reasonOf(err));
     }
   }
 
@@ -212,18 +221,18 @@ export class HarnessBotsService {
    * A token of ToM's own client, from the client credentials grant, kept until it
    * nearly expires. One request at a time: concurrent calls wait for the same one.
    */
-  #accessToken(deadline: number, ownerId: string): Promise<string> {
+  #accessToken(deadline: number): Promise<string> {
     if (this.#token && this.#token.expiresAt > Date.now()) {
       return Promise.resolve(this.#token.value);
     }
-    this.#tokenRequest ??= this.#requestToken(deadline, ownerId).finally(() => {
+    this.#tokenRequest ??= this.#requestToken(deadline).finally(() => {
       this.#tokenRequest = null;
     });
     return this.#tokenRequest;
   }
 
-  async #requestToken(deadline: number, ownerId: string): Promise<string> {
-    const response = await this.#within(deadline, "token", ownerId, (signal) =>
+  async #requestToken(deadline: number): Promise<string> {
+    const response = await this.#within(deadline, TOKEN_ENDPOINT, (signal) =>
       fetch(this.#harness.token_url, {
         method: "POST",
         headers: {
@@ -239,11 +248,11 @@ export class HarnessBotsService {
     );
     if (!response.ok) {
       await response.body?.cancel();
-      throw this.#upstreamError("token", String(response.status));
+      throw this.#upstreamError(TOKEN_ENDPOINT, String(response.status));
     }
     const token = await readJson(response, tokenResponseSchema);
     if (!token) {
-      throw this.#upstreamError("token", translate("log.net.unexpected_body"));
+      throw this.#upstreamError(TOKEN_ENDPOINT, translate("log.net.unexpected_body"));
     }
     this.#token = {
       value: token.access_token,
