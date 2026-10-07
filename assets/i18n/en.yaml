@@ -76,3 +76,18 @@ log.bots.upstream_failure: "homeserver failure on {{endpoint}}: {{reason}}"
 log.bots.commands_failed: "publishing the commands of the assistants failed:
   {{reason}}"
 log.bots.commands_refused: "a room refused the commands of an assistant"
+
+# GIFs
+gifs.no_authenticated_user: "No authenticated user"
+gifs.disabled: "GIFs are disabled"
+gifs.invalid_request: "The request is not valid"
+gifs.upstream_failure: "The GIF service failed to answer"
+gifs.media_not_found: "This GIF is not available"
+gifs.media_refused: "This GIF cannot be served"
+gifs.bad_signature: "The signature of this GIF link is not valid"
+gifs.expired_signature: "This GIF link has expired"
+log.gifs.mounting: "Mounting gifsRouter... available: {{available}}"
+log.gifs.disabled: "GIFs disabled"
+log.gifs.upstream_failure: "GIF service request failed: {{reason}}"
+log.gifs.upstream_status: "GIF service answered {{status}}"
+log.gifs.media_aborted: "GIF media transfer aborted"
