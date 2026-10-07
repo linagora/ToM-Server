@@ -83,3 +83,18 @@ log.bots.upstream_failure: "échec du serveur Matrix sur {{endpoint}} :
 log.bots.commands_failed: "publication des commandes des assistants échouée :
   {{reason}}"
 log.bots.commands_refused: "un salon a refusé les commandes d'un assistant"
+
+# GIFs
+gifs.no_authenticated_user: "Aucun utilisateur authentifié"
+gifs.disabled: "Les GIF sont désactivés"
+gifs.invalid_request: "La requête n'est pas valide"
+gifs.upstream_failure: "Le service de GIF n'a pas répondu"
+gifs.media_not_found: "Ce GIF n'est pas disponible"
+gifs.media_refused: "Ce GIF ne peut pas etre servi"
+gifs.bad_signature: "La signature de ce lien de GIF n'est pas valide"
+gifs.expired_signature: "Ce lien de GIF a expiré"
+log.gifs.mounting: "Mounting gifsRouter... available: {{available}}"
+log.gifs.disabled: "GIFs disabled"
+log.gifs.upstream_failure: "GIF service request failed: {{reason}}"
+log.gifs.upstream_status: "GIF service answered {{status}}"
+log.gifs.media_aborted: "GIF media transfer aborted"

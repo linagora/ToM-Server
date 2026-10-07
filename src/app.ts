@@ -6,8 +6,9 @@
  * listening. That is server.ts's job.
  */
 import type { PrometheusExporter } from "@opentelemetry/exporter-prometheus";
-import type { Express } from "express";
+import type { Express, NextFunction, Request, RequestHandler, Response } from "express";
 import express from "express";
+import { rateLimit } from "express-rate-limit";
 import type { Logger } from "winston";
 
 import type { Config } from "./config/types";
@@ -21,8 +22,15 @@ import { requestId } from "./middleware/request-id";
 import { makeBotsBackend } from "./modules/bots/backend";
 import { createBotsRouter } from "./modules/bots/router";
 import type { BotsDeps, BotsProvisioner } from "./modules/bots/types";
+import { GifsDisabledError } from "./modules/gifs/errors";
+import { DbGifsFlag, FLAGS_SCHEMA } from "./modules/gifs/flag";
+import { createGifsRouter } from "./modules/gifs/router";
+import { GifsService } from "./modules/gifs/service";
+import type { GifsDeps } from "./modules/gifs/types";
 import { createLandingRouter } from "./modules/landing/router";
-import { createLegacyRouter } from "./modules/legacy/router";
+import Database from "./modules/legacy/db/database";
+import { createLegacyRouter, mapToLegacyConfig } from "./modules/legacy/router";
+import AdminSettingsMiddleware from "./modules/legacy/tom-server/admin-settings-api/middlewares";
 import { EmailResolver } from "./modules/visio/email-resolver";
 import { OpenIdValidator } from "./modules/visio/openid";
 import { createVisioRouter } from "./modules/visio/router";
@@ -181,6 +189,56 @@ function mountBots(config: Config, logger: Logger, app: Express): void {
   app.use(createBotsRouter(config.bots, deps, service, botsLogger));
 }
 
+/** GIFs through ToM (Klipy never sees the users); the switch lives in the database of ToM. */
+async function mountGifs(config: Config, logger: Logger, app: Express): Promise<void> {
+  const gifsLogger = logger.child({
+    module: "gifs",
+  });
+  let deps: GifsDeps | undefined;
+  let service: GifsService | undefined;
+  if (config.gifs.klipy_api_key) {
+    const legacy = mapToLegacyConfig(config);
+    const db = new Database<"feature_flags">(legacy, gifsLogger as never, FLAGS_SCHEMA);
+    await db.ready;
+    const tokenValidator = new TokenValidator(
+      {
+        serverUrl: config.synapse.server_url,
+        serverName: config.server.name,
+        timeoutMs: config.auth.timeout_ms,
+        tokenCacheSize: config.auth.token_cache_size,
+        tokenCacheTtlMs: config.auth.token_cache_ttl_ms,
+      },
+      gifsLogger,
+    );
+    const adminCheck = new AdminSettingsMiddleware(legacy, gifsLogger as never).checkAdminSettingsToken;
+    deps = {
+      authenticate: tokenValidator.middleware(),
+      // an empty admin token must never open the admin API
+      authenticateAdmin: legacy.admin_access_token
+        ? (adminCheck as RequestHandler)
+        : (_req: Request, _res: Response, next: NextFunction): void => next(new GifsDisabledError("gifs.disabled")),
+      rateLimit: rateLimit({
+        windowMs: config.server.rate_limiting.window_ms,
+        limit: config.server.rate_limiting.max_requests,
+        keyGenerator: (req: Request): string => (req as AuthenticatedRequest).userId ?? "anonymous",
+        standardHeaders: true,
+        legacyHeaders: false,
+        message: {
+          errcode: "M_LIMIT_EXCEEDED",
+          error: "Too many requests",
+        },
+      }),
+    };
+    service = new GifsService(config.gifs, new DbGifsFlag(db), config.server.base_url, gifsLogger);
+  }
+  logger.info(
+    translate("log.gifs.mounting", {
+      available: String(service !== undefined),
+    }),
+  );
+  app.use(createGifsRouter(deps, service, gifsLogger));
+}
+
 export async function createApp(
   config: Config,
   logger: Logger,
@@ -229,6 +287,7 @@ export async function createApp(
   mountVisio(config, logger, app);
   mountSfu(config, logger, app);
   mountBots(config, logger, app);
+  await mountGifs(config, logger, app);
 
   // --- End of new modules ---
 
