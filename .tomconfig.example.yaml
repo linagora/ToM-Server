@@ -379,3 +379,14 @@ email:
 #     - name: help
 #       syntax: help
 #       description: What the assistant can do
+
+# The same section on a ToM served by the agent harness of the platform, which
+# owns the bots as its Matrix application service: no Hermes key there.
+# bots:
+#   enabled: true
+#   backend: harness
+#   harness:
+#     url: https://gateway.example.com/agents  # the base of the harness API
+#     token_url: https://auth.example.com/oauth2/token
+#     client_id: tom
+#     client_secret: change-me

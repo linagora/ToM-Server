@@ -99,4 +99,11 @@ describe("bots settings", () => {
       }),
     ).toEqual([]);
   });
+
+  it("accepts the harness example of .tomconfig.example.yaml once uncommented", () => {
+    const example = exampleSection("# bots:\n#   enabled: true\n#   backend: harness");
+
+    expect(issuesOf(example)).toEqual([]);
+    expect(example.backend).toBe("harness");
+  });
 });
