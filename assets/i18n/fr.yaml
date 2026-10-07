@@ -74,6 +74,7 @@ bots.not_ready: "L'assistant se prépare, réessayez dans un instant"
 bots.upstream_failure: "Le serveur Matrix n'a pas pu traiter la requête"
 bots.invalid_room: "Le salon n'est pas un identifiant de salon Matrix"
 bots.not_provisioned: "L'utilisateur n'a pas encore d'assistant"
+bots.recovery_needed: "L'assistant attend que son propriétaire récupère son identité"
 bots.owner_not_served: "Les assistants ne servent pas le serveur de cet
   utilisateur"
 bots.home_not_direct: "Quelqu'un d'autre que l'utilisateur et l'assistant est

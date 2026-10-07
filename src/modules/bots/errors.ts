@@ -36,6 +36,13 @@ export class BotHomeRefusedError extends DomainError {
   }
 }
 
+/** The identity of the bot waits for its owner's recovery at the harness: retrying does not help (422). */
+export class BotRecoveryNeededError extends DomainError {
+  constructor(messageKey: string, context: Record<string, unknown> = {}) {
+    super(UNPROCESSABLE, messageKey, context);
+  }
+}
+
 /** The homeserver failed or cannot be reached (502). */
 export class BotsUpstreamError extends DomainError {
   constructor(messageKey: string, context: Record<string, unknown> = {}) {
