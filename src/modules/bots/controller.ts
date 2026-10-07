@@ -2,10 +2,9 @@ import { DomainError } from "../../errors/domain-error";
 import { INVALID_INPUT, UNAUTHORIZED } from "../../errors/error-codes";
 import type { AuthenticatedRequest } from "../../middleware/auth/types";
 import { homeRequestSchema, myBotRequestSchema } from "./schema";
-import type { BotsService } from "./service";
-import type { MyBot } from "./types";
+import type { BotsProvisioner, MyBot } from "./types";
 
-export const myBotController = (service: BotsService, req: AuthenticatedRequest): Promise<MyBot> => {
+export const myBotController = (service: BotsProvisioner, req: AuthenticatedRequest): Promise<MyBot> => {
   if (!req.userId || !req.accessToken) {
     throw new DomainError(UNAUTHORIZED, "bots.no_authenticated_user");
   }
@@ -13,7 +12,7 @@ export const myBotController = (service: BotsService, req: AuthenticatedRequest)
   return service.provision(req.userId, req.accessToken, body.success ? body.data.timezone : undefined);
 };
 
-export const myBotHomeController = (service: BotsService, req: AuthenticatedRequest): void => {
+export const myBotHomeController = async (service: BotsProvisioner, req: AuthenticatedRequest): Promise<void> => {
   if (!req.userId) {
     throw new DomainError(UNAUTHORIZED, "bots.no_authenticated_user");
   }
@@ -21,5 +20,5 @@ export const myBotHomeController = (service: BotsService, req: AuthenticatedRequ
   if (!body.success) {
     throw new DomainError(INVALID_INPUT, "bots.invalid_room");
   }
-  service.setHome(req.userId, body.data.room_id);
+  await service.setHome(req.userId, body.data.room_id);
 };

@@ -8,6 +8,7 @@ import { createLogger } from "winston";
 import { NOT_FOUND } from "../../errors/error-codes";
 import { loadMessages } from "../../i18n/index";
 import type { AuthenticatedRequest } from "../../middleware/auth/types";
+import { BotNotProvisionedError } from "./errors";
 import { createBotsRouter, MY_BOT_HOME_ROUTE, MY_BOT_ROUTE } from "./router";
 import type { BotsService } from "./service";
 import type { BotsSettings } from "./types";
@@ -18,6 +19,7 @@ const silentLogger = createLogger({
 
 const settings = (enabled: boolean): BotsSettings => ({
   enabled,
+  backend: "hermes",
   hermes_profiles_dir: "/tmp/profiles",
   hermes_home: "/opt/data",
   model: {
@@ -191,5 +193,36 @@ describe("bots router", () => {
         "!dm:example.com",
       ],
     ]);
+  });
+
+  it("answers the home channel once a backend that takes its time has it, and with its refusal", async () => {
+    let known = true;
+    const service = {
+      setHome: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        if (!known) throw new BotNotProvisionedError("bots.not_provisioned");
+      },
+    } as unknown as BotsService;
+    const app = makeApp(
+      createBotsRouter(
+        settings(true),
+        {
+          authenticate: authenticated,
+        },
+        service,
+        silentLogger,
+      ),
+    );
+
+    const accepted = await request(app).post(MY_BOT_HOME_ROUTE).send({
+      room_id: "!dm:example.com",
+    });
+    known = false;
+    const unknown = await request(app).post(MY_BOT_HOME_ROUTE).send({
+      room_id: "!dm:example.com",
+    });
+
+    expect(accepted.status).toBe(204);
+    expect(unknown.status).toBe(404);
   });
 });
