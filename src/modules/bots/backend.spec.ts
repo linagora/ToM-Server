@@ -81,6 +81,7 @@ describe("bots backend", () => {
     const backend = makeBotsBackend(
       {
         ...common,
+        ready_timeout_ms: 2000,
         backend: "harness",
         harness: {
           url: `http://127.0.0.1:${server.port}`,

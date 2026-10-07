@@ -2,7 +2,7 @@ import type { Logger } from "winston";
 import { z } from "zod";
 
 import { translate } from "../../i18n/index";
-import { HttpClient, readJson } from "../../net/http-client";
+import { readJson } from "../../net/http-client";
 import { BotNotProvisionedError, BotNotReadyError, BotOwnerNotServedError, BotsUpstreamError } from "./errors";
 import { myBotResponseSchema } from "./schema";
 import type { BotsSettings, HarnessSettings, MyBot } from "./types";
@@ -26,16 +26,22 @@ const tokenResponseSchema = z.object({
   expires_in: z.number().positive().optional(),
 });
 
+/** What a fetch cut by its AbortSignal.timeout throws. */
+const isTimeout = (err: unknown): boolean =>
+  err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
+
 /**
  * The assistants served by the agent harness of the platform, which owns them
  * as its application service: ToM asks it for the bot of a user, and answers
  * the client exactly as the Hermes backend does. ToM calls it with a token of
- * its own OIDC client (client credentials), never with the user's.
+ * its own OIDC client (client credentials), never with the user's. Each route
+ * answers within `ready_timeout_ms` of its start, token, calls and waits
+ * included, so the client never waits past it.
  */
 export class HarnessBotsService {
   #config: BotsSettings;
   #harness: HarnessSettings;
-  #http: HttpClient;
+  #baseUrl: string;
   #log: Logger;
   #token: {
     value: string;
@@ -47,10 +53,7 @@ export class HarnessBotsService {
   constructor(config: BotsSettings, harness: HarnessSettings, logger: Logger) {
     this.#config = config;
     this.#harness = harness;
-    this.#http = new HttpClient({
-      baseUrl: harness.url,
-      timeoutMs: config.timeout_ms,
-    });
+    this.#baseUrl = harness.url.replace(/\/+$/, "");
     this.#log = logger;
   }
 
@@ -68,7 +71,7 @@ export class HarnessBotsService {
         }
       : {};
     for (;;) {
-      const response = await this.#put(path, body);
+      const response = await this.#put(path, body, deadline, ownerId);
       if (response.status !== 503) {
         return this.#botOf(response, ownerId);
       }
@@ -105,9 +108,14 @@ export class HarnessBotsService {
     const deadline = Date.now() + this.#config.ready_timeout_ms;
     const path = `${PROVISIONING_PATH}/${encodeURIComponent(ownerId)}/home`;
     for (;;) {
-      const response = await this.#put(path, {
-        roomId,
-      });
+      const response = await this.#put(
+        path,
+        {
+          roomId,
+        },
+        deadline,
+        ownerId,
+      );
       if (response.status === 409) {
         await this.#waitOrGiveUp(response, deadline, ownerId, "log.bots.not_in_room");
         continue;
@@ -127,40 +135,76 @@ export class HarnessBotsService {
 
   /**
    * Waits as long as the harness asks (Retry-After, in seconds), or a second when
-   * it does not say, within the deadline; past it, the client tries later (503).
+   * it does not say. A wait the time left cannot afford ends the route at once:
+   * the client tries later (503).
    */
   async #waitOrGiveUp(response: Response, deadline: number, ownerId: string, logKey: string): Promise<void> {
     await response.body?.cancel();
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) {
-      this.#log.warn(translate(logKey), {
-        owner: ownerId,
-      });
-      throw new BotNotReadyError("bots.not_ready", {
-        owner: ownerId,
-      });
-    }
     const header = response.headers.get("Retry-After");
     const asked = header === null ? Number.NaN : Number(header);
     const wait = Number.isFinite(asked) && asked >= 0 ? asked * 1000 : READY_POLL_MS;
-    await new Promise((resolve) => setTimeout(resolve, Math.min(wait, remaining)));
+    if (Date.now() + wait >= deadline) {
+      throw this.#notReady(logKey, ownerId);
+    }
+    await new Promise((resolve) => setTimeout(resolve, wait));
+  }
+
+  #notReady(logKey: string, ownerId: string): BotNotReadyError {
+    this.#log.warn(translate(logKey), {
+      owner: ownerId,
+    });
+    return new BotNotReadyError("bots.not_ready", {
+      owner: ownerId,
+    });
   }
 
   /** A PUT to the harness with ToM's token; a token it refuses is replaced once (expired, revoked). */
-  async #put(path: string, body: Record<string, unknown>): Promise<Response> {
-    const response = await this.#putOnce(path, body);
+  async #put(path: string, body: Record<string, unknown>, deadline: number, ownerId: string): Promise<Response> {
+    const response = await this.#putOnce(path, body, deadline, ownerId);
     if (response.status !== 401) return response;
     await response.body?.cancel();
     this.#token = null;
-    return this.#putOnce(path, body);
+    return this.#putOnce(path, body, deadline, ownerId);
   }
 
-  async #putOnce(path: string, body: Record<string, unknown>): Promise<Response> {
-    const token = await this.#accessToken();
+  async #putOnce(path: string, body: Record<string, unknown>, deadline: number, ownerId: string): Promise<Response> {
+    const token = await this.#accessToken(deadline, ownerId);
+    return this.#within(deadline, path, ownerId, (signal) =>
+      fetch(`${this.#baseUrl}${path}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+        signal,
+      }),
+    );
+  }
+
+  /**
+   * A call to the harness or the OIDC provider, cut at `timeout_ms` or at the
+   * deadline, whichever comes first. Cut by the deadline, the client tries later
+   * (503); failing otherwise, it is a bad gateway (502).
+   */
+  async #within(
+    deadline: number,
+    endpoint: string,
+    ownerId: string,
+    call: (signal: AbortSignal) => Promise<Response>,
+  ): Promise<Response> {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) {
+      throw this.#notReady("log.bots.not_ready", ownerId);
+    }
+    const deadlineFirst = remaining < this.#config.timeout_ms;
     try {
-      return await this.#http.put(path, body, token);
+      return await call(AbortSignal.timeout(Math.min(remaining, this.#config.timeout_ms)));
     } catch (err) {
-      throw this.#upstreamError(path, err instanceof Error ? err.message : translate("log.net.request_failed"));
+      if (deadlineFirst && isTimeout(err)) {
+        throw this.#notReady("log.bots.not_ready", ownerId);
+      }
+      throw this.#upstreamError(endpoint, err instanceof Error ? err.message : translate("log.net.request_failed"));
     }
   }
 
@@ -168,20 +212,19 @@ export class HarnessBotsService {
    * A token of ToM's own client, from the client credentials grant, kept until it
    * nearly expires. One request at a time: concurrent calls wait for the same one.
    */
-  #accessToken(): Promise<string> {
+  #accessToken(deadline: number, ownerId: string): Promise<string> {
     if (this.#token && this.#token.expiresAt > Date.now()) {
       return Promise.resolve(this.#token.value);
     }
-    this.#tokenRequest ??= this.#requestToken().finally(() => {
+    this.#tokenRequest ??= this.#requestToken(deadline, ownerId).finally(() => {
       this.#tokenRequest = null;
     });
     return this.#tokenRequest;
   }
 
-  async #requestToken(): Promise<string> {
-    let response: Response;
-    try {
-      response = await fetch(this.#harness.token_url, {
+  async #requestToken(deadline: number, ownerId: string): Promise<string> {
+    const response = await this.#within(deadline, "token", ownerId, (signal) =>
+      fetch(this.#harness.token_url, {
         method: "POST",
         headers: {
           Authorization: `Basic ${Buffer.from(`${formEncode(this.#harness.client_id)}:${formEncode(this.#harness.client_secret)}`).toString("base64")}`,
@@ -191,11 +234,9 @@ export class HarnessBotsService {
           grant_type: "client_credentials",
           scope: this.#harness.scope,
         }),
-        signal: AbortSignal.timeout(this.#config.timeout_ms),
-      });
-    } catch (err) {
-      throw this.#upstreamError("token", err instanceof Error ? err.message : translate("log.net.request_failed"));
-    }
+        signal,
+      }),
+    );
     if (!response.ok) {
       await response.body?.cancel();
       throw this.#upstreamError("token", String(response.status));

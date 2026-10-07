@@ -64,7 +64,12 @@ export const botsSettingsSchema = z
       },
     ]),
     timeout_ms: z.number().int().positive().default(DEFAULT_TIMEOUT_MS),
-    /** How long `bots/me` waits for the keys of a bot Hermes has just started. */
+    /**
+     * How long a route of the bots may take before it answers 503 and the client
+     * tries again: the keys of a bot Hermes has just started, or, with the
+     * harness, its whole provisioning (token, calls and waits). Twake Chat gives
+     * up on a request after 15 s: keep it below, as the default does.
+     */
     ready_timeout_ms: z.number().int().nonnegative().default(DEFAULT_READY_TIMEOUT_MS),
     publish_interval_ms: z.number().int().positive().default(DEFAULT_PUBLISH_INTERVAL_MS),
   })

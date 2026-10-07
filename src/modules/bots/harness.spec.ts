@@ -99,7 +99,7 @@ const settings = (url: string, overrides: Partial<BotsSettings> = {}): BotsSetti
   device_id_prefix: "HERMES",
   commands: [],
   timeout_ms: 1000,
-  ready_timeout_ms: 0,
+  ready_timeout_ms: 2000,
   publish_interval_ms: 60000,
   ...overrides,
 });
@@ -227,7 +227,13 @@ describe("HarnessBotsService", () => {
         }),
     );
 
-    await expect(serviceOf(settings(fake.url)).provision(OWNER, "syt_owner")).rejects.toMatchObject({
+    await expect(
+      serviceOf(
+        settings(fake.url, {
+          ready_timeout_ms: 300,
+        }),
+      ).provision(OWNER, "syt_owner"),
+    ).rejects.toMatchObject({
       code: SERVICE_UNAVAILABLE,
     });
   });
@@ -241,19 +247,67 @@ describe("HarnessBotsService", () => {
           error: "not_ready",
         }),
     );
+    const started = Date.now();
 
     await expect(
       serviceOf(
         settings(fake.url, {
-          ready_timeout_ms: 300,
+          ready_timeout_ms: 1500,
         }),
       ).provision(OWNER, "syt_owner"),
     ).rejects.toMatchObject({
       code: SERVICE_UNAVAILABLE,
     });
 
-    // One call, a wait cut short by the deadline, one last call
+    // A call, a second's pause, a call, and no pause the budget cannot afford
     expect(fake.seen.filter((request) => request.path === OWNER_PATH)).toHaveLength(2);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(1000);
+    expect(Date.now() - started).toBeLessThan(1500);
+  });
+
+  it("answers within its time budget when the harness is slow", async () => {
+    const token = tokens();
+    fake = startFake(async (request) => {
+      const grant = token(request);
+      if (grant) return grant;
+      await Bun.sleep(600);
+      return json(200, BOT);
+    });
+    const started = Date.now();
+
+    await expect(
+      serviceOf(
+        settings(fake.url, {
+          ready_timeout_ms: 200,
+        }),
+      ).provision(OWNER, "syt_owner"),
+    ).rejects.toMatchObject({
+      code: SERVICE_UNAVAILABLE,
+    });
+    expect(Date.now() - started).toBeLessThan(450);
+  });
+
+  it("answers within its time budget when the OIDC provider is slow", async () => {
+    fake = startFake(async (request) => {
+      if (request.path !== "/oauth2/token") return json(200, BOT);
+      await Bun.sleep(600);
+      return json(200, {
+        access_token: "tok",
+        expires_in: 300,
+      });
+    });
+    const started = Date.now();
+
+    await expect(
+      serviceOf(
+        settings(fake.url, {
+          ready_timeout_ms: 200,
+        }),
+      ).provision(OWNER, "syt_owner"),
+    ).rejects.toMatchObject({
+      code: SERVICE_UNAVAILABLE,
+    });
+    expect(Date.now() - started).toBeLessThan(450);
   });
 
   it("says the owner is not one the harness serves", async () => {
@@ -407,7 +461,13 @@ describe("HarnessBotsService", () => {
         }),
     );
 
-    await expect(serviceOf(settings(fake.url)).setHome(OWNER, "!dm:example.com")).rejects.toMatchObject({
+    await expect(
+      serviceOf(
+        settings(fake.url, {
+          ready_timeout_ms: 300,
+        }),
+      ).setHome(OWNER, "!dm:example.com"),
+    ).rejects.toMatchObject({
       code: SERVICE_UNAVAILABLE,
     });
   });
