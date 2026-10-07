@@ -41,6 +41,8 @@ export class HarnessBotsService {
     value: string;
     expiresAt: number;
   } | null = null;
+  /** The token request in flight, which the calls that need a token meanwhile share. */
+  #tokenRequest: Promise<string> | null = null;
 
   constructor(config: BotsSettings, harness: HarnessSettings, logger: Logger) {
     this.#config = config;
@@ -162,11 +164,21 @@ export class HarnessBotsService {
     }
   }
 
-  /** A token of ToM's own client, from the client credentials grant, kept until it nearly expires. */
-  async #accessToken(): Promise<string> {
+  /**
+   * A token of ToM's own client, from the client credentials grant, kept until it
+   * nearly expires. One request at a time: concurrent calls wait for the same one.
+   */
+  #accessToken(): Promise<string> {
     if (this.#token && this.#token.expiresAt > Date.now()) {
-      return this.#token.value;
+      return Promise.resolve(this.#token.value);
     }
+    this.#tokenRequest ??= this.#requestToken().finally(() => {
+      this.#tokenRequest = null;
+    });
+    return this.#tokenRequest;
+  }
+
+  async #requestToken(): Promise<string> {
     let response: Response;
     try {
       response = await fetch(this.#harness.token_url, {

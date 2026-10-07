@@ -26,7 +26,7 @@ interface Seen {
   body: string;
 }
 
-type Answer = (request: Seen) => Response;
+type Answer = (request: Seen) => Response | Promise<Response>;
 
 /** A fake harness and OIDC provider on one local port, which records what it was asked. */
 const startFake = (
@@ -155,6 +155,31 @@ describe("HarnessBotsService", () => {
     expect(fake.seen[0]?.authorization).toBe(
       `Basic ${Buffer.from("tom%3Ab2b:p%40ss+w%3Ard%2F%2B%26%C3%A9").toString("base64")}`,
     );
+  });
+
+  it("shares one token request between calls that need a token at once", async () => {
+    let grants = 0;
+    fake = startFake(async (request) => {
+      if (request.path !== "/oauth2/token") return json(200, BOT);
+      grants += 1;
+      await Bun.sleep(50);
+      return json(200, {
+        access_token: "tok-shared",
+        expires_in: 300,
+      });
+    });
+    const service = serviceOf(settings(fake.url));
+
+    await Promise.all([
+      service.provision(OWNER, "syt_owner"),
+      service.provision("@rose:example.com", "syt_rose"),
+    ]);
+
+    expect(grants).toBe(1);
+    expect(fake.seen.filter((request) => request.method === "PUT").map((request) => request.authorization)).toEqual([
+      "Bearer tok-shared",
+      "Bearer tok-shared",
+    ]);
   });
 
   it("asks again while the harness prepares the identity of the bot, as it says when", async () => {
