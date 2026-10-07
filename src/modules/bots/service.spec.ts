@@ -34,6 +34,7 @@ let profilesDir = "";
 
 const settings = (overrides: Partial<BotsSettings> = {}): BotsSettings => ({
   enabled: true,
+  backend: "hermes",
   hermes_profiles_dir: profilesDir,
   hermes_home: "/opt/data",
   model: {
