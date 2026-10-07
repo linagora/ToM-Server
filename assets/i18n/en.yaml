@@ -68,6 +68,7 @@ bots.not_ready: "The assistant is being prepared, try again in a moment"
 bots.upstream_failure: "The homeserver failed to process the request"
 bots.invalid_room: "The room is not a Matrix room id"
 bots.not_provisioned: "The user has no assistant yet"
+bots.recovery_needed: "The assistant waits for its owner to recover its identity"
 bots.owner_not_served: "The assistants do not serve this user's homeserver"
 bots.home_not_direct: "Someone other than the user and the assistant is in
   this room"

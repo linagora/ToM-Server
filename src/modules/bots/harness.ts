@@ -8,6 +8,7 @@ import {
   BotNotProvisionedError,
   BotNotReadyError,
   BotOwnerNotServedError,
+  BotRecoveryNeededError,
   BotsUpstreamError,
 } from "./errors";
 import { myBotResponseSchema } from "./schema";
@@ -33,6 +34,8 @@ const formEncode = (value: string): string =>
 
 /** The 409 of `/home` for a room someone else is in: retrying does not help. */
 const NOT_A_DIRECT_ROOM = "not a direct room";
+/** The 409 of provisioning for an identity only its owner's recovery brings back. */
+const RECOVERY_NEEDED = "recovery_needed";
 const conflictSchema = z.object({
   error: z.string(),
 });
@@ -111,6 +114,13 @@ export class HarnessBotsService {
     if (response.status === 422) {
       await response.body?.cancel();
       throw new BotOwnerNotServedError("bots.owner_not_served");
+    }
+    if (response.status === 409) {
+      const conflict = await readJson(response.clone(), conflictSchema);
+      await response.body?.cancel();
+      if (conflict?.error === RECOVERY_NEEDED) {
+        throw new BotRecoveryNeededError("bots.recovery_needed");
+      }
     }
     if (!response.ok) {
       await response.body?.cancel();

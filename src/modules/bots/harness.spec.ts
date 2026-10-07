@@ -387,6 +387,25 @@ describe("HarnessBotsService", () => {
     });
   });
 
+  it("says the bot waits for its owner's recovery, without asking again", async () => {
+    const token = tokens();
+    let calls = 0;
+    fake = startFake((request) => {
+      const answer = token(request);
+      if (answer) return answer;
+      calls += 1;
+      return json(409, {
+        error: "recovery_needed",
+      });
+    });
+
+    await expect(serviceOf(settings(fake.url)).provision(OWNER, "syt_owner")).rejects.toMatchObject({
+      code: UNPROCESSABLE,
+      message: "bots.recovery_needed",
+    });
+    expect(calls).toBe(1);
+  });
+
   it("reports a harness that fails, answers nonsense or cannot be reached as a bad gateway", async () => {
     const token = tokens();
     let answer = json(500, {
