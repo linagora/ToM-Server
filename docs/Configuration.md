@@ -39,6 +39,7 @@ Optional fields are commented out with their defaults shown.
 - [Matrix Client Discovery (Well-Known)](#matrix-client-discovery-well-known)
 - [Matrix Authentication](#matrix-authentication)
 - [Visio](#visio)
+- [GIFs](#gifs)
 - [Telemetry (OpenTelemetry)](#telemetry-opentelemetry)
 
 ---
@@ -739,6 +740,53 @@ link itself.
   them.
 
 ---
+
+## GIFs
+
+Off by default. Serves the GIFs of Twake Chat through ToM, so that Klipy (a
+Tenor-compatible GIF API) never sees the IP address, the User-Agent or any
+header of the users: ToM calls Klipy itself and streams the media from its CDN.
+
+```yaml
+gifs:
+  enabled: true
+  klipy_api_key: "<KLIPY_API_KEY>"
+```
+
+| Field                   | Default                  | Description                                                                                     |
+| ----------------------- | ------------------------ | ----------------------------------------------------------------------------------------------- |
+| `enabled`               | `false`                  | Default of the run time switch. The admin API overrides it (stored in the database of ToM).     |
+| `klipy_api_key`         | `""`                     | Secret. Without it the feature is off, whatever the switch says.                                |
+| `klipy_base_url`        | `https://api.klipy.com`  | The Klipy API.                                                                                  |
+| `customer_id_secret`    | `""`                     | Keys the hash of the Matrix id sent as `customer_id`. The API key when unset.                   |
+| `content_filter`        | `medium`                 | `off`, `low`, `medium` or `high`.                                                               |
+| `timeout_ms`            | `15000`                  | Timeout of each request to Klipy and to its CDN.                                                |
+| `max_media_bytes`       | `15728640`               | A GIF above this size is refused.                                                               |
+| `trending_cache_ttl_ms` | `300000`                 | How long a page of trending GIFs stays in memory.                                               |
+
+Endpoints (errors are Matrix errors, `{"errcode", "error"}`):
+
+| Route                                           | Auth                     | Answer                                                       |
+| ----------------------------------------------- | ------------------------ | ------------------------------------------------------------ |
+| `GET /_twake/v1/gifs/status`                    | Matrix access token      | `{"enabled": boolean}`: key present and switch on.           |
+| `GET /_twake/v1/gifs/search?q=&page=&locale=`   | Matrix access token      | `{"results": [Gif], "next_page": number or null}`.          |
+| `GET /_twake/v1/gifs/trending?page=&locale=`    | Matrix access token      | The same.                                                    |
+| `GET /_twake/v1/gifs/media/:id/:variant`        | Signed URL (`exp`, `sig`)| The file. `variant` is `preview` or `full`.                  |
+| `GET /_twake/v1/admin/features/gifs`            | `synapse.admin.access_token` as Bearer | `{"enabled": boolean, "available": boolean}`.  |
+| `PUT /_twake/v1/admin/features/gifs`            | The same                 | Body `{"enabled": boolean}`, answers as the GET.             |
+
+A `Gif` is `{"id", "title", "preview_url", "url", "width", "height"}`. Both
+URLs point at the media route of ToM, signed for one hour: an `<img>` loads
+them without a header. `q` is required (100 characters at most), `page` starts
+at 1, `locale` is `fr`, `fr-FR`... (a country code for Klipy). Search and
+trending are limited per user (`server.rate_limiting`, 429 `M_LIMIT_EXCEEDED`).
+When the feature is off or has no key, `search`, `trending`, `media` and the
+admin routes answer 404 `M_NOT_FOUND`, and `status` answers
+`{"enabled": false}`. The admin routes are closed while
+`synapse.admin.access_token` is empty.
+
+The state is not in the well-known: the document is built once at start, and
+the switch changes at run time. Clients call `status` after the sign-in.
 
 ## Telemetry (OpenTelemetry)
 
