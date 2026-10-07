@@ -100,6 +100,16 @@ describe("bots settings", () => {
     ).toEqual([]);
   });
 
+  it("asks the OIDC provider for the openid scope unless told otherwise", () => {
+    const result = botsSettingsSchema.safeParse({
+      enabled: true,
+      backend: "harness",
+      harness,
+    });
+
+    expect(result.data?.harness?.scope).toBe("openid");
+  });
+
   it("accepts the harness example of .tomconfig.example.yaml once uncommented", () => {
     const example = exampleSection("# bots:\n#   enabled: true\n#   backend: harness");
 

@@ -169,6 +169,7 @@ export class HarnessBotsService {
         },
         body: new URLSearchParams({
           grant_type: "client_credentials",
+          scope: this.#harness.scope,
         }),
         signal: AbortSignal.timeout(this.#config.timeout_ms),
       });

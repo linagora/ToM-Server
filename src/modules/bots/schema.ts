@@ -22,6 +22,8 @@ const harnessSettingsSchema = z.object({
   token_url: z.url(),
   client_id: z.string().min(1),
   client_secret: z.string().min(1),
+  /** The scope of the token request: LemonLDAP-NG refuses a client credentials request with none. */
+  scope: z.string().min(1).default("openid"),
 });
 
 /**

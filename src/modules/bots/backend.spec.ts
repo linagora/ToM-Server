@@ -87,6 +87,7 @@ describe("bots backend", () => {
           token_url: `http://127.0.0.1:${server.port}/oauth2/token`,
           client_id: "tom",
           client_secret: "s3cret",
+          scope: "openid",
         },
       },
       synapse,

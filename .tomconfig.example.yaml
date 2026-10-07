@@ -390,3 +390,5 @@ email:
 #     token_url: https://auth.example.com/oauth2/token
 #     client_id: tom
 #     client_secret: change-me
+#     # the scope of the token request; LemonLDAP-NG refuses one with none
+#     scope: openid

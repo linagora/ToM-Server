@@ -88,6 +88,7 @@ const settings = (url: string, overrides: Partial<BotsSettings> = {}): BotsSetti
     token_url: `${url}/oauth2/token`,
     client_id: "tom",
     client_secret: "s3cret",
+    scope: "openid",
   },
   hermes_home: "/opt/data",
   model: {
@@ -131,6 +132,8 @@ describe("HarnessBotsService", () => {
     expect(grant?.method).toBe("POST");
     expect(grant?.authorization).toBe(`Basic ${Buffer.from("tom:s3cret").toString("base64")}`);
     expect(new URLSearchParams(grant?.body).get("grant_type")).toBe("client_credentials");
+    // LemonLDAP-NG answers invalid_scope to a client credentials request that names no scope
+    expect(new URLSearchParams(grant?.body).get("scope")).toBe("openid");
     expect(put?.method).toBe("PUT");
     expect(put?.path).toBe(OWNER_PATH);
     expect(put?.authorization).toBe("Bearer tok-1");
