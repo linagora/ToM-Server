@@ -1,5 +1,5 @@
 import { DomainError } from "../../errors/domain-error";
-import { BAD_GATEWAY, NOT_FOUND, SERVICE_UNAVAILABLE } from "../../errors/error-codes";
+import { BAD_GATEWAY, NOT_FOUND, SERVICE_UNAVAILABLE, UNPROCESSABLE } from "../../errors/error-codes";
 
 /** The feature is off: the client hides its action (404). */
 export class BotsDisabledError extends DomainError {
@@ -19,6 +19,13 @@ export class BotNotProvisionedError extends DomainError {
 export class BotNotReadyError extends DomainError {
   constructor(messageKey: string, context: Record<string, unknown> = {}) {
     super(SERVICE_UNAVAILABLE, messageKey, context);
+  }
+}
+
+/** The agent harness serves no assistant for this user: not on its homeserver (422). */
+export class BotOwnerNotServedError extends DomainError {
+  constructor(messageKey: string, context: Record<string, unknown> = {}) {
+    super(UNPROCESSABLE, messageKey, context);
   }
 }
 

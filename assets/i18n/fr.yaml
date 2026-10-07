@@ -74,12 +74,18 @@ bots.not_ready: "L'assistant se prépare, réessayez dans un instant"
 bots.upstream_failure: "Le serveur Matrix n'a pas pu traiter la requête"
 bots.invalid_room: "Le salon n'est pas un identifiant de salon Matrix"
 bots.not_provisioned: "L'utilisateur n'a pas encore d'assistant"
+bots.owner_not_served: "Les assistants ne servent pas le serveur de cet
+  utilisateur"
+bots.harness_failure: "Le service des assistants n'a pas pu traiter la requête"
 log.bots.mounting: "Montage de botsRouter... activé : {{enabled}}"
 log.bots.disabled: "assistants désactivés"
 log.bots.provisioned: "assistant provisionné"
 log.bots.not_ready: "clés de l'assistant pas encore publiées"
+log.bots.not_in_room: "l'assistant n'a pas encore rejoint son salon"
 log.bots.upstream_failure: "échec du serveur Matrix sur {{endpoint}} :
   {{reason}}"
 log.bots.commands_failed: "publication des commandes des assistants échouée :
   {{reason}}"
 log.bots.commands_refused: "un salon a refusé les commandes d'un assistant"
+log.bots.harness_failure: "échec du service des assistants sur {{endpoint}} :
+  {{reason}}"
