@@ -18,10 +18,9 @@ import type { AuthenticatedRequest } from "./middleware/auth/types";
 import { createCorsMiddleware } from "./middleware/cors";
 import { httpLogger } from "./middleware/http-logger";
 import { requestId } from "./middleware/request-id";
-import { BotCommandsPublisher } from "./modules/bots/commands";
+import { makeBotsBackend } from "./modules/bots/backend";
 import { createBotsRouter } from "./modules/bots/router";
-import { BotsService } from "./modules/bots/service";
-import type { BotsDeps } from "./modules/bots/types";
+import type { BotsDeps, BotsProvisioner } from "./modules/bots/types";
 import { createLandingRouter } from "./modules/landing/router";
 import { createLegacyRouter } from "./modules/legacy/router";
 import { EmailResolver } from "./modules/visio/email-resolver";
@@ -142,7 +141,7 @@ function mountBots(config: Config, logger: Logger, app: Express): void {
     module: "bots",
   });
   let deps: BotsDeps | undefined;
-  let service: BotsService | undefined;
+  let service: BotsProvisioner | undefined;
   if (config.bots.enabled) {
     const tokenValidator = new TokenValidator(
       {
@@ -157,7 +156,8 @@ function mountBots(config: Config, logger: Logger, app: Express): void {
     deps = {
       authenticate: tokenValidator.middleware(),
     };
-    service = new BotsService(
+    // Hermes or the agent harness, never both: they would claim the same accounts
+    const backend = makeBotsBackend(
       config.bots,
       {
         serverUrl: config.synapse.server_url,
@@ -170,7 +170,8 @@ function mountBots(config: Config, logger: Logger, app: Express): void {
       },
       botsLogger,
     );
-    new BotCommandsPublisher(config.bots, config.synapse.server_url, botsLogger).start();
+    service = backend.service;
+    backend.commands?.start();
   }
   logger.info(
     translate("log.bots.mounting", {
