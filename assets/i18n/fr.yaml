@@ -76,6 +76,8 @@ bots.invalid_room: "Le salon n'est pas un identifiant de salon Matrix"
 bots.not_provisioned: "L'utilisateur n'a pas encore d'assistant"
 bots.owner_not_served: "Les assistants ne servent pas le serveur de cet
   utilisateur"
+bots.home_not_direct: "Quelqu'un d'autre que l'utilisateur et l'assistant est
+  dans ce salon"
 bots.harness_failure: "Le service des assistants n'a pas pu traiter la requête"
 log.bots.mounting: "Montage de botsRouter... activé : {{enabled}}"
 log.bots.disabled: "assistants désactivés"

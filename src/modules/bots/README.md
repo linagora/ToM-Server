@@ -110,14 +110,15 @@ leaves ToM: ToM has checked it and names the user.
 | ToM calls | The harness answers |
 | --- | --- |
 | `PUT <url>/v1/provisioning/assistants/<owner>` `{ "timezone": "Europe/Paris" }` | `200 { userId, deviceId, masterKey }`; `503` with `Retry-After` while it prepares the identity of the bot; `422` when the owner is not on its homeserver |
-| `PUT <url>/v1/provisioning/assistants/<owner>/home` `{ "roomId": "!dm:example.com" }` | `204` recorded; `404` no bot yet; `409` the bot has not joined the room yet |
+| `PUT <url>/v1/provisioning/assistants/<owner>/home` `{ "roomId": "!dm:example.com" }` | `204` recorded; `404` no bot yet; `409 not a member` the bot has not joined the room yet; `409 not a direct room` someone else is in it |
 
 `<owner>` is the Matrix id of the user, URL-encoded. Both calls are
-idempotent: on `503` and `409` ToM asks again, as the harness says or every
-second, while `ready_timeout_ms` allows. The whole route, token, calls and
-waits included, answers within `ready_timeout_ms` of its start: past it, the
-client gets `503` and tries again, before its own 15 s timeout. `422` answers
-the client `422`; anything else, `502`. ToM logs the endpoint
+idempotent: on `503` and `409 not a member` ToM asks again, as the harness
+says or every second, while `ready_timeout_ms` allows. The whole route, token,
+calls and waits included, answers within `ready_timeout_ms` of its start: past
+it, the client gets `503` and tries again, before its own 15 s timeout. `422`
+and `409 not a direct room`, which no retry fixes, answer the client `422`;
+anything else, `502`. ToM logs the endpoint
 (`PUT /v1/provisioning/assistants/{owner}`, its `/home`, the token request)
 and the status or the error's code, never the owner nor what the harness
 answered.

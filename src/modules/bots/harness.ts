@@ -3,7 +3,13 @@ import { z } from "zod";
 
 import { translate } from "../../i18n/index";
 import { readJson } from "../../net/http-client";
-import { BotNotProvisionedError, BotNotReadyError, BotOwnerNotServedError, BotsUpstreamError } from "./errors";
+import {
+  BotHomeRefusedError,
+  BotNotProvisionedError,
+  BotNotReadyError,
+  BotOwnerNotServedError,
+  BotsUpstreamError,
+} from "./errors";
 import { myBotResponseSchema } from "./schema";
 import type { BotsSettings, HarnessSettings, MyBot } from "./types";
 
@@ -24,6 +30,12 @@ const formEncode = (value: string): string =>
   })
     .toString()
     .slice("value=".length);
+
+/** The 409 of `/home` for a room someone else is in: retrying does not help. */
+const NOT_A_DIRECT_ROOM = "not a direct room";
+const conflictSchema = z.object({
+  error: z.string(),
+});
 
 const tokenResponseSchema = z.object({
   access_token: z.string().min(1),
@@ -130,6 +142,12 @@ export class HarnessBotsService {
         deadline,
       );
       if (response.status === 409) {
+        // "not a member" passes once the bot joins; "not a direct room" never does
+        const conflict = await readJson(response.clone(), conflictSchema);
+        if (conflict?.error === NOT_A_DIRECT_ROOM) {
+          await response.body?.cancel();
+          throw new BotHomeRefusedError("bots.home_not_direct");
+        }
         await this.#waitOrGiveUp(response, deadline, "log.bots.not_in_room");
         continue;
       }

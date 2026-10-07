@@ -29,6 +29,13 @@ export class BotOwnerNotServedError extends DomainError {
   }
 }
 
+/** The harness refuses the room as the home of the bot: someone else is in it (422). */
+export class BotHomeRefusedError extends DomainError {
+  constructor(messageKey: string, context: Record<string, unknown> = {}) {
+    super(UNPROCESSABLE, messageKey, context);
+  }
+}
+
 /** The homeserver failed or cannot be reached (502). */
 export class BotsUpstreamError extends DomainError {
   constructor(messageKey: string, context: Record<string, unknown> = {}) {

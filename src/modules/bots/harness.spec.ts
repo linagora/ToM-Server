@@ -488,7 +488,7 @@ describe("HarnessBotsService", () => {
         ? json(
             409,
             {
-              error: "not_in_room",
+              error: "not a member",
             },
             {
               "Retry-After": "0",
@@ -519,7 +519,7 @@ describe("HarnessBotsService", () => {
       (request) =>
         token(request) ??
         json(409, {
-          error: "not_in_room",
+          error: "not a member",
         }),
     );
 
@@ -532,6 +532,30 @@ describe("HarnessBotsService", () => {
     ).rejects.toMatchObject({
       code: SERVICE_UNAVAILABLE,
     });
+  });
+
+  it("refuses a room someone else is in at once: that 409 does not pass", async () => {
+    const token = tokens();
+    let asked = 0;
+    fake = startFake((request) => {
+      const grant = token(request);
+      if (grant) return grant;
+      asked += 1;
+      return json(409, {
+        error: "not a direct room",
+      });
+    });
+
+    await expect(
+      serviceOf(
+        settings(fake.url, {
+          ready_timeout_ms: 5000,
+        }),
+      ).setHome(OWNER, "!group:example.com"),
+    ).rejects.toMatchObject({
+      code: UNPROCESSABLE,
+    });
+    expect(asked).toBe(1);
   });
 
   it("reports an OIDC provider that refuses ToM's client as a bad gateway, and calls no harness", async () => {

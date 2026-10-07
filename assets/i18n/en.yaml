@@ -69,6 +69,8 @@ bots.upstream_failure: "The homeserver failed to process the request"
 bots.invalid_room: "The room is not a Matrix room id"
 bots.not_provisioned: "The user has no assistant yet"
 bots.owner_not_served: "The assistants do not serve this user's homeserver"
+bots.home_not_direct: "Someone other than the user and the assistant is in
+  this room"
 bots.harness_failure: "The assistants service failed to process the request"
 log.bots.mounting: "Mounting botsRouter... enabled: {{enabled}}"
 log.bots.disabled: "assistants disabled"
