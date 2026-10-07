@@ -344,6 +344,21 @@ email:
 #   token_ttl_seconds: 21600
 
 # -----------------------------------------------------------------------------
+# GIFs for Twake Chat, through ToM: Klipy never sees the users. Off by default.
+# The admin API (`/_twake/v1/admin/features/gifs`, Bearer
+# `synapse.admin.access_token`) switches it at run time and overrides `enabled`.
+# -----------------------------------------------------------------------------
+# gifs:
+#   enabled: false                 # Default: false. Without a key, always off
+#   klipy_api_key: ""              # Secret
+#   klipy_base_url: "https://api.klipy.com"
+#   customer_id_secret: ""         # Default: the API key
+#   content_filter: medium         # off, low, medium or high
+#   timeout_ms: 15000
+#   max_media_bytes: 15728640
+#   trending_cache_ttl_ms: 300000
+
+# -----------------------------------------------------------------------------
 # Telemetry (OpenTelemetry)
 # Disabled by default.
 # -----------------------------------------------------------------------------

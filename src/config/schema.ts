@@ -6,6 +6,7 @@ import { i18nSettingsSchema } from "../i18n/schema";
 import { loggerSettingsSchema } from "../logger/schema";
 import { authSettingsSchema } from "../middleware/auth/schema";
 import { botsSettingsSchema } from "../modules/bots/schema";
+import { gifsSettingsSchema } from "../modules/gifs/schema";
 import { landingSettingsSchema } from "../modules/landing/schema";
 import { livekitSettingsSchema, visioSettingsSchema } from "../modules/visio/schema";
 import { wellKnownSettingsSchema } from "../modules/well-known/schema";
@@ -609,6 +610,10 @@ const botsConfigSchema = z.object({
   bots: botsSettingsSchema.prefault({}),
 });
 
+const gifsConfigSchema = z.object({
+  gifs: gifsSettingsSchema.prefault({}),
+});
+
 export const configSchema = z.object({
   ...serverConfigSchema.shape,
   ...corsConfigSchema.shape,
@@ -638,4 +643,5 @@ export const configSchema = z.object({
   ...visioConfigSchema.shape,
   ...livekitConfigSchema.shape,
   ...botsConfigSchema.shape,
+  ...gifsConfigSchema.shape,
 });
