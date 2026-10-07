@@ -17,6 +17,8 @@ export interface BotsProvisioner {
   provision(ownerId: string, ownerToken: string, timezone?: string): Promise<MyBot>;
   /** The direct room of the owner with the bot. */
   setHome(ownerId: string, roomId: string): void | Promise<void>;
+  /** Asks for the identity of the bot back, after the backend lost it: `bots/me` answers it once done. */
+  recover(ownerId: string): void | Promise<void>;
 }
 
 /** What the service needs from the homeserver: the public URL, the server name, the admin. */

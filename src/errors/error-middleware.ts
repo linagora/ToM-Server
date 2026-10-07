@@ -18,6 +18,7 @@ const STATUS_MAP: Record<ErrorCode, number> = {
   M_SERVICE_UNAVAILABLE: 503,
   M_BAD_GATEWAY: 502,
   M_UNPROCESSABLE: 422,
+  M_BOT_RECOVERY_NEEDED: 422,
 };
 
 export function errorMiddleware(i18nConfig: I18nConfig) {

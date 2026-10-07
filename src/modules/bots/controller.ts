@@ -22,3 +22,10 @@ export const myBotHomeController = async (service: BotsProvisioner, req: Authent
   }
   await service.setHome(req.userId, body.data.room_id);
 };
+
+export const myBotRecoverController = async (service: BotsProvisioner, req: AuthenticatedRequest): Promise<void> => {
+  if (!req.userId) {
+    throw new DomainError(UNAUTHORIZED, "bots.no_authenticated_user");
+  }
+  await service.recover(req.userId);
+};

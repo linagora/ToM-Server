@@ -18,6 +18,7 @@ const PROVISIONING_PATH = "/v1/provisioning/assistants";
 /** The endpoints as the logs name them: the owner never appears in a log. */
 const PROVISION_ENDPOINT = `PUT ${PROVISIONING_PATH}/{owner}`;
 const HOME_ENDPOINT = `PUT ${PROVISIONING_PATH}/{owner}/home`;
+const RECOVER_ENDPOINT = `POST ${PROVISIONING_PATH}/{owner}/recover`;
 const TOKEN_ENDPOINT = "token";
 /** Between two calls while the harness prepares a bot, unless it says otherwise. */
 const READY_POLL_MS = 1000;
@@ -173,6 +174,26 @@ export class HarnessBotsService {
   }
 
   /**
+   * The recovery of the owner's bot, after the harness lost its store: the
+   * harness queues it (202) and `provision` answers the bot once it is done.
+   */
+  async recover(ownerId: string): Promise<void> {
+    const deadline = Date.now() + this.#config.ready_timeout_ms;
+    const path = `${PROVISIONING_PATH}/${encodeURIComponent(ownerId)}/recover`;
+    const response = await this.#send("POST", RECOVER_ENDPOINT, path, {}, deadline);
+    await response.body?.cancel();
+    if (response.status === 404) {
+      throw new BotNotProvisionedError("bots.not_provisioned");
+    }
+    if (response.status === 422) {
+      throw new BotOwnerNotServedError("bots.owner_not_served");
+    }
+    if (!response.ok) {
+      throw this.#upstreamError(RECOVER_ENDPOINT, String(response.status));
+    }
+  }
+
+  /**
    * Waits as long as the harness asks (Retry-After, in seconds), or a second when
    * it does not say. A wait the time left cannot afford ends the route at once:
    * the client tries later (503).
@@ -194,22 +215,38 @@ export class HarnessBotsService {
   }
 
   /**
-   * A PUT to the harness with ToM's token; a token it refuses is replaced once
+   * A call to the harness with ToM's token; a token it refuses is replaced once
    * (expired, revoked). `endpoint` names the call in the logs, without the owner.
    */
-  async #put(endpoint: string, path: string, body: Record<string, unknown>, deadline: number): Promise<Response> {
-    const response = await this.#putOnce(endpoint, path, body, deadline);
+  #put(endpoint: string, path: string, body: Record<string, unknown>, deadline: number): Promise<Response> {
+    return this.#send("PUT", endpoint, path, body, deadline);
+  }
+
+  async #send(
+    method: "PUT" | "POST",
+    endpoint: string,
+    path: string,
+    body: Record<string, unknown>,
+    deadline: number,
+  ): Promise<Response> {
+    const response = await this.#sendOnce(method, endpoint, path, body, deadline);
     if (response.status !== 401) return response;
     await response.body?.cancel();
     this.#token = null;
-    return this.#putOnce(endpoint, path, body, deadline);
+    return this.#sendOnce(method, endpoint, path, body, deadline);
   }
 
-  async #putOnce(endpoint: string, path: string, body: Record<string, unknown>, deadline: number): Promise<Response> {
+  async #sendOnce(
+    method: "PUT" | "POST",
+    endpoint: string,
+    path: string,
+    body: Record<string, unknown>,
+    deadline: number,
+  ): Promise<Response> {
     const token = await this.#accessToken(deadline);
     return this.#within(deadline, endpoint, (signal) =>
       fetch(`${this.#baseUrl}${path}`, {
-        method: "PUT",
+        method,
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,

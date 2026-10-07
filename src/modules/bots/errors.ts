@@ -1,5 +1,11 @@
 import { DomainError } from "../../errors/domain-error";
-import { BAD_GATEWAY, NOT_FOUND, SERVICE_UNAVAILABLE, UNPROCESSABLE } from "../../errors/error-codes";
+import {
+  BAD_GATEWAY,
+  BOT_RECOVERY_NEEDED,
+  NOT_FOUND,
+  SERVICE_UNAVAILABLE,
+  UNPROCESSABLE,
+} from "../../errors/error-codes";
 
 /** The feature is off: the client hides its action (404). */
 export class BotsDisabledError extends DomainError {
@@ -36,10 +42,13 @@ export class BotHomeRefusedError extends DomainError {
   }
 }
 
-/** The identity of the bot waits for its owner's recovery at the harness: retrying does not help (422). */
+/**
+ * The identity of the bot waits for its owner's recovery at the harness: retrying
+ * does not help (422). Its own code, so that the client offers `bots/me/recover`.
+ */
 export class BotRecoveryNeededError extends DomainError {
   constructor(messageKey: string, context: Record<string, unknown> = {}) {
-    super(UNPROCESSABLE, messageKey, context);
+    super(BOT_RECOVERY_NEEDED, messageKey, context);
   }
 }
 
