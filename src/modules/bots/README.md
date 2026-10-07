@@ -60,7 +60,9 @@ soon as it opens it: ToM writes `MATRIX_HOME_ROOM` in the profile, where
 Hermes delivers what the bot does on its own (cron jobs), as `/sethome` would.
 Until then the profile holds the owner's id, so that Hermes never asks the
 user to type `/sethome`. `204`; `400` for something that is not a room id;
-`404` when the user has no assistant yet.
+`404` when the user has no assistant yet. The route answers once the backend
+has recorded the room, so a backend that records it remotely answers `204`
+only when it has it, and its refusals reach the client.
 
 ## Commands (MSC4332)
 
@@ -70,9 +72,26 @@ state `org.matrix.msc4332.commands` (state key: the id of the bot, content:
 Rooms created by Twake Chat let any member write it; other rooms need the
 moderator, and are tried again at the next round.
 
+## Backends
+
+`bots.backend` names what serves the bots: `hermes` (the default, described
+above) or `harness`, the agent harness of the platform
+([linagora/twake-harness](https://github.com/linagora/twake-harness)), which
+owns the bots as its Matrix application service. The routes take either
+backend; this version of ToM ships Hermes only, and a ToM configured for the
+harness refuses to start rather than fall back to Hermes.
+
+**One backend per ToM.** A ToM served by the harness refuses
+`hermes_profiles_dir`, and a ToM served by Hermes refuses the `harness` block:
+the configuration does not load otherwise. Two runtimes on the same accounts
+answer every message twice and take each other's room keys, so the owner's
+messages reach the wrong device: this happened on a development platform
+where Hermes and the harness both claimed the assistants of the same users.
+
 ## Configuration
 
-See `.tomconfig.example.yaml`, section `bots`. `hermes_profiles_dir` is the
+See `.tomconfig.example.yaml`, section `bots`. `backend` is `hermes` (the
+default) or `harness` (see Backends). With Hermes, `hermes_profiles_dir` is the
 `profiles` directory of the Hermes home, shared with the agent (a volume).
 `hermes_homeserver_url` is the homeserver as the agent reaches it, and
 `hermes_home` the home of the agent as the agent sees it (the paths written in
