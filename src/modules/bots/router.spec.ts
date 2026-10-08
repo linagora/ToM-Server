@@ -5,7 +5,7 @@ import express from "express";
 import request from "supertest";
 import { createLogger } from "winston";
 
-import { NOT_FOUND } from "../../errors/error-codes";
+import { errorMiddleware } from "../../errors/error-middleware";
 import { loadMessages } from "../../i18n/index";
 import type { AuthenticatedRequest } from "../../middleware/auth/types";
 import { BotNotProvisionedError } from "./errors";
@@ -47,16 +47,16 @@ const rejecting: RequestHandler = (_req, res): void => {
   });
 };
 
+/** The router behind the app's own error answers, as ToM mounts it. */
 const makeApp = (router: express.Router): express.Express => {
   const app = express();
   app.use(express.json());
   app.use(router);
-  // biome-ignore lint/suspicious/noExplicitAny: Express err is loosely typed
-  app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    res.status(err.code === NOT_FOUND ? 404 : err.code === "M_INVALID_PARAM" ? 400 : 500).json({
-      errcode: err.code,
-    });
-  });
+  app.use(
+    errorMiddleware({
+      locale: "en",
+    }),
+  );
   return app;
 };
 
