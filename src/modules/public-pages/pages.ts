@@ -31,6 +31,7 @@ const TEXTS = {
     send: "Send the report",
     thanks: "Thank you, the report was sent.",
     react: "React with",
+    add: "Add a reaction",
   },
   fr: {
     follower: "abonné",
@@ -50,6 +51,7 @@ const TEXTS = {
     send: "Envoyer le signalement",
     thanks: "Merci, le signalement est envoyé.",
     react: "Réagir avec",
+    add: "Ajouter une réaction",
   },
 };
 const textsOf = (lang: string) => (lang.toLowerCase().startsWith("fr") ? TEXTS.fr : TEXTS.en);
@@ -403,19 +405,22 @@ function reactionsHtml(page: Page, post: Post, lang: string, options: RenderOpti
     total.set(baseKey(key), (total.get(baseKey(key)) ?? 0) + count);
   }
   const fixed = new Set(REACTION_KEYS.map(baseKey));
-  const buttons = REACTION_KEYS.map((key) => {
+  const form = (key: string, content: string, label: string): string =>
+    `<form method="post" action="${pagePath(page.ref)}/react"><input type="hidden" name="event_id" value="${escapeHtml(post.id)}"><input type="hidden" name="key" value="${key}"><button type="submit" aria-pressed="${mine.has(baseKey(key))}" aria-label="${escapeHtml(label)}">${content}</button></form>`;
+  // Only the emojis someone gave; the others wait in « Add a reaction »
+  const buttons = REACTION_KEYS.filter((key) => (total.get(baseKey(key)) ?? 0) > 0).map((key) => {
     const count = total.get(baseKey(key)) ?? 0;
-    const label = `${t.react} ${key}, ${count}`;
 
-    return `<form method="post" action="${pagePath(page.ref)}/react"><input type="hidden" name="event_id" value="${escapeHtml(post.id)}"><input type="hidden" name="key" value="${key}"><button type="submit" aria-pressed="${mine.has(baseKey(key))}" aria-label="${escapeHtml(label)}">${key} <span>${count}</span></button></form>`;
+    return form(key, `${key} <span>${count}</span>`, `${t.react} ${key}, ${count}`);
   });
   const others = [
     ...total,
   ]
     .filter(([key, count]) => !fixed.has(key) && count > 0)
     .map(([key, count]) => `<span class="other">${escapeHtml(key)} ${count}</span>`);
+  const picker = `<details class="add"><summary aria-label="${escapeHtml(t.add)}">+&#x1F642;</summary><div class="picker">${REACTION_KEYS.map((key) => form(key, key, `${t.react} ${key}`)).join("")}</div></details>`;
 
-  return `<div class="reactions">${buttons.join("")}${others.join("")}</div>`;
+  return `<div class="reactions">${buttons.join("")}${others.join("")}${picker}</div>`;
 }
 
 function reportHtml(page: Page, post: Post, lang: string): string {
@@ -462,6 +467,9 @@ const STYLE = `
       .reactions form { margin: 0; }
       .reactions button, .report button { min-height: 32px; min-width: 32px; padding: 2px 10px; border-radius: 16px; border: 1px solid var(--muted); background: var(--bg); color: var(--fg); font: inherit; cursor: pointer; }
       .reactions button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+      .reactions details.add summary { list-style: none; display: inline-flex; align-items: center; min-height: 32px; min-width: 32px; padding: 2px 10px; border-radius: 16px; border: 1px dashed var(--muted); cursor: pointer; }
+      .reactions details.add summary::-webkit-details-marker { display: none; }
+      .reactions details.add[open] .picker { display: flex; gap: 4px; margin-top: 4px; }
       .reactions .other { display: inline-flex; align-items: center; min-height: 32px; padding: 2px 10px; color: var(--muted); }
       button:focus-visible, summary:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid var(--fg); outline-offset: 2px; }
       .report summary { cursor: pointer; display: inline-block; min-height: 24px; color: var(--muted); font-size: .875rem; }
