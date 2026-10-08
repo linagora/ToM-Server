@@ -64,6 +64,7 @@ export const roomListSchema = z.object({
         room_id: z.string(),
         canonical_alias: z.string().nullish(),
         history_visibility: z.string().nullish(),
+        join_rules: z.string().nullish(),
         encryption: z.string().nullish(),
         room_type: z.string().nullish(),
       }),

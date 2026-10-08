@@ -56,7 +56,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const text = (value: unknown): string => (typeof value === "string" ? value : "");
 
 /**
- * THE gate: a room has a public page when anyone may read its history, it is not
+ * THE gate: a room has a public page when anyone may read its history or join it, it is not
  * end-to-end encrypted and it is not a space. Every read of Synapse as admin goes through it.
  */
 export function isPublic(state: StateEvent[]): boolean {
@@ -64,7 +64,8 @@ export function isPublic(state: StateEvent[]): boolean {
     state.find((event) => event.type === type && event.state_key === "")?.content ?? {};
 
   return (
-    of("m.room.history_visibility").history_visibility === "world_readable" &&
+    (of("m.room.history_visibility").history_visibility === "world_readable" ||
+      of("m.room.join_rules").join_rule === "public") &&
     !state.some((event) => event.type === "m.room.encryption") &&
     of("m.room.create").type !== "m.space"
   );
@@ -385,7 +386,12 @@ export function renderSitemap(
   },
 ): string {
   const urls = rooms
-    .filter((room) => room.history_visibility === "world_readable" && !room.encryption && room.room_type !== "m.space")
+    .filter(
+      (room) =>
+        (room.history_visibility === "world_readable" || room.join_rules === "public") &&
+        !room.encryption &&
+        room.room_type !== "m.space",
+    )
     .map((room) => sitemapRef(room, serverName))
     .filter((ref): ref is string => ref !== null)
     .map((ref) => `  <url><loc>${escapeHtml(publicUrl + pagePath(ref))}</loc></url>`);

@@ -14,6 +14,7 @@ interface StateOptions {
   space?: boolean;
   encrypted?: boolean;
   type?: string;
+  joinRule?: string;
 }
 
 const state = ({
@@ -21,7 +22,11 @@ const state = ({
   space = false,
   encrypted = false,
   type,
+  joinRule = "invite",
 }: StateOptions = {}): StateEvent[] => [
+  event("m.room.join_rules", {
+    join_rule: joinRule,
+  }),
   event(
     "m.room.create",
     space
@@ -84,6 +89,26 @@ describe("the gate", () => {
         [],
       ),
     ).not.toBeNull();
+  });
+
+  it("serves a room anyone may join, its history kept to members", () => {
+    expect(
+      isPublic(
+        state({
+          history: "shared",
+          joinRule: "public",
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      isPublic(
+        state({
+          history: "shared",
+          joinRule: "public",
+          encrypted: true,
+        }),
+      ),
+    ).toBe(false);
   });
 
   it("refuses any other history, encryption and spaces", () => {
@@ -299,6 +324,11 @@ describe("renderSitemap", () => {
           encryption: "m.megolm.v1.aes-sha2",
         }),
         room({
+          room_id: "!open:hs",
+          history_visibility: "shared",
+          join_rules: "public",
+        }),
+        room({
           room_id: "!space:hs",
           room_type: "m.space",
         }),
@@ -317,6 +347,7 @@ describe("renderSitemap", () => {
       "https://pages.test/b/figaro",
       "https://pages.test/b/!noalias%3Ahs",
       "https://pages.test/b/!remote%3Ahs",
+      "https://pages.test/b/!open%3Ahs",
     ]);
   });
 });
