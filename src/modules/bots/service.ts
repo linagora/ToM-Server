@@ -203,7 +203,7 @@ export class BotsService {
         "MATRIX_REQUIRE_MENTION=false",
         "MATRIX_AUTO_THREAD=false",
         "MATRIX_REACTIONS=false",
-        ...(model.api_key
+        ...(model.api_key && !model.base_url
           ? [
               `${model.provider.toUpperCase()}_API_KEY=${model.api_key}`,
             ]
@@ -219,6 +219,12 @@ export class BotsService {
       [
         "model:",
         `  provider: ${model.provider}`,
+        ...(model.base_url
+          ? [
+              `  base_url: ${model.base_url}`,
+              ...(model.api_key ? [`  api_key: ${model.api_key}`] : []),
+            ]
+          : []),
         `  default: ${model.name}`,
         "  api_mode: chat_completions",
         "agent:",
