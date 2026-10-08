@@ -820,8 +820,23 @@ sitemap alike (ToM reads Synapse as admin, so it reads every room).
 | -------------------------------------- | ------------------------------------------------------------------------------- |
 | `GET /b/<ref>`                         | The page. `<ref>` is a slug (alias `#slug:<server.name>`) or a URL-encoded room id. |
 | `GET /b/<ref>/media/<server>/<id>`     | A media the page shows (images, audio, video only), sandboxed.                  |
+| `POST /b/<ref>/react`                  | A visitor's emoji reaction (form: `event_id`, `key` among 👍 ❤️ 😂 😮 😢 🎉); pressing again removes it. `303` back to `#post-<id>`. |
+| `POST /b/<ref>/report`                 | Reports a post to the Synapse moderators (form: `event_id`, `reason`, `comment`). `303` to `?reported=1#post-<id>`. |
+| `GET /_twake/v1/public-pages/reactions` | `?room_id=…&event_id=…` (repeat, max 100): `{"reactions": {"<event_id>": {"👍": 3}}}`, visitor counts only. No auth, `Access-Control-Allow-Origin: *`; `404` for a room that fails the gate. |
 | `GET /sitemap.xml`                     | The served rooms (the first 500 of the Synapse admin list).                     |
 | `GET /robots.txt`                      | Allows `/b/`, names the sitemap.                                                |
+
+Visitors have no account and the page runs no script: reactions and reports are
+plain forms (the CSP is `form-action 'self'`). A visitor is a random id in the
+cookie `tom_visitor` (HttpOnly, SameSite=Lax, path `/b/`, 1 year, Secure when
+`public_url` is https). Reactions live in the table `public_reactions` of the ToM
+database (unique per room, event, key, visitor) and are shown added to the
+members' Matrix reactions. A POST must name a post shown on the page of a room
+that passes the gate. Limits per IP: 30 POSTs a minute, 5 reports per 10 minutes.
+A report goes to Synapse (`POST /_matrix/client/v3/rooms/{roomId}/report/{eventId}`,
+as the admin) with the reason and comment only, never the IP or the cookie. The
+texts of these controls, and of the page, follow `lang` (English, French). A room
+with no avatar shows its initials.
 
 A page is the latest 30 posts of the main timeline (edits applied, thread
 replies left out), cached for 60 s. Text is escaped; `formatted_body` is never

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { isPublic, mediaOf, parseRef, readPage, renderPage, renderSitemap } from "./pages";
+import { initialsOf, isPublic, mediaOf, parseRef, readPage, renderPage, renderSitemap } from "./pages";
 import type { MessageEvent, StateEvent } from "./types";
 
 const event = (type: string, content: Record<string, unknown>, state_key = ""): StateEvent => ({
@@ -349,5 +349,26 @@ describe("renderSitemap", () => {
       "https://pages.test/b/!remote%3Ahs",
       "https://pages.test/b/!open%3Ahs",
     ]);
+  });
+
+  it("draws initials when there is no avatar, and translates the page", () => {
+    expect(initialsOf("Public canal for Diana")).toBe("PD");
+    expect(initialsOf("figaro")).toBe("F");
+    const page = readPage(
+      "figaro",
+      state().filter((e) => e.type !== "m.room.avatar"),
+      [],
+    );
+    const html = renderPage(page as NonNullable<typeof page>, {
+      publicUrl: "https://p.test",
+      lang: "fr",
+      chatUrl: "https://c.test",
+    });
+
+    expect(html).toContain('role="img" aria-label="Le &lt;Figaro&gt;">LF</span>');
+    expect(html).toContain("Publications");
+    expect(html).toContain("Rien n'est encore publié.");
+    expect(html).toContain("Suivre dans Twake Chat");
+    expect(html).toContain("1 abonné");
   });
 });

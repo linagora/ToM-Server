@@ -16,6 +16,8 @@ export interface Post {
     url: string;
     alt: string;
   } | null;
+  /** The reactions of the members of the room: count of distinct senders per key. */
+  reactions: Record<string, number>;
 }
 
 /** What a page shows. `ref` is the slug or the room id of its URL. */
@@ -39,5 +41,17 @@ export interface PagesSource {
   /** The latest messages of a room, newest first. */
   readMessages(roomId: string): Promise<MessageEvent[]>;
   listRooms(): Promise<ListedRoom[]>;
+  /** Report an event to the moderators of the homeserver, as the admin. */
+  report(roomId: string, eventId: string, reason: string): Promise<void>;
   download(server: string, id: string): Promise<Response>;
+}
+
+/** The reactions of visitors with no account, kept in the database of ToM. */
+export interface ReactionStore {
+  /** Adds the reaction of a visitor, or removes it when already there; true when it is now there. */
+  toggle(roomId: string, eventId: string, key: string, visitorId: string): Promise<boolean>;
+  /** Visitor counts per event and key. */
+  counts(roomId: string, eventIds: string[]): Promise<Record<string, Record<string, number>>>;
+  /** What a visitor reacted with: `eventId` to keys. */
+  mine(roomId: string, eventIds: string[], visitorId: string): Promise<Record<string, string[]>>;
 }

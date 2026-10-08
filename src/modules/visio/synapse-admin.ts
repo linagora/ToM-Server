@@ -89,6 +89,25 @@ export class SynapseAdmin {
     return this.#get(path);
   }
 
+  /** A POST with the admin token; throws when Synapse refuses. */
+  async post(path: string, body: Record<string, unknown>): Promise<void> {
+    const token = await this.#adminToken();
+    let response: Response;
+    try {
+      response = await this.#http.post(path, body, token);
+    } catch (err) {
+      throw this.#upstreamError(path, err instanceof Error ? err.message : translate("log.net.request_failed"));
+    }
+    if (!response.ok) {
+      throw this.#upstreamError(
+        path,
+        translate("log.net.status", {
+          status: response.status,
+        }),
+      );
+    }
+  }
+
   async #get(path: string): Promise<Response> {
     const token = await this.#adminToken();
     try {
