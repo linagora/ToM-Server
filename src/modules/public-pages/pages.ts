@@ -9,7 +9,8 @@ const DESCRIPTION_LIMIT = 300;
 const DEFAULT_ACCENT = "#2b6cb0";
 
 const SLUG = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
-const ROOM_ID = /^![A-Za-z0-9._=\-/+]+:[A-Za-z0-9.:-]+$/;
+/** A room id; from room version 12 it names no server (MSC4291). */
+const ROOM_ID = /^![A-Za-z0-9._=\-/+]+(?::[A-Za-z0-9.:-]+)?$/;
 const MXC = /^mxc:\/\/([A-Za-z0-9.:-]+)\/([A-Za-z0-9_-]+)$/;
 
 export type Ref =
