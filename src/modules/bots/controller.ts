@@ -1,6 +1,7 @@
 import { DomainError } from "../../errors/domain-error";
 import { INVALID_INPUT, UNAUTHORIZED } from "../../errors/error-codes";
 import type { AuthenticatedRequest } from "../../middleware/auth/types";
+import { BotNotFoundError } from "./errors";
 import { homeRequestSchema, myBotRequestSchema } from "./schema";
 import type { BotsProvisioner, MyBot } from "./types";
 
@@ -10,6 +11,17 @@ export const myBotController = (service: BotsProvisioner, req: AuthenticatedRequ
   }
   const body = myBotRequestSchema.safeParse(req.body ?? {});
   return service.provision(req.userId, req.accessToken, body.success ? body.data.timezone : undefined);
+};
+
+export const myBotReadController = async (service: BotsProvisioner, req: AuthenticatedRequest): Promise<MyBot> => {
+  if (!req.userId || !req.accessToken) {
+    throw new DomainError(UNAUTHORIZED, "bots.no_authenticated_user");
+  }
+  const bot = await service.find(req.userId, req.accessToken);
+  if (bot === null) {
+    throw new BotNotFoundError("bots.not_provisioned");
+  }
+  return bot;
 };
 
 export const myBotHomeController = async (service: BotsProvisioner, req: AuthenticatedRequest): Promise<void> => {

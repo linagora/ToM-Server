@@ -102,6 +102,80 @@ describe("bots router", () => {
     expect(response.body).toEqual(bot);
   });
 
+  it("reads the bot of the authenticated user, without provisioning one", async () => {
+    const bot = {
+      userId: "@bot_dwho:example.com",
+      deviceId: "HERMESDWHO",
+      masterKey: "mk",
+    };
+    const asked: string[][] = [];
+    const service = {
+      find: (ownerId: string, ownerToken: string) => {
+        asked.push([
+          ownerId,
+          ownerToken,
+        ]);
+        return Promise.resolve(bot);
+      },
+    } as unknown as BotsService;
+    const app = makeApp(
+      createBotsRouter(
+        settings(true),
+        {
+          authenticate: authenticated,
+        },
+        service,
+        silentLogger,
+      ),
+    );
+
+    const response = await request(app).get(MY_BOT_ROUTE);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual(bot);
+    expect(asked).toEqual([
+      [
+        "@dwho:example.com",
+        "syt_owner",
+      ],
+    ]);
+  });
+
+  it("says the user has no assistant with its own code, apart from assistants that are off", async () => {
+    const service = {
+      find: () => Promise.resolve(null),
+    } as unknown as BotsService;
+    const app = makeApp(
+      createBotsRouter(
+        settings(true),
+        {
+          authenticate: authenticated,
+        },
+        service,
+        silentLogger,
+      ),
+    );
+    const disabled = makeApp(createBotsRouter(settings(false), undefined, undefined, silentLogger));
+
+    const none = await request(app).get(MY_BOT_ROUTE);
+    const off = await request(disabled).get(MY_BOT_ROUTE);
+
+    expect([
+      none.status,
+      none.body?.errcode,
+    ]).toEqual([
+      404,
+      "M_BOT_NOT_FOUND",
+    ]);
+    expect([
+      off.status,
+      off.body?.errcode,
+    ]).toEqual([
+      404,
+      "M_NOT_FOUND",
+    ]);
+  });
+
   it("hands the timezone of the browser to the service, and drops one that is not a zone name", async () => {
     const timezones: (string | undefined)[] = [];
     const service = {
@@ -149,9 +223,8 @@ describe("bots router", () => {
       ),
     );
 
-    const response = await request(app).post(MY_BOT_ROUTE);
-
-    expect(response.status).toBe(401);
+    expect((await request(app).post(MY_BOT_ROUTE)).status).toBe(401);
+    expect((await request(app).get(MY_BOT_ROUTE)).status).toBe(401);
   });
 
   it("takes the direct room of the user as the home channel of the bot", async () => {
