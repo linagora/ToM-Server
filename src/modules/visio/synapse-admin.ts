@@ -74,6 +74,21 @@ export class SynapseAdmin {
     };
   }
 
+  /** The body of an admin API GET validated against `schema`, or null when the answer is 404. */
+  async readOrNull<Schema extends z.ZodType>(path: string, schema: Schema): Promise<z.infer<Schema> | null> {
+    const response = await this.#get(path);
+    if (response.status === 404) {
+      return null;
+    }
+
+    return this.#parse(path, response, schema);
+  }
+
+  /** The raw answer of a GET with the admin token (media), whatever its status. */
+  raw(path: string): Promise<Response> {
+    return this.#get(path);
+  }
+
   async #get(path: string): Promise<Response> {
     const token = await this.#adminToken();
     try {

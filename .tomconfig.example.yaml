@@ -359,6 +359,22 @@ email:
 #   trending_cache_ttl_ms: 300000
 
 # -----------------------------------------------------------------------------
+# Public pages of Twake Chat (D90): a read-only HTML page for each room anyone
+# may read, for people with no account. Off by default; needs `synapse.admin`.
+# Routes: GET /b/<slug or room id>, /b/<ref>/media/<server>/<id>, /sitemap.xml,
+# /robots.txt. A room is served only when its history is `world_readable`, it
+# is not end-to-end encrypted and it is not a space.
+# -----------------------------------------------------------------------------
+# public_pages:
+#   enabled: false                 # Default: false
+#   # Required when enabled — the origin the pages are reached at (canonical,
+#   # Open Graph and sitemap URLs), with no trailing slash
+#   public_url: "https://chat.example.com"
+#   # The « Follow in Twake Chat » link; none when unset
+#   chat_url: "https://chat.example.com"
+#   lang: en                       # Default: en — `lang` of the pages
+
+# -----------------------------------------------------------------------------
 # Telemetry (OpenTelemetry)
 # Disabled by default.
 # -----------------------------------------------------------------------------

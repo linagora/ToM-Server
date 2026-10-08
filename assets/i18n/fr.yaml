@@ -114,3 +114,8 @@ log.gifs.disabled: "GIFs disabled"
 log.gifs.upstream_failure: "GIF service request failed: {{reason}}"
 log.gifs.upstream_status: "GIF service answered {{status}}"
 log.gifs.media_aborted: "GIF media transfer aborted"
+
+# Public pages
+log.public_pages.mounting: "Montage de publicPagesRouter..."
+log.public_pages.no_admin: "Les pages publiques demandent les identifiants synapse.admin : non montées"
+log.public_pages.failed: "échec d'une page publique : {{reason}}"

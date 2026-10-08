@@ -40,6 +40,7 @@ Optional fields are commented out with their defaults shown.
 - [Matrix Authentication](#matrix-authentication)
 - [Visio](#visio)
 - [GIFs](#gifs)
+- [Public pages](#public-pages)
 - [Telemetry (OpenTelemetry)](#telemetry-opentelemetry)
 
 ---
@@ -787,6 +788,46 @@ admin routes answer 404 `M_NOT_FOUND`, and `status` answers
 
 The state is not in the well-known: the document is built once at start, and
 the switch changes at run time. Clients call `status` after the sign-in.
+
+---
+
+## Public pages
+
+Off by default. Serves a read-only, server-rendered HTML page (Open Graph tags,
+JSON-LD `ProfilePage`, canonical URL) for each Matrix room anyone may read,
+for people with no account. Needs `synapse.admin` (a token, or a login).
+
+```yaml
+public_pages:
+  enabled: true
+  public_url: "https://chat.example.com"
+  chat_url: "https://chat.example.com"
+```
+
+| Field        | Default | Description                                                                |
+| ------------ | ------- | -------------------------------------------------------------------------- |
+| `enabled`    | `false` | Disabled: the routes are not mounted (404).                                |
+| `public_url` | `""`    | **Required when enabled.** Origin of the pages: canonical, OG and sitemap. |
+| `chat_url`   | `""`    | Target of the « Follow in Twake Chat » link. No link when empty.           |
+| `lang`       | `en`    | `lang` attribute of the pages.                                             |
+
+A room is served only if its `m.room.history_visibility` is `world_readable`,
+it has no `m.room.encryption` state and it is not a space. This gate runs on the
+state of the room before any message or media is read, for pages, media and the
+sitemap alike (ToM reads Synapse as admin, so it reads every room).
+
+| Route                                  | Answer                                                                          |
+| -------------------------------------- | ------------------------------------------------------------------------------- |
+| `GET /b/<ref>`                         | The page. `<ref>` is a slug (alias `#slug:<server.name>`) or a URL-encoded room id. |
+| `GET /b/<ref>/media/<server>/<id>`     | A media the page shows (images, audio, video only), sandboxed.                  |
+| `GET /sitemap.xml`                     | The served rooms (the first 500 of the Synapse admin list).                     |
+| `GET /robots.txt`                      | Allows `/b/`, names the sitemap.                                                |
+
+A page is the latest 30 posts of the main timeline (edits applied, thread
+replies left out), cached for 60 s. Text is escaped; `formatted_body` is never
+used. Unknown or refused rooms answer `404`; a homeserver failure `502`.
+
+---
 
 ## Telemetry (OpenTelemetry)
 
