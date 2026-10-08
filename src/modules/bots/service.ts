@@ -226,7 +226,11 @@ export class BotsService {
         ...(model.base_url
           ? [
               `  base_url: ${model.base_url}`,
-              ...(model.api_key ? [`  api_key: ${model.api_key}`] : []),
+              ...(model.api_key
+                ? [
+                    `  api_key: ${model.api_key}`,
+                  ]
+                : []),
             ]
           : []),
         `  default: ${model.name}`,

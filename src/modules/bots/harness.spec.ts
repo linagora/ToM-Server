@@ -4,7 +4,13 @@ import { Writable } from "node:stream";
 
 import { createLogger, format, type Logger, transports } from "winston";
 
-import { BAD_GATEWAY, BOT_RECOVERY_NEEDED, NOT_FOUND, SERVICE_UNAVAILABLE, UNPROCESSABLE } from "../../errors/error-codes";
+import {
+  BAD_GATEWAY,
+  BOT_RECOVERY_NEEDED,
+  NOT_FOUND,
+  SERVICE_UNAVAILABLE,
+  UNPROCESSABLE,
+} from "../../errors/error-codes";
 import { loadMessages } from "../../i18n/index";
 import { HarnessBotsService } from "./harness";
 import type { BotsSettings } from "./types";
@@ -559,7 +565,12 @@ describe("HarnessBotsService", () => {
       code: NOT_FOUND,
     });
     const asked = fake.seen.filter((request) => request.path !== "/oauth2/token");
-    expect(asked.map((request) => [request.method, request.path])).toEqual([
+    expect(
+      asked.map((request) => [
+        request.method,
+        request.path,
+      ]),
+    ).toEqual([
       [
         "POST",
         `${OWNER_PATH}/recover`,
