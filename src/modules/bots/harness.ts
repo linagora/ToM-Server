@@ -17,7 +17,7 @@ import type { BotsSettings, HarnessSettings, MyBot } from "./types";
 const PROVISIONING_PATH = "/v1/provisioning/assistants";
 /** The endpoints as the logs name them: the owner never appears in a log. */
 const PROVISION_ENDPOINT = `PUT ${PROVISIONING_PATH}/{owner}`;
-const READ_ENDPOINT = `GET ${PROVISIONING_PATH}/{owner}`;
+const FIND_ENDPOINT = `GET ${PROVISIONING_PATH}/{owner}`;
 const HOME_ENDPOINT = `PUT ${PROVISIONING_PATH}/{owner}/home`;
 const RECOVER_ENDPOINT = `POST ${PROVISIONING_PATH}/{owner}/recover`;
 const TOKEN_ENDPOINT = "token";
@@ -130,11 +130,11 @@ export class HarnessBotsService {
   async find(ownerId: string, _ownerToken: string): Promise<MyBot | null> {
     const deadline = Date.now() + this.#config.ready_timeout_ms;
     const path = `${PROVISIONING_PATH}/${encodeURIComponent(ownerId)}`;
-    const response = await this.#onceReady(() => this.#send("GET", READ_ENDPOINT, path, null, deadline), deadline);
+    const response = await this.#onceReady(() => this.#send("GET", FIND_ENDPOINT, path, null, deadline), deadline);
     if (await isRefusal(response, 404, NO_ASSISTANT)) {
       return null;
     }
-    return this.#botOf(READ_ENDPOINT, response);
+    return this.#botOf(FIND_ENDPOINT, response);
   }
 
   /** The bot in the harness's answer to `endpoint`, or why there is none. */

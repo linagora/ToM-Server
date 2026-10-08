@@ -2,7 +2,7 @@ import { type NextFunction, type Request, type Response, Router } from "express"
 import type { Logger } from "winston";
 
 import { translate } from "../../i18n/index";
-import { myBotController, myBotHomeController, myBotReadController, myBotRecoverController } from "./controller";
+import { myBotController, myBotFindController, myBotHomeController, myBotRecoverController } from "./controller";
 import { BotsDisabledError } from "./errors";
 import type { BotsDeps, BotsProvisioner, BotsSettings } from "./types";
 
@@ -49,7 +49,7 @@ export const createBotsRouter = (
 
   router.get(MY_BOT_ROUTE, deps.authenticate, async (req, res, next) => {
     try {
-      res.status(200).json(await myBotReadController(service, req));
+      res.status(200).json(await myBotFindController(service, req));
     } catch (err) {
       next(err);
     }

@@ -13,7 +13,7 @@ export const myBotController = (service: BotsProvisioner, req: AuthenticatedRequ
   return service.provision(req.userId, req.accessToken, body.success ? body.data.timezone : undefined);
 };
 
-export const myBotReadController = async (service: BotsProvisioner, req: AuthenticatedRequest): Promise<MyBot> => {
+export const myBotFindController = async (service: BotsProvisioner, req: AuthenticatedRequest): Promise<MyBot> => {
   if (!req.userId || !req.accessToken) {
     throw new DomainError(UNAUTHORIZED, "bots.no_authenticated_user");
   }
