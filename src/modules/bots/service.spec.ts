@@ -269,6 +269,55 @@ describe("BotsService", () => {
     expect(statSync(configFile).mode & 0o777).toBe(0o600);
   });
 
+  it("finds no bot for an owner without a profile, and asks the homeserver nothing", async () => {
+    profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
+    const fetchMock = mockFetch();
+    const service = new BotsService(settings(), synapse, silentLogger);
+
+    expect(await service.find(OWNER, OWNER_TOKEN)).toBeNull();
+    expect(fetchMock.mock.calls).toHaveLength(0);
+    expect(existsSync(join(profilesDir, "bot_dwho"))).toBe(false);
+  });
+
+  it("finds the bot of an owner whose profile is there, with the keys it published, and creates nothing", async () => {
+    profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
+    mkdirSync(join(profilesDir, "bot_dwho"), {
+      recursive: true,
+    });
+    writeFileSync(join(profilesDir, "bot_dwho", ".env"), `MATRIX_USER_ID=${BOT}\n`);
+    const fetchMock = mockFetch(keysPublished());
+    const service = new BotsService(settings(), synapse, silentLogger);
+
+    const bot = await service.find(OWNER, OWNER_TOKEN);
+
+    expect(bot).toEqual({
+      userId: BOT,
+      deviceId: DEVICE,
+      masterKey: MASTER_KEY,
+    });
+    const [queryUrl, queryInit] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    expect(fetchMock.mock.calls).toHaveLength(1);
+    expect(queryUrl).toBe("https://matrix.example.com/_matrix/client/v3/keys/query");
+    expect(new Headers(queryInit.headers).get("Authorization")).toBe(`Bearer ${OWNER_TOKEN}`);
+  });
+
+  it("says the bot it finds is not ready while Hermes has not published its keys", async () => {
+    profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
+    mkdirSync(join(profilesDir, "bot_dwho"), {
+      recursive: true,
+    });
+    writeFileSync(join(profilesDir, "bot_dwho", ".env"), `MATRIX_USER_ID=${BOT}\n`);
+    mockFetch(keysMissing());
+    const service = new BotsService(settings(), synapse, silentLogger);
+
+    await expect(service.find(OWNER, OWNER_TOKEN)).rejects.toMatchObject({
+      code: SERVICE_UNAVAILABLE,
+    });
+  });
+
   it("says the bot is not ready while Hermes has not published its keys", async () => {
     profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
     mockFetch(

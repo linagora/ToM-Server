@@ -71,12 +71,16 @@ export class BotsService {
     }
     if (timezone) this.#saveTimezone(profileDir, timezone);
 
-    const masterKey = await this.#waitForKeys(bot.userId, bot.deviceId, ownerToken);
-    return {
-      userId: bot.userId,
-      deviceId: bot.deviceId,
-      masterKey,
-    };
+    return this.#withKeys(bot, ownerToken);
+  }
+
+  /** The bot of the owner once its profile is written, never made: none before. */
+  async find(ownerId: string, ownerToken: string): Promise<MyBot | null> {
+    const bot = botIds(ownerId, this.#config, this.#synapse.serverName);
+    if (!existsSync(join(this.#config.hermes_profiles_dir ?? "", bot.localpart, ".env"))) {
+      return null;
+    }
+    return await this.#withKeys(bot, ownerToken);
   }
 
   /**
@@ -241,6 +245,22 @@ export class BotsService {
       join(dir, "SOUL.md"),
       `You are the personal assistant of ${ownerId} in Twake Chat. Answer briefly, in the language of the message.\n`,
     );
+  }
+
+  /** The bot with the master key it published, which the client checks before trusting its device. */
+  async #withKeys(
+    bot: {
+      userId: string;
+      deviceId: string;
+    },
+    ownerToken: string,
+  ): Promise<MyBot> {
+    const masterKey = await this.#waitForKeys(bot.userId, bot.deviceId, ownerToken);
+    return {
+      userId: bot.userId,
+      deviceId: bot.deviceId,
+      masterKey,
+    };
   }
 
   /** The keys the bot publishes, once Hermes has started with the profile. */
