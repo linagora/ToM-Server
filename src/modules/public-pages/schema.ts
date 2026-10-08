@@ -69,4 +69,6 @@ export const roomListSchema = z.object({
       }),
     )
     .default([]),
+  /** The offset of the next page; absent on the last one. */
+  next_batch: z.number().nullish(),
 });
