@@ -2,13 +2,7 @@ import { z } from "zod";
 
 const DEFAULT_TIMEOUT_MS = 10000;
 const DEFAULT_READY_TIMEOUT_MS = 12000;
-const DEFAULT_PUBLISH_INTERVAL_MS = 60000;
 
-const commandSchema = z.object({
-  name: z.string().min(1),
-  syntax: z.string().min(1),
-  description: z.string().default(""),
-});
 
 /**
  * The agent harness of the platform (linagora/twake-harness), which owns the
@@ -57,14 +51,6 @@ export const botsSettingsSchema = z
       .prefault({}),
     bot_localpart_prefix: z.string().default("bot_"),
     device_id_prefix: z.string().default("HERMES"),
-    /** What the bot announces in its rooms (MSC4332). */
-    commands: z.array(commandSchema).default([
-      {
-        name: "help",
-        syntax: "help",
-        description: "What the assistant can do",
-      },
-    ]),
     timeout_ms: z.number().int().positive().default(DEFAULT_TIMEOUT_MS),
     /**
      * How long a route of the bots may take before it answers 503 and the client
@@ -73,7 +59,6 @@ export const botsSettingsSchema = z
      * up on a request after 15 s: keep it below, as the default does.
      */
     ready_timeout_ms: z.number().int().nonnegative().default(DEFAULT_READY_TIMEOUT_MS),
-    publish_interval_ms: z.number().int().positive().default(DEFAULT_PUBLISH_INTERVAL_MS),
   })
   .superRefine((value, ctx) => {
     if (!value.enabled) {

@@ -96,9 +96,6 @@ log.bots.not_ready: "clés de l'assistant pas encore publiées"
 log.bots.not_in_room: "l'assistant n'a pas encore rejoint son salon"
 log.bots.upstream_failure: "échec du serveur Matrix sur {{endpoint}} :
   {{reason}}"
-log.bots.commands_failed: "publication des commandes des assistants échouée :
-  {{reason}}"
-log.bots.commands_refused: "un salon a refusé les commandes d'un assistant"
 log.bots.harness_failure: "échec du service des assistants sur {{endpoint}} :
   {{reason}}"
 

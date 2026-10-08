@@ -105,10 +105,8 @@ const settings = (url: string, overrides: Partial<BotsSettings> = {}): BotsSetti
   },
   bot_localpart_prefix: "bot_",
   device_id_prefix: "HERMES",
-  commands: [],
   timeout_ms: 1000,
   ready_timeout_ms: 2000,
-  publish_interval_ms: 60000,
   ...overrides,
 });
 

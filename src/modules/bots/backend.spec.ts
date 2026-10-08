@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { createLogger } from "winston";
 
 import { makeBotsBackend } from "./backend";
+import { BotsService } from "./service";
 import type { BotsSettings, SynapseAccess } from "./types";
 
 const silentLogger = createLogger({
@@ -28,10 +29,8 @@ const common: Omit<BotsSettings, "backend"> = {
   },
   bot_localpart_prefix: "bot_",
   device_id_prefix: "HERMES",
-  commands: [],
   timeout_ms: 1000,
   ready_timeout_ms: 0,
-  publish_interval_ms: 60000,
 };
 
 let server: ReturnType<typeof Bun.serve> | null = null;
@@ -42,7 +41,7 @@ describe("bots backend", () => {
     server = null;
   });
 
-  it("keeps Hermes and its announcer of commands as the default backend", () => {
+  it("keeps Hermes as the default backend", () => {
     const backend = makeBotsBackend(
       {
         ...common,
@@ -53,10 +52,10 @@ describe("bots backend", () => {
       silentLogger,
     );
 
-    expect(backend.commands).not.toBeNull();
+    expect(backend.service).toBeInstanceOf(BotsService);
   });
 
-  it("asks the harness for the bots, and announces no command itself, when the harness serves them", async () => {
+  it("asks the harness for the bots when the harness serves them", async () => {
     const paths: string[] = [];
     server = Bun.serve({
       port: 0,
@@ -101,7 +100,6 @@ describe("bots backend", () => {
       "/oauth2/token",
       "/v1/provisioning/assistants/%40dwho%3Aexample.com",
     ]);
-    expect(backend.commands).toBeNull();
   });
 
   it("never falls back to Hermes on a ToM the harness serves", () => {

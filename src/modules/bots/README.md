@@ -94,13 +94,10 @@ the client hides the switch. `400` for a body without a boolean.
 
 ## Commands (MSC4332)
 
-Hermes announces no command. Every `publish_interval_ms`, ToM writes the
-state `org.matrix.msc4332.commands` (state key: the id of the bot, content:
-`bots.commands`) in every room each provisioned bot is in, once per room.
-Rooms created by Twake Chat let any member write it; other rooms need the
-moderator, and are tried again at the next round. With the harness backend,
-ToM announces nothing: the harness announces the commands of its bots
-(linagora/twake-harness#74, #76).
+ToM announces no command. A bot announces its own, as the sender of the
+state `org.matrix.msc4332.commands`: the harness does it for its bots
+(linagora/twake-harness#74, #76). Hermes announces none; the e2e stack of
+Twake Chat announces them for its Hermes bot with its own script.
 
 ## Backends
 

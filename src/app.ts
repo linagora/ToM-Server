@@ -182,7 +182,6 @@ function mountBots(config: Config, logger: Logger, app: Express): void {
       botsLogger,
     );
     service = backend.service;
-    backend.commands?.start();
   }
   logger.info(
     translate("log.bots.mounting", {

@@ -406,11 +406,6 @@ email:
 #   bot_localpart_prefix: bot_
 #   device_id_prefix: HERMES
 #   ready_timeout_ms: 12000
-#   publish_interval_ms: 60000
-#   commands:
-#     - name: help
-#       syntax: help
-#       description: What the assistant can do
 
 # The same section on a ToM served by the agent harness of the platform, which
 # owns the bots as its Matrix application service: no Hermes key there.
