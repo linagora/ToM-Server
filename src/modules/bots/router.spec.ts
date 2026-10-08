@@ -6,10 +6,17 @@ import express from "express";
 import request from "supertest";
 import { createLogger } from "winston";
 
+import type { DomainError } from "../../errors/domain-error";
 import { errorMiddleware } from "../../errors/error-middleware";
 import { loadMessages } from "../../i18n/index";
 import type { AuthenticatedRequest } from "../../middleware/auth/types";
-import { BotNotProvisionedError } from "./errors";
+import {
+  BotNotProvisionedError,
+  BotNotReadyError,
+  BotOwnerNotServedError,
+  BotRecoveryNeededError,
+  BotsUpstreamError,
+} from "./errors";
 import { createBotsRouter, MY_BOT_HOME_ROUTE, MY_BOT_RECOVER_ROUTE, MY_BOT_ROUTE } from "./router";
 import type { BotsService } from "./service";
 import type { BotsSettings } from "./types";
@@ -166,6 +173,64 @@ describe("bots router", () => {
     expect(none.body.error).toBe("The user has no assistant");
     expect(off.status).toBe(404);
     expect(off.body.errcode).toBe("M_NOT_FOUND");
+  });
+
+  /** Why a backend cannot answer the bot, and the status and code the client gets for it. */
+  const failures: [
+    string,
+    DomainError,
+    number,
+    string,
+  ][] = [
+    [
+      "awaits its owner's recovery",
+      new BotRecoveryNeededError("bots.recovery_needed"),
+      422,
+      "M_BOT_RECOVERY_NEEDED",
+    ],
+    [
+      "is not ready yet",
+      new BotNotReadyError("bots.not_ready"),
+      503,
+      "M_SERVICE_UNAVAILABLE",
+    ],
+    [
+      "belongs to an owner the harness does not serve",
+      new BotOwnerNotServedError("bots.owner_not_served"),
+      422,
+      "M_UNPROCESSABLE",
+    ],
+    [
+      "sits behind a harness out of reach",
+      new BotsUpstreamError("bots.harness_failure"),
+      502,
+      "M_BAD_GATEWAY",
+    ],
+  ];
+
+  it.each(failures)("answers the GET of a bot that %s as it answers the POST", async (_why, error, status, errcode) => {
+    const service = {
+      find: () => Promise.reject(error),
+      provision: () => Promise.reject(error),
+    } as unknown as BotsService;
+    const app = makeApp(
+      createBotsRouter(
+        settings(true),
+        {
+          authenticate: authenticated,
+        },
+        service,
+        silentLogger,
+      ),
+    );
+
+    const found = await request(app).get(MY_BOT_ROUTE);
+    const provisioned = await request(app).post(MY_BOT_ROUTE);
+
+    expect(found.status).toBe(status);
+    expect(found.body.errcode).toBe(errcode);
+    expect(provisioned.status).toBe(status);
+    expect(provisioned.body.errcode).toBe(errcode);
   });
 
   it("hands the timezone of the browser to the service, and drops one that is not a zone name", async () => {
