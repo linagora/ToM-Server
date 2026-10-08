@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "bun:test";
+import { join } from "node:path";
 
 import type { RequestHandler } from "express";
 import express from "express";
@@ -67,7 +68,7 @@ const serviceAnswering = (bot: unknown): BotsService =>
 
 describe("bots router", () => {
   beforeAll(() => {
-    loadMessages(undefined, silentLogger);
+    loadMessages(join(import.meta.dir, "../../../assets/i18n"), silentLogger);
   });
 
   it("answers 404 when the assistants are disabled, so that the client hides the action", async () => {
@@ -162,6 +163,7 @@ describe("bots router", () => {
 
     expect(none.status).toBe(404);
     expect(none.body.errcode).toBe("M_BOT_NOT_FOUND");
+    expect(none.body.error).toBe("The user has no assistant");
     expect(off.status).toBe(404);
     expect(off.body.errcode).toBe("M_NOT_FOUND");
   });

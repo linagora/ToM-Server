@@ -19,7 +19,7 @@ export const myBotFindController = async (service: BotsProvisioner, req: Authent
   }
   const bot = await service.find(req.userId, req.accessToken);
   if (bot === null) {
-    throw new BotNotFoundError("bots.not_provisioned");
+    throw new BotNotFoundError("bots.not_found");
   }
   return bot;
 };
