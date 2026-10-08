@@ -1,8 +1,8 @@
 import { DomainError } from "../../errors/domain-error";
 import { INVALID_INPUT, UNAUTHORIZED } from "../../errors/error-codes";
 import type { AuthenticatedRequest } from "../../middleware/auth/types";
-import { BotNotFoundError } from "./errors";
-import { homeRequestSchema, myBotRequestSchema } from "./schema";
+import { BotNotFoundError, BotsDisabledError } from "./errors";
+import { homeRequestSchema, myBotRequestSchema, suggestionsSchema } from "./schema";
 import type { BotsProvisioner, MyBot } from "./types";
 
 export const myBotController = (service: BotsProvisioner, req: AuthenticatedRequest): Promise<MyBot> => {
@@ -40,4 +40,31 @@ export const myBotRecoverController = async (service: BotsProvisioner, req: Auth
     throw new DomainError(UNAUTHORIZED, "bots.no_authenticated_user");
   }
   await service.recover(req.userId);
+};
+
+/** The owner's switch of the suggestions; a backend without them answers as assistants that are off (404). */
+export const mySuggestionsController = async (
+  service: BotsProvisioner,
+  req: AuthenticatedRequest,
+): Promise<{
+  enabled: boolean;
+}> => {
+  if (!req.userId) {
+    throw new DomainError(UNAUTHORIZED, "bots.no_authenticated_user");
+  }
+  if (!service.readSuggestions || !service.writeSuggestions) {
+    throw new BotsDisabledError("bots.suggestions_unavailable");
+  }
+  if (req.method === "GET") {
+    return {
+      enabled: await service.readSuggestions(req.userId),
+    };
+  }
+  const body = suggestionsSchema.safeParse(req.body);
+  if (!body.success) {
+    throw new DomainError(INVALID_INPUT, "bots.invalid_suggestions");
+  }
+  return {
+    enabled: await service.writeSuggestions(req.userId, body.data.enabled),
+  };
 };

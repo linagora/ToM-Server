@@ -81,6 +81,17 @@ user to type `/sethome`. `204`; `400` for something that is not a room id;
 has recorded the room, so a backend that records it remotely answers `204`
 only when it has it, and its refusals reach the client.
 
+## Suggestions
+
+`GET /_twake/v1/bots/me/suggestions` answers `{ "enabled": true }` or
+`false`: whether the assistants read the user's messages in channels and
+offer them actions (twake-harness, Suggestions). `PUT` with
+`{ "enabled": false }` turns it off, and answers the same. Same
+authorization; no assistant needed, the switch is on by default. The harness
+backend asks `/v1/provisioning/assistants/{owner}/suggestions`; Hermes makes
+no suggestions, so the route answers `404` there, as when bots are off, and
+the client hides the switch. `400` for a body without a boolean.
+
 ## Commands (MSC4332)
 
 Hermes announces no command. Every `publish_interval_ms`, ToM writes the
