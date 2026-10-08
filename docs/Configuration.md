@@ -766,14 +766,14 @@ gifs:
 
 Endpoints (errors are Matrix errors, `{"errcode", "error"}`):
 
-| Route                                           | Auth                     | Answer                                                       |
-| ----------------------------------------------- | ------------------------ | ------------------------------------------------------------ |
-| `GET /_twake/v1/gifs/status`                    | Matrix access token      | `{"enabled": boolean}`: key present and switch on.           |
-| `GET /_twake/v1/gifs/search?q=&page=&locale=`   | Matrix access token      | `{"results": [Gif], "next_page": number or null}`.          |
-| `GET /_twake/v1/gifs/trending?page=&locale=`    | Matrix access token      | The same.                                                    |
-| `GET /_twake/v1/gifs/media/:id/:variant`        | Signed URL (`exp`, `sig`)| The file. `variant` is `preview` or `full`.                  |
-| `GET /_twake/v1/admin/features/gifs`            | `synapse.admin.access_token` as Bearer | `{"enabled": boolean, "available": boolean}`.  |
-| `PUT /_twake/v1/admin/features/gifs`            | The same                 | Body `{"enabled": boolean}`, answers as the GET.             |
+| Route                                           | Auth                                   | Answer                                                       |
+| ----------------------------------------------- | -------------------------------------- | ------------------------------------------------------------ |
+| `GET /_twake/v1/gifs/status`                    | Matrix access token                    | `{"enabled": boolean}`: key present and switch on.           |
+| `GET /_twake/v1/gifs/search?q=&page=&locale=`   | Matrix access token                    | `{"results": [Gif], "next_page": number or null}`.           |
+| `GET /_twake/v1/gifs/trending?page=&locale=`    | Matrix access token                    | The same.                                                    |
+| `GET /_twake/v1/gifs/media/:id/:variant`        | Signed URL (`exp`, `sig`)              | The file. `variant` is `preview` or `full`.                  |
+| `GET /_twake/v1/admin/features/gifs`            | `synapse.admin.access_token` as Bearer | `{"enabled": boolean, "available": boolean}`.                |
+| `PUT /_twake/v1/admin/features/gifs`            | The same                               | Body `{"enabled": boolean}`, answers as the GET.             |
 
 A `Gif` is `{"id", "title", "preview_url", "url", "width", "height"}`. Both
 URLs point at the media route of ToM, signed for one hour: an `<img>` loads
