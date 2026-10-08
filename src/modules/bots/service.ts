@@ -265,14 +265,8 @@ export class BotsService {
   }
 
   /** The bot with the master key it published, which the client checks before trusting its device. */
-  async #withKeys(
-    bot: {
-      userId: string;
-      deviceId: string;
-    },
-    ownerToken: string,
-  ): Promise<MyBot> {
-    const masterKey = await this.#waitForKeys(bot.userId, bot.deviceId, ownerToken);
+  async #withKeys(bot: BotIds, ownerToken: string): Promise<MyBot> {
+    const masterKey = await this.#waitForKeys(bot, ownerToken);
     return {
       userId: bot.userId,
       deviceId: bot.deviceId,
@@ -281,7 +275,7 @@ export class BotsService {
   }
 
   /** The keys the bot publishes, once Hermes has started with the profile. */
-  async #waitForKeys(botUserId: string, deviceId: string, ownerToken: string): Promise<string> {
+  async #waitForKeys(bot: BotIds, ownerToken: string): Promise<string> {
     const deadline = Date.now() + this.#config.ready_timeout_ms;
     for (;;) {
       const response = await this.#request(() =>
@@ -289,24 +283,24 @@ export class BotsService {
           KEYS_QUERY_PATH,
           {
             device_keys: {
-              [botUserId]: [],
+              [bot.userId]: [],
             },
           },
           ownerToken,
         ),
       );
       const keys = await this.#parse(KEYS_QUERY_PATH, response, keysQueryResponseSchema);
-      const masterKey = Object.values(keys.master_keys?.[botUserId]?.keys ?? {})[0];
-      const hasDevice = keys.device_keys?.[botUserId]?.[deviceId] !== undefined;
+      const masterKey = Object.values(keys.master_keys?.[bot.userId]?.keys ?? {})[0];
+      const hasDevice = keys.device_keys?.[bot.userId]?.[bot.deviceId] !== undefined;
       if (masterKey && hasDevice) {
         return masterKey;
       }
       if (Date.now() >= deadline) {
         this.#log.warn(translate("log.bots.not_ready"), {
-          bot: botUserId,
+          bot: bot.userId,
         });
         throw new BotNotReadyError("bots.not_ready", {
-          bot: botUserId,
+          bot: bot.userId,
         });
       }
       await new Promise((resolve) => setTimeout(resolve, READY_POLL_MS));
