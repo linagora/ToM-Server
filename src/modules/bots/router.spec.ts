@@ -160,20 +160,10 @@ describe("bots router", () => {
     const none = await request(app).get(MY_BOT_ROUTE);
     const off = await request(disabled).get(MY_BOT_ROUTE);
 
-    expect([
-      none.status,
-      none.body?.errcode,
-    ]).toEqual([
-      404,
-      "M_BOT_NOT_FOUND",
-    ]);
-    expect([
-      off.status,
-      off.body?.errcode,
-    ]).toEqual([
-      404,
-      "M_NOT_FOUND",
-    ]);
+    expect(none.status).toBe(404);
+    expect(none.body.errcode).toBe("M_BOT_NOT_FOUND");
+    expect(off.status).toBe(404);
+    expect(off.body.errcode).toBe("M_NOT_FOUND");
   });
 
   it("hands the timezone of the browser to the service, and drops one that is not a zone name", async () => {
