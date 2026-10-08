@@ -14,6 +14,7 @@ const MESSAGE_FILTER = encodeURIComponent(
   }),
 );
 
+const clientRoom = (roomId: string): string => `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}`;
 const room = (roomId: string): string => `/_synapse/admin/v1/rooms/${encodeURIComponent(roomId)}`;
 
 /** The pages read Synapse as the admin of ToM; the caller must gate everything it returns (`readPage`). */
@@ -45,10 +46,19 @@ export const makeSynapseSource = (admin: SynapseAdmin): PagesSource => ({
     return rooms;
   },
   async report(roomId, eventId, reason) {
-    await admin.post(`/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/report/${encodeURIComponent(eventId)}`, {
-      reason,
-      score: -100,
-    });
+    try {
+      await admin.post(`${clientRoom(roomId)}/report/${encodeURIComponent(eventId)}`, {
+        reason,
+        score: -100,
+      });
+    } catch {
+      // Synapse reports an event only to whoever may see it: the admin of ToM is
+      // not in a public room whose history is kept to members. Report the room
+      // then, naming the post (MSC4151).
+      await admin.post(`${clientRoom(roomId)}/report`, {
+        reason: `${reason} (event ${eventId})`,
+      });
+    }
   },
   download(server, id) {
     return admin.raw(`/_matrix/client/v1/media/download/${encodeURIComponent(server)}/${encodeURIComponent(id)}`);

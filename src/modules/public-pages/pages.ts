@@ -79,7 +79,16 @@ export type Ref =
     };
 
 /** A URL reference: a slug (alias `#slug:server`) or a room id; null for anything else. */
-export function parseRef(ref: string, serverName: string): Ref | null {
+export function parseRef(given: string, serverName: string): Ref | null {
+  // A link encoded twice (`%253A`, by a chat that encodes it again) still works
+  let ref = given;
+  if (ref.includes("%")) {
+    try {
+      ref = decodeURIComponent(ref);
+    } catch {
+      return null;
+    }
+  }
   if (SLUG.test(ref)) {
     return {
       alias: `#${ref}:${serverName}`,

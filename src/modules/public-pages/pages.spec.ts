@@ -168,6 +168,11 @@ describe("parseRef", () => {
       roomId: "!mK5Lj_zNBwra-FY3",
     });
     expect(parseRef("!a b:hs", "hs")).toBeNull();
+    // Encoded twice: Express decoded once, « %3A » is left
+    expect(parseRef("!abc%3Ahs", "hs")).toEqual({
+      roomId: "!abc:hs",
+    });
+    expect(parseRef("!abc%E0", "hs")).toBeNull();
   });
 });
 

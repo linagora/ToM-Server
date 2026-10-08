@@ -40,4 +40,31 @@ describe("makeSynapseSource", () => {
     ]);
     expect(paths).toHaveLength(2);
   });
+
+  it("reports the room, naming the post, when Synapse hides the event from the admin", async () => {
+    const posts: [
+      string,
+      Record<string, unknown>,
+    ][] = [];
+    const admin = {
+      post: (path: string, body: Record<string, unknown>) => {
+        posts.push([
+          path,
+          body,
+        ]);
+
+        return path.includes("/report/") ? Promise.reject(new Error("404")) : Promise.resolve();
+      },
+    } as unknown as SynapseAdmin;
+
+    await makeSynapseSource(admin).report("!r:hs", "$e", "Public page visitor: Spam");
+
+    expect(posts.map(([path]) => path)).toEqual([
+      "/_matrix/client/v3/rooms/!r%3Ahs/report/%24e",
+      "/_matrix/client/v3/rooms/!r%3Ahs/report",
+    ]);
+    expect(posts[1]?.[1]).toEqual({
+      reason: "Public page visitor: Spam (event $e)",
+    });
+  });
 });
