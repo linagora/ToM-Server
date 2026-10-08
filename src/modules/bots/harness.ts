@@ -44,9 +44,17 @@ const refusalSchema = z.object({
   error: z.string(),
 });
 
-/** The `error` the harness names in its answer, if it names one; the body stays readable. */
-const errorOf = async (response: Response): Promise<string | undefined> =>
-  (await readJson(response.clone(), refusalSchema))?.error;
+/**
+ * Whether the harness answered `status` naming `error`: its body is then
+ * cancelled, since the call ends there; any other answer stays readable.
+ */
+const isRefusal = async (response: Response, status: number, error: string): Promise<boolean> => {
+  if (response.status !== status || (await readJson(response.clone(), refusalSchema))?.error !== error) {
+    return false;
+  }
+  await response.body?.cancel();
+  return true;
+};
 
 const tokenResponseSchema = z.object({
   access_token: z.string().min(1),
@@ -123,8 +131,7 @@ export class HarnessBotsService {
     const deadline = Date.now() + this.#config.ready_timeout_ms;
     const path = `${PROVISIONING_PATH}/${encodeURIComponent(ownerId)}`;
     const response = await this.#onceReady(() => this.#send("GET", READ_ENDPOINT, path, null, deadline), deadline);
-    if (response.status === 404 && (await errorOf(response)) === NO_ASSISTANT) {
-      await response.body?.cancel();
+    if (await isRefusal(response, 404, NO_ASSISTANT)) {
       return null;
     }
     return this.#botOf(READ_ENDPOINT, response);
@@ -136,8 +143,7 @@ export class HarnessBotsService {
       await response.body?.cancel();
       throw new BotOwnerNotServedError("bots.owner_not_served");
     }
-    if (response.status === 409 && (await errorOf(response)) === RECOVERY_NEEDED) {
-      await response.body?.cancel();
+    if (await isRefusal(response, 409, RECOVERY_NEEDED)) {
       throw new BotRecoveryNeededError("bots.recovery_needed");
     }
     if (!response.ok) {
@@ -169,12 +175,11 @@ export class HarnessBotsService {
         },
         deadline,
       );
+      // "not a member" passes once the bot joins; "not a direct room" never does
+      if (await isRefusal(response, 409, NOT_A_DIRECT_ROOM)) {
+        throw new BotHomeRefusedError("bots.home_not_direct");
+      }
       if (response.status === 409) {
-        // "not a member" passes once the bot joins; "not a direct room" never does
-        if ((await errorOf(response)) === NOT_A_DIRECT_ROOM) {
-          await response.body?.cancel();
-          throw new BotHomeRefusedError("bots.home_not_direct");
-        }
         await this.#waitOrGiveUp(response, deadline, "log.bots.not_in_room");
         continue;
       }
