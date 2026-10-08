@@ -138,6 +138,10 @@ describe("parseRef", () => {
     });
     expect(parseRef("Not_A_Slug", "hs")).toBeNull();
     expect(parseRef("#figaro:hs", "hs")).toBeNull();
+    // Room version 12: the id names no server
+    expect(parseRef("!mK5Lj_zNBwra-FY3", "hs")).toEqual({
+      roomId: "!mK5Lj_zNBwra-FY3",
+    });
     expect(parseRef("!a b:hs", "hs")).toBeNull();
   });
 });
