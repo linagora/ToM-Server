@@ -6,7 +6,8 @@ M_FORBIDDEN: "You do not have permission to perform this action"
 M_NOT_FOUND: "The requested resource was not found"
 M_TERMS_NOT_SIGNED: "You must accept the terms of service"
 M_INVALID_PEPPER: "Invalid pepper value"
-M_BOT_RECOVERY_NEEDED: "The assistant waits for its owner to recover its identity"
+M_BOT_RECOVERY_NEEDED: "The assistant waits for its owner to recover its
+  identity"
 M_BOT_NOT_FOUND: "The user has no assistant"
 M_UNKNOWN: "An internal error occurred"
 M_SERVICE_UNAVAILABLE: "Service temporarily unavailable"
@@ -71,8 +72,10 @@ bots.upstream_failure: "The homeserver failed to process the request"
 bots.invalid_room: "The room is not a Matrix room id"
 bots.not_provisioned: "The user has no assistant yet"
 bots.not_found: "The user has no assistant"
-bots.recovery_needed: "The assistant waits for its owner to recover its identity"
-bots.recovery_unsupported: "These assistants keep their identity: there is nothing to recover"
+bots.recovery_needed: "The assistant waits for its owner to recover its
+  identity"
+bots.recovery_unsupported: "These assistants keep their identity: there is
+  nothing to recover"
 bots.owner_not_served: "The assistants do not serve this user's homeserver"
 bots.home_not_direct: "Someone other than the user and the assistant is in
   this room"
