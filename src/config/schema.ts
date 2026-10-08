@@ -8,6 +8,7 @@ import { authSettingsSchema } from "../middleware/auth/schema";
 import { botsSettingsSchema } from "../modules/bots/schema";
 import { gifsSettingsSchema } from "../modules/gifs/schema";
 import { landingSettingsSchema } from "../modules/landing/schema";
+import { publicPagesSettingsSchema } from "../modules/public-pages/schema";
 import { livekitSettingsSchema, visioSettingsSchema } from "../modules/visio/schema";
 import { wellKnownSettingsSchema } from "../modules/well-known/schema";
 
@@ -614,6 +615,10 @@ const gifsConfigSchema = z.object({
   gifs: gifsSettingsSchema.prefault({}),
 });
 
+const publicPagesConfigSchema = z.object({
+  public_pages: publicPagesSettingsSchema.prefault({}),
+});
+
 export const configSchema = z.object({
   ...serverConfigSchema.shape,
   ...corsConfigSchema.shape,
@@ -644,4 +649,5 @@ export const configSchema = z.object({
   ...livekitConfigSchema.shape,
   ...botsConfigSchema.shape,
   ...gifsConfigSchema.shape,
+  ...publicPagesConfigSchema.shape,
 });

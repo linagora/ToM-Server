@@ -31,6 +31,8 @@ import { createLandingRouter } from "./modules/landing/router";
 import Database from "./modules/legacy/db/database";
 import { createLegacyRouter, mapToLegacyConfig } from "./modules/legacy/router";
 import AdminSettingsMiddleware from "./modules/legacy/tom-server/admin-settings-api/middlewares";
+import { createPublicPagesRouter } from "./modules/public-pages/router";
+import { makeSynapseSource } from "./modules/public-pages/source";
 import { EmailResolver } from "./modules/visio/email-resolver";
 import { OpenIdValidator } from "./modules/visio/openid";
 import { createVisioRouter } from "./modules/visio/router";
@@ -239,6 +241,46 @@ async function mountGifs(config: Config, logger: Logger, app: Express): Promise<
   app.use(createGifsRouter(deps, service, gifsLogger));
 }
 
+/** The public web pages of the rooms anyone may read; disabled is not mounted, so 404. */
+function mountPublicPages(config: Config, logger: Logger, app: Express): void {
+  if (!config.public_pages.enabled) {
+    return;
+  }
+  const pagesLogger = logger.child({
+    module: "public-pages",
+  });
+  const admin = config.synapse.admin;
+  if (!admin?.access_token && !(admin?.login && admin.password)) {
+    pagesLogger.warn(translate("log.public_pages.no_admin"));
+    return;
+  }
+  logger.info(translate("log.public_pages.mounting"));
+  const source = makeSynapseSource(
+    new SynapseAdmin(
+      {
+        serverUrl: config.synapse.server_url,
+        timeoutMs: config.auth.timeout_ms,
+        admin: {
+          login: admin.login,
+          password: admin.password,
+          accessToken: admin.access_token,
+        },
+      },
+      pagesLogger,
+    ),
+  );
+  app.use(
+    createPublicPagesRouter(
+      config.public_pages,
+      {
+        source,
+        serverName: config.server.name,
+      },
+      pagesLogger,
+    ),
+  );
+}
+
 export async function createApp(
   config: Config,
   logger: Logger,
@@ -288,6 +330,7 @@ export async function createApp(
   mountSfu(config, logger, app);
   mountBots(config, logger, app);
   await mountGifs(config, logger, app);
+  mountPublicPages(config, logger, app);
 
   // --- End of new modules ---
 
