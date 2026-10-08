@@ -51,6 +51,8 @@ export const botsSettingsSchema = z
         provider: z.string().default("openrouter"),
         name: z.string().default("anthropic/claude-haiku-4.5"),
         api_key: z.string().optional(),
+        /** An OpenAI-compatible endpoint, with provider `custom`: the key goes in the profile config. */
+        base_url: z.url().optional(),
       })
       .prefault({}),
     bot_localpart_prefix: z.string().default("bot_"),

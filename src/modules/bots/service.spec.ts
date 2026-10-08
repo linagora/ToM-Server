@@ -193,6 +193,39 @@ describe("BotsService", () => {
     );
   });
 
+  it("points the profile at an OpenAI-compatible endpoint, the key in its config", async () => {
+    profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
+    mockFetch(
+      json(201, {}),
+      json(200, {
+        access_token: "syt_bot",
+        device_id: DEVICE,
+      }),
+      keysPublished(),
+    );
+    const service = new BotsService(
+      settings({
+        model: {
+          provider: "custom",
+          name: "kimi-k3",
+          api_key: "sk-test",
+          base_url: "https://ai.example.com/v1",
+        },
+      }),
+      synapse,
+      silentLogger,
+    );
+
+    await service.provision(OWNER, OWNER_TOKEN);
+
+    const config = readFileSync(join(profilesDir, "bot_dwho", "config.yaml"), "utf8");
+    expect(config).toContain("provider: custom");
+    expect(config).toContain("base_url: https://ai.example.com/v1");
+    expect(config).toContain("api_key: sk-test");
+    expect(config).toContain("default: kimi-k3");
+    expect(readFileSync(join(profilesDir, "bot_dwho", ".env"), "utf8")).not.toContain("_API_KEY=");
+  });
+
   it("answers the same bot again without touching the homeserver, once the profile is there", async () => {
     profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
     mockFetch(
