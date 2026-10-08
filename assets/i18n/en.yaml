@@ -88,9 +88,6 @@ log.bots.provisioned: "assistant provisioned"
 log.bots.not_ready: "assistant keys not published yet"
 log.bots.not_in_room: "the assistant has not joined its home room yet"
 log.bots.upstream_failure: "homeserver failure on {{endpoint}}: {{reason}}"
-log.bots.commands_failed: "publishing the commands of the assistants failed:
-  {{reason}}"
-log.bots.commands_refused: "a room refused the commands of an assistant"
 log.bots.harness_failure: "assistants service failure on {{endpoint}}:
   {{reason}}"
 

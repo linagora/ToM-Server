@@ -1,18 +1,11 @@
 import type { Logger } from "winston";
 
-import { BotCommandsPublisher } from "./commands";
 import { HarnessBotsService } from "./harness";
 import { BotsService } from "./service";
 import type { BotsProvisioner, BotsSettings, SynapseAccess } from "./types";
 
 export interface BotsBackend {
   service: BotsProvisioner;
-  /**
-   * Hermes announces no command, so ToM does it for the bots it provisioned.
-   * With the harness, ToM announces none: the harness announces those of its
-   * bots (linagora/twake-harness#74, #76).
-   */
-  commands: BotCommandsPublisher | null;
 }
 
 /**
@@ -27,11 +20,9 @@ export const makeBotsBackend = (config: BotsSettings, synapse: SynapseAccess, lo
     }
     return {
       service: new HarnessBotsService(config, config.harness, logger),
-      commands: null,
     };
   }
   return {
     service: new BotsService(config, synapse, logger),
-    commands: new BotCommandsPublisher(config, synapse.serverUrl, logger),
   };
 };
