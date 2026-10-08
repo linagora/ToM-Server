@@ -40,13 +40,13 @@ const NOT_A_DIRECT_ROOM = "not a direct room";
 const RECOVERY_NEEDED = "recovery_needed";
 /** The 404 of a read for an owner without a bot, or whose bot was deleted. */
 const NO_ASSISTANT = "no assistant";
-const conflictSchema = z.object({
+const refusalSchema = z.object({
   error: z.string(),
 });
 
 /** The `error` the harness names in its answer, if it names one; the body stays readable. */
 const errorOf = async (response: Response): Promise<string | undefined> =>
-  (await readJson(response.clone(), conflictSchema))?.error;
+  (await readJson(response.clone(), refusalSchema))?.error;
 
 const tokenResponseSchema = z.object({
   access_token: z.string().min(1),
@@ -136,12 +136,9 @@ export class HarnessBotsService {
       await response.body?.cancel();
       throw new BotOwnerNotServedError("bots.owner_not_served");
     }
-    if (response.status === 409) {
-      const conflict = await readJson(response.clone(), conflictSchema);
+    if (response.status === 409 && (await errorOf(response)) === RECOVERY_NEEDED) {
       await response.body?.cancel();
-      if (conflict?.error === RECOVERY_NEEDED) {
-        throw new BotRecoveryNeededError("bots.recovery_needed");
-      }
+      throw new BotRecoveryNeededError("bots.recovery_needed");
     }
     if (!response.ok) {
       await response.body?.cancel();
@@ -174,8 +171,7 @@ export class HarnessBotsService {
       );
       if (response.status === 409) {
         // "not a member" passes once the bot joins; "not a direct room" never does
-        const conflict = await readJson(response.clone(), conflictSchema);
-        if (conflict?.error === NOT_A_DIRECT_ROOM) {
+        if ((await errorOf(response)) === NOT_A_DIRECT_ROOM) {
           await response.body?.cancel();
           throw new BotHomeRefusedError("bots.home_not_direct");
         }
