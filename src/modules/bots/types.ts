@@ -15,6 +15,8 @@ export interface BotsDeps {
 export interface BotsProvisioner {
   /** The bot of the owner, provisioned at the first call: idempotent. */
   provision(ownerId: string, ownerToken: string, timezone?: string): Promise<MyBot>;
+  /** The bot of the owner as it is, never made: none for an owner without one, or who deleted it. */
+  find(ownerId: string, ownerToken: string): Promise<MyBot | null>;
   /** The direct room of the owner with the bot. */
   setHome(ownerId: string, roomId: string): void | Promise<void>;
   /** Asks for the identity of the bot back, after the backend lost it: `bots/me` answers it once done. */

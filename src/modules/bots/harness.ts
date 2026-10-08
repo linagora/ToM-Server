@@ -17,6 +17,7 @@ import type { BotsSettings, HarnessSettings, MyBot } from "./types";
 const PROVISIONING_PATH = "/v1/provisioning/assistants";
 /** The endpoints as the logs name them: the owner never appears in a log. */
 const PROVISION_ENDPOINT = `PUT ${PROVISIONING_PATH}/{owner}`;
+const FIND_ENDPOINT = `GET ${PROVISIONING_PATH}/{owner}`;
 const HOME_ENDPOINT = `PUT ${PROVISIONING_PATH}/{owner}/home`;
 const RECOVER_ENDPOINT = `POST ${PROVISIONING_PATH}/{owner}/recover`;
 const TOKEN_ENDPOINT = "token";
@@ -37,9 +38,23 @@ const formEncode = (value: string): string =>
 const NOT_A_DIRECT_ROOM = "not a direct room";
 /** The 409 of provisioning for an identity only its owner's recovery brings back. */
 const RECOVERY_NEEDED = "recovery_needed";
-const conflictSchema = z.object({
+/** The 404 of a read for an owner without a bot, or whose bot was deleted. */
+const NO_ASSISTANT = "no assistant";
+const refusalSchema = z.object({
   error: z.string(),
 });
+
+/**
+ * Whether the harness answered `status` naming `error`: its body is then
+ * cancelled, since the call ends there; any other answer stays readable.
+ */
+const isRefusal = async (response: Response, status: number, error: string): Promise<boolean> => {
+  if (response.status !== status || (await readJson(response.clone(), refusalSchema))?.error !== error) {
+    return false;
+  }
+  await response.body?.cancel();
+  return true;
+};
 
 const tokenResponseSchema = z.object({
   access_token: z.string().min(1),
@@ -101,35 +116,43 @@ export class HarnessBotsService {
           timezone,
         }
       : {};
-    for (;;) {
-      const response = await this.#put(PROVISION_ENDPOINT, path, body, deadline);
-      if (response.status !== 503) {
-        return this.#botOf(response);
-      }
-      await this.#waitOrGiveUp(response, deadline, "log.bots.not_ready");
-    }
+    return this.#botOf(
+      PROVISION_ENDPOINT,
+      await this.#onceReady(() => this.#put(PROVISION_ENDPOINT, path, body, deadline), deadline),
+    );
   }
 
-  /** The bot in the harness's answer, or why there is none. */
-  async #botOf(response: Response): Promise<MyBot> {
+  /**
+   * The bot of the owner as the harness has it, never made: none when the
+   * harness says the owner has no bot, or deleted it. While the harness prepares
+   * the identity of a bot it has, ToM asks again, as for `provision`.
+   */
+  async find(ownerId: string, _ownerToken: string): Promise<MyBot | null> {
+    const deadline = Date.now() + this.#config.ready_timeout_ms;
+    const path = `${PROVISIONING_PATH}/${encodeURIComponent(ownerId)}`;
+    const response = await this.#onceReady(() => this.#send("GET", FIND_ENDPOINT, path, null, deadline), deadline);
+    if (await isRefusal(response, 404, NO_ASSISTANT)) {
+      return null;
+    }
+    return this.#botOf(FIND_ENDPOINT, response);
+  }
+
+  /** The bot in the harness's answer to `endpoint`, or why there is none. */
+  async #botOf(endpoint: string, response: Response): Promise<MyBot> {
     if (response.status === 422) {
       await response.body?.cancel();
       throw new BotOwnerNotServedError("bots.owner_not_served");
     }
-    if (response.status === 409) {
-      const conflict = await readJson(response.clone(), conflictSchema);
-      await response.body?.cancel();
-      if (conflict?.error === RECOVERY_NEEDED) {
-        throw new BotRecoveryNeededError("bots.recovery_needed");
-      }
+    if (await isRefusal(response, 409, RECOVERY_NEEDED)) {
+      throw new BotRecoveryNeededError("bots.recovery_needed");
     }
     if (!response.ok) {
       await response.body?.cancel();
-      throw this.#upstreamError(PROVISION_ENDPOINT, String(response.status));
+      throw this.#upstreamError(endpoint, String(response.status));
     }
     const bot = await readJson(response, myBotResponseSchema);
     if (!bot) {
-      throw this.#upstreamError(PROVISION_ENDPOINT, translate("log.net.unexpected_body"));
+      throw this.#upstreamError(endpoint, translate("log.net.unexpected_body"));
     }
     return bot;
   }
@@ -152,13 +175,11 @@ export class HarnessBotsService {
         },
         deadline,
       );
+      // "not a member" passes once the bot joins; "not a direct room" never does
+      if (await isRefusal(response, 409, NOT_A_DIRECT_ROOM)) {
+        throw new BotHomeRefusedError("bots.home_not_direct");
+      }
       if (response.status === 409) {
-        // "not a member" passes once the bot joins; "not a direct room" never does
-        const conflict = await readJson(response.clone(), conflictSchema);
-        if (conflict?.error === NOT_A_DIRECT_ROOM) {
-          await response.body?.cancel();
-          throw new BotHomeRefusedError("bots.home_not_direct");
-        }
         await this.#waitOrGiveUp(response, deadline, "log.bots.not_in_room");
         continue;
       }
@@ -194,6 +215,18 @@ export class HarnessBotsService {
   }
 
   /**
+   * The first answer of the harness that is not 503: while it prepares the
+   * identity of the bot, ToM asks again within the deadline.
+   */
+  async #onceReady(send: () => Promise<Response>, deadline: number): Promise<Response> {
+    for (;;) {
+      const response = await send();
+      if (response.status !== 503) return response;
+      await this.#waitOrGiveUp(response, deadline, "log.bots.not_ready");
+    }
+  }
+
+  /**
    * Waits as long as the harness asks (Retry-After, in seconds), or a second when
    * it does not say. A wait the time left cannot afford ends the route at once:
    * the client tries later (503).
@@ -223,10 +256,10 @@ export class HarnessBotsService {
   }
 
   async #send(
-    method: "PUT" | "POST",
+    method: "GET" | "PUT" | "POST",
     endpoint: string,
     path: string,
-    body: Record<string, unknown>,
+    body: Record<string, unknown> | null,
     deadline: number,
   ): Promise<Response> {
     const response = await this.#sendOnce(method, endpoint, path, body, deadline);
@@ -236,11 +269,12 @@ export class HarnessBotsService {
     return this.#sendOnce(method, endpoint, path, body, deadline);
   }
 
+  /** A JSON body when there is one: a read sends none. */
   async #sendOnce(
-    method: "PUT" | "POST",
+    method: "GET" | "PUT" | "POST",
     endpoint: string,
     path: string,
-    body: Record<string, unknown>,
+    body: Record<string, unknown> | null,
     deadline: number,
   ): Promise<Response> {
     const token = await this.#accessToken(deadline);
@@ -248,10 +282,14 @@ export class HarnessBotsService {
       fetch(`${this.#baseUrl}${path}`, {
         method,
         headers: {
-          "Content-Type": "application/json",
+          ...(body === null
+            ? {}
+            : {
+                "Content-Type": "application/json",
+              }),
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(body),
+        body: body === null ? null : JSON.stringify(body),
         signal,
       }),
     );

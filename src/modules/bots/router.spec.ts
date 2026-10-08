@@ -1,14 +1,22 @@
 import { beforeAll, describe, expect, it } from "bun:test";
+import { join } from "node:path";
 
 import type { RequestHandler } from "express";
 import express from "express";
 import request from "supertest";
 import { createLogger } from "winston";
 
-import { NOT_FOUND } from "../../errors/error-codes";
+import type { DomainError } from "../../errors/domain-error";
+import { errorMiddleware } from "../../errors/error-middleware";
 import { loadMessages } from "../../i18n/index";
 import type { AuthenticatedRequest } from "../../middleware/auth/types";
-import { BotNotProvisionedError } from "./errors";
+import {
+  BotNotProvisionedError,
+  BotNotReadyError,
+  BotOwnerNotServedError,
+  BotRecoveryNeededError,
+  BotsUpstreamError,
+} from "./errors";
 import { createBotsRouter, MY_BOT_HOME_ROUTE, MY_BOT_RECOVER_ROUTE, MY_BOT_ROUTE } from "./router";
 import type { BotsService } from "./service";
 import type { BotsSettings } from "./types";
@@ -47,16 +55,16 @@ const rejecting: RequestHandler = (_req, res): void => {
   });
 };
 
+/** The router behind the app's own error answers, as ToM mounts it. */
 const makeApp = (router: express.Router): express.Express => {
   const app = express();
   app.use(express.json());
   app.use(router);
-  // biome-ignore lint/suspicious/noExplicitAny: Express err is loosely typed
-  app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    res.status(err.code === NOT_FOUND ? 404 : err.code === "M_INVALID_PARAM" ? 400 : 500).json({
-      errcode: err.code,
-    });
-  });
+  app.use(
+    errorMiddleware({
+      locale: "en",
+    }),
+  );
   return app;
 };
 
@@ -67,7 +75,7 @@ const serviceAnswering = (bot: unknown): BotsService =>
 
 describe("bots router", () => {
   beforeAll(() => {
-    loadMessages(undefined, silentLogger);
+    loadMessages(join(import.meta.dir, "../../../assets/i18n"), silentLogger);
   });
 
   it("answers 404 when the assistants are disabled, so that the client hides the action", async () => {
@@ -100,6 +108,129 @@ describe("bots router", () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual(bot);
+  });
+
+  it("reads the bot of the authenticated user, without provisioning one", async () => {
+    const bot = {
+      userId: "@bot_dwho:example.com",
+      deviceId: "HERMESDWHO",
+      masterKey: "mk",
+    };
+    const asked: string[][] = [];
+    const service = {
+      find: (ownerId: string, ownerToken: string) => {
+        asked.push([
+          ownerId,
+          ownerToken,
+        ]);
+        return Promise.resolve(bot);
+      },
+    } as unknown as BotsService;
+    const app = makeApp(
+      createBotsRouter(
+        settings(true),
+        {
+          authenticate: authenticated,
+        },
+        service,
+        silentLogger,
+      ),
+    );
+
+    const response = await request(app).get(MY_BOT_ROUTE);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual(bot);
+    expect(asked).toEqual([
+      [
+        "@dwho:example.com",
+        "syt_owner",
+      ],
+    ]);
+  });
+
+  it("says the user has no assistant with its own code, apart from assistants that are off", async () => {
+    const service = {
+      find: () => Promise.resolve(null),
+    } as unknown as BotsService;
+    const app = makeApp(
+      createBotsRouter(
+        settings(true),
+        {
+          authenticate: authenticated,
+        },
+        service,
+        silentLogger,
+      ),
+    );
+    const disabled = makeApp(createBotsRouter(settings(false), undefined, undefined, silentLogger));
+
+    const none = await request(app).get(MY_BOT_ROUTE);
+    const off = await request(disabled).get(MY_BOT_ROUTE);
+
+    expect(none.status).toBe(404);
+    expect(none.body.errcode).toBe("M_BOT_NOT_FOUND");
+    expect(none.body.error).toBe("The user has no assistant");
+    expect(off.status).toBe(404);
+    expect(off.body.errcode).toBe("M_NOT_FOUND");
+  });
+
+  /** Why a backend cannot answer the bot, and the status and code the client gets for it. */
+  const failures: [
+    string,
+    DomainError,
+    number,
+    string,
+  ][] = [
+    [
+      "awaits its owner's recovery",
+      new BotRecoveryNeededError("bots.recovery_needed"),
+      422,
+      "M_BOT_RECOVERY_NEEDED",
+    ],
+    [
+      "is not ready yet",
+      new BotNotReadyError("bots.not_ready"),
+      503,
+      "M_SERVICE_UNAVAILABLE",
+    ],
+    [
+      "belongs to an owner the harness does not serve",
+      new BotOwnerNotServedError("bots.owner_not_served"),
+      422,
+      "M_UNPROCESSABLE",
+    ],
+    [
+      "sits behind a harness out of reach",
+      new BotsUpstreamError("bots.harness_failure"),
+      502,
+      "M_BAD_GATEWAY",
+    ],
+  ];
+
+  it.each(failures)("answers the GET of a bot that %s as it answers the POST", async (_why, error, status, errcode) => {
+    const service = {
+      find: () => Promise.reject(error),
+      provision: () => Promise.reject(error),
+    } as unknown as BotsService;
+    const app = makeApp(
+      createBotsRouter(
+        settings(true),
+        {
+          authenticate: authenticated,
+        },
+        service,
+        silentLogger,
+      ),
+    );
+
+    const found = await request(app).get(MY_BOT_ROUTE);
+    const provisioned = await request(app).post(MY_BOT_ROUTE);
+
+    expect(found.status).toBe(status);
+    expect(found.body.errcode).toBe(errcode);
+    expect(provisioned.status).toBe(status);
+    expect(provisioned.body.errcode).toBe(errcode);
   });
 
   it("hands the timezone of the browser to the service, and drops one that is not a zone name", async () => {
@@ -149,9 +280,8 @@ describe("bots router", () => {
       ),
     );
 
-    const response = await request(app).post(MY_BOT_ROUTE);
-
-    expect(response.status).toBe(401);
+    expect((await request(app).post(MY_BOT_ROUTE)).status).toBe(401);
+    expect((await request(app).get(MY_BOT_ROUTE)).status).toBe(401);
   });
 
   it("takes the direct room of the user as the home channel of the bot", async () => {

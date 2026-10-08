@@ -15,15 +15,18 @@ const LOGIN_PATH = "/_matrix/client/v3/login";
 const KEYS_QUERY_PATH = "/_matrix/client/v3/keys/query";
 const READY_POLL_MS = 1000;
 
+/** The Matrix ids of the bot of an owner, and the localpart that names its Hermes profile. */
+export interface BotIds {
+  localpart: string;
+  userId: string;
+  deviceId: string;
+}
+
 export const botIds = (
   ownerId: string,
   config: Pick<BotsSettings, "bot_localpart_prefix" | "device_id_prefix">,
   serverName: string,
-): {
-  localpart: string;
-  userId: string;
-  deviceId: string;
-} => {
+): BotIds => {
   const ownerLocalpart = ownerId.slice(1, ownerId.indexOf(":"));
   const localpart = `${config.bot_localpart_prefix}${ownerLocalpart}`;
   return {
@@ -59,9 +62,9 @@ export class BotsService {
 
   async provision(ownerId: string, ownerToken: string, timezone?: string): Promise<MyBot> {
     const bot = botIds(ownerId, this.#config, this.#synapse.serverName);
-    const profileDir = join(this.#config.hermes_profiles_dir ?? "", bot.localpart);
+    const profileDir = this.#profileDir(bot);
 
-    if (!existsSync(join(profileDir, ".env"))) {
+    if (!existsSync(this.#envFile(bot))) {
       await this.#createAccount(bot.userId, ownerId);
       const token = await this.#login(bot.localpart, bot.deviceId);
       this.#writeProfile(profileDir, bot.userId, bot.deviceId, token, ownerId);
@@ -71,12 +74,16 @@ export class BotsService {
     }
     if (timezone) this.#saveTimezone(profileDir, timezone);
 
-    const masterKey = await this.#waitForKeys(bot.userId, bot.deviceId, ownerToken);
-    return {
-      userId: bot.userId,
-      deviceId: bot.deviceId,
-      masterKey,
-    };
+    return this.#withKeys(bot, ownerToken);
+  }
+
+  /** The bot of the owner once its profile is written, never made: none before. */
+  async find(ownerId: string, ownerToken: string): Promise<MyBot | null> {
+    const bot = botIds(ownerId, this.#config, this.#synapse.serverName);
+    if (!existsSync(this.#envFile(bot))) {
+      return null;
+    }
+    return await this.#withKeys(bot, ownerToken);
   }
 
   /**
@@ -91,7 +98,7 @@ export class BotsService {
 
   setHome(ownerId: string, roomId: string): void {
     const bot = botIds(ownerId, this.#config, this.#synapse.serverName);
-    const envFile = join(this.#config.hermes_profiles_dir ?? "", bot.localpart, ".env");
+    const envFile = this.#envFile(bot);
     if (!existsSync(envFile)) {
       throw new BotNotProvisionedError("bots.not_provisioned", {
         bot: bot.userId,
@@ -175,6 +182,16 @@ export class BotsService {
     return login.access_token;
   }
 
+  /** The Hermes profile of the bot, among the profiles of the agent. */
+  #profileDir(bot: BotIds): string {
+    return join(this.#config.hermes_profiles_dir ?? "", bot.localpart);
+  }
+
+  /** The `.env` of the profile of the bot: the bot exists once it is written. */
+  #envFile(bot: BotIds): string {
+    return join(this.#profileDir(bot), ".env");
+  }
+
   /**
    * The profile of the shared Hermes agent, as its `hermes profile create` lays it
    * out: `.env` (credentials), `config.yaml` (model), `SOUL.md`. Hermes talks to
@@ -222,7 +239,11 @@ export class BotsService {
         ...(model.base_url
           ? [
               `  base_url: ${model.base_url}`,
-              ...(model.api_key ? [`  api_key: ${model.api_key}`] : []),
+              ...(model.api_key
+                ? [
+                    `  api_key: ${model.api_key}`,
+                  ]
+                : []),
             ]
           : []),
         `  default: ${model.name}`,
@@ -243,8 +264,18 @@ export class BotsService {
     );
   }
 
+  /** The bot with the master key it published, which the client checks before trusting its device. */
+  async #withKeys(bot: BotIds, ownerToken: string): Promise<MyBot> {
+    const masterKey = await this.#waitForKeys(bot, ownerToken);
+    return {
+      userId: bot.userId,
+      deviceId: bot.deviceId,
+      masterKey,
+    };
+  }
+
   /** The keys the bot publishes, once Hermes has started with the profile. */
-  async #waitForKeys(botUserId: string, deviceId: string, ownerToken: string): Promise<string> {
+  async #waitForKeys(bot: BotIds, ownerToken: string): Promise<string> {
     const deadline = Date.now() + this.#config.ready_timeout_ms;
     for (;;) {
       const response = await this.#request(() =>
@@ -252,24 +283,24 @@ export class BotsService {
           KEYS_QUERY_PATH,
           {
             device_keys: {
-              [botUserId]: [],
+              [bot.userId]: [],
             },
           },
           ownerToken,
         ),
       );
       const keys = await this.#parse(KEYS_QUERY_PATH, response, keysQueryResponseSchema);
-      const masterKey = Object.values(keys.master_keys?.[botUserId]?.keys ?? {})[0];
-      const hasDevice = keys.device_keys?.[botUserId]?.[deviceId] !== undefined;
+      const masterKey = Object.values(keys.master_keys?.[bot.userId]?.keys ?? {})[0];
+      const hasDevice = keys.device_keys?.[bot.userId]?.[bot.deviceId] !== undefined;
       if (masterKey && hasDevice) {
         return masterKey;
       }
       if (Date.now() >= deadline) {
         this.#log.warn(translate("log.bots.not_ready"), {
-          bot: botUserId,
+          bot: bot.userId,
         });
         throw new BotNotReadyError("bots.not_ready", {
-          bot: botUserId,
+          bot: bot.userId,
         });
       }
       await new Promise((resolve) => setTimeout(resolve, READY_POLL_MS));

@@ -1,8 +1,8 @@
-import { Router } from "express";
+import { type NextFunction, type Request, type Response, Router } from "express";
 import type { Logger } from "winston";
 
 import { translate } from "../../i18n/index";
-import { myBotController, myBotHomeController, myBotRecoverController } from "./controller";
+import { myBotController, myBotFindController, myBotHomeController, myBotRecoverController } from "./controller";
 import { BotsDisabledError } from "./errors";
 import type { BotsDeps, BotsProvisioner, BotsSettings } from "./types";
 
@@ -19,20 +19,22 @@ export const createBotsRouter = (
   const router = Router();
 
   if (!config.enabled || !deps || !service) {
+    const disabled = (_req: Request, _res: Response, next: NextFunction): void => {
+      logger.info(translate("log.bots.disabled"));
+      next(
+        new BotsDisabledError("bots.disabled", {
+          route: MY_BOT_ROUTE,
+        }),
+      );
+    };
+    router.get(MY_BOT_ROUTE, disabled);
     router.post(
       [
         MY_BOT_ROUTE,
         MY_BOT_HOME_ROUTE,
         MY_BOT_RECOVER_ROUTE,
       ],
-      (_req, _res, next) => {
-        logger.info(translate("log.bots.disabled"));
-        next(
-          new BotsDisabledError("bots.disabled", {
-            route: MY_BOT_ROUTE,
-          }),
-        );
-      },
+      disabled,
     );
     return router;
   }
@@ -40,6 +42,14 @@ export const createBotsRouter = (
   router.post(MY_BOT_ROUTE, deps.authenticate, async (req, res, next) => {
     try {
       res.status(200).json(await myBotController(service, req));
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get(MY_BOT_ROUTE, deps.authenticate, async (req, res, next) => {
+    try {
+      res.status(200).json(await myBotFindController(service, req));
     } catch (err) {
       next(err);
     }

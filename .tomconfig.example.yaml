@@ -371,7 +371,8 @@ email:
 
 # The assistants of the users (Twake Chat): one bot per user, a profile each on
 # the shared Hermes agent. `POST /_twake/v1/bots/me` provisions and answers
-# { userId, deviceId, masterKey }.
+# { userId, deviceId, masterKey }; `GET /_twake/v1/bots/me` answers the same
+# without provisioning, or 404 M_BOT_NOT_FOUND when the user has no bot.
 # bots:
 #   enabled: false
 #   # Who serves the bots, one backend per ToM: hermes, a profile per user for

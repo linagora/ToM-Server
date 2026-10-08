@@ -1,6 +1,7 @@
 import { DomainError } from "../../errors/domain-error";
 import {
   BAD_GATEWAY,
+  BOT_NOT_FOUND,
   BOT_RECOVERY_NEEDED,
   NOT_FOUND,
   SERVICE_UNAVAILABLE,
@@ -18,6 +19,17 @@ export class BotsDisabledError extends DomainError {
 export class BotNotProvisionedError extends DomainError {
   constructor(messageKey: string, context: Record<string, unknown> = {}) {
     super(NOT_FOUND, messageKey, context);
+  }
+}
+
+/**
+ * The user has no assistant, or deleted theirs, when reading it (404). Its own
+ * code, apart from the `M_NOT_FOUND` of assistants that are off, so that the
+ * client offers to make one only where it can be made.
+ */
+export class BotNotFoundError extends DomainError {
+  constructor(messageKey: string, context: Record<string, unknown> = {}) {
+    super(BOT_NOT_FOUND, messageKey, context);
   }
 }
 

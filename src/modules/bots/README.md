@@ -23,6 +23,23 @@ optional body `{ "timezone": "Europe/Paris" }` (the IANA zone of the browser).
 `master_keys[<bot>].keys` of `/keys/query`; the client compares it with what
 the homeserver publishes before marking the device verified.
 
+`GET /_twake/v1/bots/me`, with the same authorization and no body, reads the
+bot of the user and never makes one, so that the client learns whether the
+user has an assistant without giving them one. With Hermes, the bot exists
+once its profile is written (see What a first call does); with the harness,
+once the harness has it.
+
+| Answer | When |
+| --- | --- |
+| `200 { userId, deviceId, masterKey }` | The bot exists and has published its keys: the body of the POST. |
+| `404 M_BOT_NOT_FOUND` | The user has no assistant, or deleted theirs: the client may offer to make one. |
+| `503 M_SERVICE_UNAVAILABLE` | The bot exists but its keys are not published yet: call again in a moment. |
+| `422 M_BOT_RECOVERY_NEEDED` | The bot waits for its owner to recover its identity (harness backend). |
+| `422 M_UNPROCESSABLE` | The harness does not serve the homeserver of the user. |
+| `502 M_BAD_GATEWAY` | The homeserver or the harness refused or could not be reached. |
+| `404 M_NOT_FOUND` | `bots.enabled` is false, as for the POST: the client hides the action. |
+| `401 M_UNAUTHORIZED` | No valid token. |
+
 ## What a first call does
 
 1. `PUT /_synapse/admin/v2/users/@bot_<localpart>:<server>` (`user_type: bot`,
@@ -110,21 +127,25 @@ leaves ToM: ToM has checked it and names the user.
 | ToM calls | The harness answers |
 | --- | --- |
 | `PUT <url>/v1/provisioning/assistants/<owner>` `{ "timezone": "Europe/Paris" }` | `200 { userId, deviceId, masterKey }`; `503` with `Retry-After` while it prepares the identity of the bot; `422` when the owner is not on its homeserver |
+| `GET <url>/v1/provisioning/assistants/<owner>` | As the PUT, without making the bot; `404 no assistant` when the owner has none, or deleted theirs; `409 recovery_needed` while the bot waits for its owner's recovery |
 | `PUT <url>/v1/provisioning/assistants/<owner>/home` `{ "roomId": "!dm:example.com" }` | `204` recorded; `404` no bot yet; `409 not a member` the bot has not joined the room yet; `409 not a direct room` someone else is in it |
 
-`<owner>` is the Matrix id of the user, URL-encoded. Both calls are
+`<owner>` is the Matrix id of the user, URL-encoded. The calls are
 idempotent: on `503` and `409 not a member` ToM asks again, as the harness
 says or every second, while `ready_timeout_ms` allows. The whole route, token,
 calls and waits included, answers within `ready_timeout_ms` of its start: past
-it, the client gets `503` and tries again, before its own 15 s timeout. `422`
-and `409 not a direct room`, which no retry fixes, answer the client `422`;
-anything else, `502`. ToM logs the endpoint
-(`PUT /v1/provisioning/assistants/{owner}`, its `/home`, the token request)
-and the status or the error's code, never the owner nor what the harness
-answered.
+it, the client gets `503` and tries again, before its own 15 s timeout. `422`,
+`409 recovery_needed` and `409 not a direct room`, which no retry fixes,
+answer the client `422`. On the read, only `404 no assistant` means the user
+has no bot (`404 M_BOT_NOT_FOUND`): another `404`, as from a harness without
+the read, is a failure. Anything else answers `502`. ToM logs the endpoint
+(`PUT /v1/provisioning/assistants/{owner}`, its `GET`, its `/home`, the token
+request) and the status or the error's code, never the owner nor what the
+harness answered.
 
 The harness side of this contract is
-[linagora/twake-harness#74](https://github.com/linagora/twake-harness/pull/74).
+[linagora/twake-harness#74](https://github.com/linagora/twake-harness/pull/74),
+and [#105](https://github.com/linagora/twake-harness/pull/105) for the read.
 
 ## Configuration
 
