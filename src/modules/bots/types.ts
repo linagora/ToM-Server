@@ -21,6 +21,13 @@ export interface BotsProvisioner {
   setHome(ownerId: string, roomId: string): void | Promise<void>;
   /** Asks for the identity of the bot back, after the backend lost it: `bots/me` answers it once done. */
   recover(ownerId: string): void | Promise<void>;
+  /**
+   * Whether the assistants read the owner's messages in channels and offer them
+   * actions; absent from a backend without suggestions (Hermes).
+   */
+  readSuggestions?(ownerId: string): Promise<boolean>;
+  /** Turns that switch, and answers it as it now is. */
+  writeSuggestions?(ownerId: string, enabled: boolean): Promise<boolean>;
 }
 
 /** What the service needs from the homeserver: the public URL, the server name, the admin. */

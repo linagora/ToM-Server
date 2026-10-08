@@ -70,6 +70,8 @@ bots.disabled: "The assistants are disabled"
 bots.not_ready: "The assistant is being prepared, try again in a moment"
 bots.upstream_failure: "The homeserver failed to process the request"
 bots.invalid_room: "The room is not a Matrix room id"
+bots.invalid_suggestions: "The switch of the suggestions is not a boolean"
+bots.suggestions_unavailable: "The assistants make no suggestions here"
 bots.not_provisioned: "The user has no assistant yet"
 bots.not_found: "The user has no assistant"
 bots.recovery_needed: "The assistant waits for its owner to recover its

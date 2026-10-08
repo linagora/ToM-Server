@@ -17,7 +17,13 @@ import {
   BotRecoveryNeededError,
   BotsUpstreamError,
 } from "./errors";
-import { createBotsRouter, MY_BOT_HOME_ROUTE, MY_BOT_RECOVER_ROUTE, MY_BOT_ROUTE } from "./router";
+import {
+  createBotsRouter,
+  MY_BOT_HOME_ROUTE,
+  MY_BOT_RECOVER_ROUTE,
+  MY_BOT_ROUTE,
+  MY_BOT_SUGGESTIONS_ROUTE,
+} from "./router";
 import type { BotsService } from "./service";
 import type { BotsSettings } from "./types";
 
@@ -380,5 +386,79 @@ describe("bots router", () => {
     expect(asked).toEqual([
       "@dwho:example.com",
     ]);
+  });
+
+  it("reads and turns the suggestions of the authenticated user, and is not found without them", async () => {
+    const asked: unknown[][] = [];
+    let enabled = true;
+    const service = {
+      readSuggestions: (ownerId: string) => {
+        asked.push([
+          ownerId,
+        ]);
+        return Promise.resolve(enabled);
+      },
+      writeSuggestions: (ownerId: string, value: boolean) => {
+        asked.push([
+          ownerId,
+          value,
+        ]);
+        enabled = value;
+        return Promise.resolve(enabled);
+      },
+    } as unknown as BotsService;
+    const app = makeApp(
+      createBotsRouter(
+        settings(true),
+        {
+          authenticate: authenticated,
+        },
+        service,
+        silentLogger,
+      ),
+    );
+
+    expect((await request(app).get(MY_BOT_SUGGESTIONS_ROUTE)).body).toEqual({
+      enabled: true,
+    });
+    const turned = await request(app).put(MY_BOT_SUGGESTIONS_ROUTE).send({
+      enabled: false,
+    });
+    expect(turned.status).toBe(200);
+    expect(turned.body).toEqual({
+      enabled: false,
+    });
+    expect(
+      (
+        await request(app).put(MY_BOT_SUGGESTIONS_ROUTE).send({
+          enabled: "no",
+        })
+      ).status,
+    ).toBe(400);
+    expect(asked).toEqual([
+      [
+        "@dwho:example.com",
+      ],
+      [
+        "@dwho:example.com",
+        false,
+      ],
+    ]);
+
+    // Hermes makes no suggestions, and assistants that are off none either
+    const hermes = makeApp(
+      createBotsRouter(
+        settings(true),
+        {
+          authenticate: authenticated,
+        },
+        serviceAnswering(null),
+        silentLogger,
+      ),
+    );
+    const disabled = makeApp(createBotsRouter(settings(false), undefined, undefined, silentLogger));
+    expect((await request(hermes).get(MY_BOT_SUGGESTIONS_ROUTE)).status).toBe(404);
+    expect((await request(disabled).get(MY_BOT_SUGGESTIONS_ROUTE)).status).toBe(404);
+    expect((await request(disabled).put(MY_BOT_SUGGESTIONS_ROUTE)).status).toBe(404);
   });
 });

@@ -11,7 +11,7 @@ import {
   BotRecoveryNeededError,
   BotsUpstreamError,
 } from "./errors";
-import { myBotResponseSchema } from "./schema";
+import { myBotResponseSchema, suggestionsSchema } from "./schema";
 import type { BotsSettings, HarnessSettings, MyBot } from "./types";
 
 const PROVISIONING_PATH = "/v1/provisioning/assistants";
@@ -20,6 +20,7 @@ const PROVISION_ENDPOINT = `PUT ${PROVISIONING_PATH}/{owner}`;
 const FIND_ENDPOINT = `GET ${PROVISIONING_PATH}/{owner}`;
 const HOME_ENDPOINT = `PUT ${PROVISIONING_PATH}/{owner}/home`;
 const RECOVER_ENDPOINT = `POST ${PROVISIONING_PATH}/{owner}/recover`;
+const SUGGESTIONS_ENDPOINT = `${PROVISIONING_PATH}/{owner}/suggestions`;
 const TOKEN_ENDPOINT = "token";
 /** Between two calls while the harness prepares a bot, unless it says otherwise. */
 const READY_POLL_MS = 1000;
@@ -212,6 +213,40 @@ export class HarnessBotsService {
     if (!response.ok) {
       throw this.#upstreamError(RECOVER_ENDPOINT, String(response.status));
     }
+  }
+
+  /**
+   * Whether the assistants read the owner's messages in channels and offer them
+   * actions: on until the owner turns it off. It needs no bot.
+   */
+  readSuggestions(ownerId: string): Promise<boolean> {
+    return this.#suggestions("GET", ownerId, null);
+  }
+
+  writeSuggestions(ownerId: string, enabled: boolean): Promise<boolean> {
+    return this.#suggestions("PUT", ownerId, {
+      enabled,
+    });
+  }
+
+  async #suggestions(method: "GET" | "PUT", ownerId: string, body: Record<string, unknown> | null): Promise<boolean> {
+    const deadline = Date.now() + this.#config.timeout_ms;
+    const endpoint = `${method} ${SUGGESTIONS_ENDPOINT}`;
+    const path = `${PROVISIONING_PATH}/${encodeURIComponent(ownerId)}/suggestions`;
+    const response = await this.#send(method, endpoint, path, body, deadline);
+    if (response.status === 422) {
+      await response.body?.cancel();
+      throw new BotOwnerNotServedError("bots.owner_not_served");
+    }
+    if (!response.ok) {
+      await response.body?.cancel();
+      throw this.#upstreamError(endpoint, String(response.status));
+    }
+    const answer = await readJson(response, suggestionsSchema);
+    if (!answer) {
+      throw this.#upstreamError(endpoint, translate("log.net.unexpected_body"));
+    }
+    return answer.enabled;
   }
 
   /**

@@ -583,6 +583,54 @@ describe("HarnessBotsService", () => {
     expect(asked[0]?.authorization).toBe("Bearer tok-1");
   });
 
+  it("reads and turns the owner's suggestions at the harness, and reports nonsense as a bad gateway", async () => {
+    const token = tokens();
+    let enabled = true;
+    fake = startFake((request) => {
+      const answer = token(request);
+      if (answer) return answer;
+      if (request.method === "PUT") enabled = JSON.parse(request.body).enabled;
+      return json(200, {
+        enabled,
+      });
+    });
+    const service = serviceOf(settings(fake.url));
+
+    expect(await service.readSuggestions(OWNER)).toBe(true);
+    expect(await service.writeSuggestions(OWNER, false)).toBe(false);
+    expect(await service.readSuggestions(OWNER)).toBe(false);
+    const asked = fake.seen.filter((request) => request.path !== "/oauth2/token");
+    expect(
+      asked.map((request) => [
+        request.method,
+        request.path,
+        request.body,
+      ]),
+    ).toEqual([
+      [
+        "GET",
+        `${OWNER_PATH}/suggestions`,
+        "",
+      ],
+      [
+        "PUT",
+        `${OWNER_PATH}/suggestions`,
+        '{"enabled":false}',
+      ],
+      [
+        "GET",
+        `${OWNER_PATH}/suggestions`,
+        "",
+      ],
+    ]);
+
+    fake.stop();
+    fake = startFake((request) => token(request) ?? json(200, {}));
+    await expect(serviceOf(settings(fake.url)).readSuggestions(OWNER)).rejects.toMatchObject({
+      code: BAD_GATEWAY,
+    });
+  });
+
   it("reports a harness that fails, answers nonsense or cannot be reached as a bad gateway", async () => {
     const token = tokens();
     let answer = json(500, {

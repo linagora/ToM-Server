@@ -2,13 +2,20 @@ import { type NextFunction, type Request, type Response, Router } from "express"
 import type { Logger } from "winston";
 
 import { translate } from "../../i18n/index";
-import { myBotController, myBotFindController, myBotHomeController, myBotRecoverController } from "./controller";
+import {
+  myBotController,
+  myBotFindController,
+  myBotHomeController,
+  myBotRecoverController,
+  mySuggestionsController,
+} from "./controller";
 import { BotsDisabledError } from "./errors";
 import type { BotsDeps, BotsProvisioner, BotsSettings } from "./types";
 
 export const MY_BOT_ROUTE = "/_twake/v1/bots/me";
 export const MY_BOT_HOME_ROUTE = "/_twake/v1/bots/me/home";
 export const MY_BOT_RECOVER_ROUTE = "/_twake/v1/bots/me/recover";
+export const MY_BOT_SUGGESTIONS_ROUTE = "/_twake/v1/bots/me/suggestions";
 
 export const createBotsRouter = (
   config: BotsSettings,
@@ -27,7 +34,14 @@ export const createBotsRouter = (
         }),
       );
     };
-    router.get(MY_BOT_ROUTE, disabled);
+    router.get(
+      [
+        MY_BOT_ROUTE,
+        MY_BOT_SUGGESTIONS_ROUTE,
+      ],
+      disabled,
+    );
+    router.put(MY_BOT_SUGGESTIONS_ROUTE, disabled);
     router.post(
       [
         MY_BOT_ROUTE,
@@ -72,6 +86,16 @@ export const createBotsRouter = (
       next(err);
     }
   });
+
+  const suggestions = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      res.status(200).json(await mySuggestionsController(service, req));
+    } catch (err) {
+      next(err);
+    }
+  };
+  router.get(MY_BOT_SUGGESTIONS_ROUTE, deps.authenticate, suggestions);
+  router.put(MY_BOT_SUGGESTIONS_ROUTE, deps.authenticate, suggestions);
 
   return router;
 };

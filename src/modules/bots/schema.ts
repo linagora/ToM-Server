@@ -167,3 +167,8 @@ export const myBotRequestSchema = z.object({
 export const homeRequestSchema = z.object({
   room_id: z.string().regex(/^![^:]+:.+$/),
 });
+
+/** The switch of the suggestions, sent by the client (`bots/me/suggestions`) and answered by the harness. */
+export const suggestionsSchema = z.object({
+  enabled: z.boolean(),
+});
