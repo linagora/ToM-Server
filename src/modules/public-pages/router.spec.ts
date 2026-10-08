@@ -338,6 +338,10 @@ describe("public pages router", () => {
     expect(res.text).toContain('aria-label="React with \u{1F44D}, 2"');
     expect(res.text).toContain('<span class="other">\u{1F680} 1</span>');
     expect(res.text).toContain('action="/b/figaro/report"');
+    // An emoji no one gave has no count, only its place in « Add a reaction »
+    expect(res.text).not.toContain("React with \u{1F389}, 0");
+    expect(res.text).toContain('aria-label="React with \u{1F389}"');
+    expect(res.text).toContain('<details class="add">');
   });
 
   it("toggles a visitor reaction, merges it with the members', then removes it", async () => {
