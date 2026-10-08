@@ -15,15 +15,18 @@ const LOGIN_PATH = "/_matrix/client/v3/login";
 const KEYS_QUERY_PATH = "/_matrix/client/v3/keys/query";
 const READY_POLL_MS = 1000;
 
+/** The Matrix ids of the bot of an owner, and the localpart that names its Hermes profile. */
+export interface BotIds {
+  localpart: string;
+  userId: string;
+  deviceId: string;
+}
+
 export const botIds = (
   ownerId: string,
   config: Pick<BotsSettings, "bot_localpart_prefix" | "device_id_prefix">,
   serverName: string,
-): {
-  localpart: string;
-  userId: string;
-  deviceId: string;
-} => {
+): BotIds => {
   const ownerLocalpart = ownerId.slice(1, ownerId.indexOf(":"));
   const localpart = `${config.bot_localpart_prefix}${ownerLocalpart}`;
   return {
@@ -59,9 +62,9 @@ export class BotsService {
 
   async provision(ownerId: string, ownerToken: string, timezone?: string): Promise<MyBot> {
     const bot = botIds(ownerId, this.#config, this.#synapse.serverName);
-    const profileDir = join(this.#config.hermes_profiles_dir ?? "", bot.localpart);
+    const profileDir = this.#profileDir(bot);
 
-    if (!existsSync(join(profileDir, ".env"))) {
+    if (!existsSync(this.#envFile(bot))) {
       await this.#createAccount(bot.userId, ownerId);
       const token = await this.#login(bot.localpart, bot.deviceId);
       this.#writeProfile(profileDir, bot.userId, bot.deviceId, token, ownerId);
@@ -77,7 +80,7 @@ export class BotsService {
   /** The bot of the owner once its profile is written, never made: none before. */
   async find(ownerId: string, ownerToken: string): Promise<MyBot | null> {
     const bot = botIds(ownerId, this.#config, this.#synapse.serverName);
-    if (!existsSync(join(this.#config.hermes_profiles_dir ?? "", bot.localpart, ".env"))) {
+    if (!existsSync(this.#envFile(bot))) {
       return null;
     }
     return await this.#withKeys(bot, ownerToken);
@@ -95,7 +98,7 @@ export class BotsService {
 
   setHome(ownerId: string, roomId: string): void {
     const bot = botIds(ownerId, this.#config, this.#synapse.serverName);
-    const envFile = join(this.#config.hermes_profiles_dir ?? "", bot.localpart, ".env");
+    const envFile = this.#envFile(bot);
     if (!existsSync(envFile)) {
       throw new BotNotProvisionedError("bots.not_provisioned", {
         bot: bot.userId,
@@ -177,6 +180,16 @@ export class BotsService {
     );
     const login = await this.#parse(LOGIN_PATH, response, loginResponseSchema);
     return login.access_token;
+  }
+
+  /** The Hermes profile of the bot, among the profiles of the agent. */
+  #profileDir(bot: BotIds): string {
+    return join(this.#config.hermes_profiles_dir ?? "", bot.localpart);
+  }
+
+  /** The `.env` of the profile of the bot: the bot exists once it is written. */
+  #envFile(bot: BotIds): string {
+    return join(this.#profileDir(bot), ".env");
   }
 
   /**
