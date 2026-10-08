@@ -1,8 +1,10 @@
 import type { SynapseAdmin } from "../visio/synapse-admin";
 import { aliasSchema, messagesSchema, roomListSchema, stateSchema } from "./schema";
-import type { PagesSource } from "./types";
+import type { ListedRoom, PagesSource } from "./types";
 
 const ROOM_LIMIT = 500;
+/** At most this many pages of the admin list: 50 000 rooms, the limit of one sitemap. */
+const ROOM_PAGES = 100;
 const MESSAGE_FILTER = encodeURIComponent(
   JSON.stringify({
     types: [
@@ -31,7 +33,15 @@ export const makeSynapseSource = (admin: SynapseAdmin): PagesSource => ({
     return (await admin.readOrNull(path, messagesSchema))?.chunk ?? [];
   },
   async listRooms() {
-    return (await admin.readOrNull(`/_synapse/admin/v1/rooms?limit=${ROOM_LIMIT}`, roomListSchema))?.rooms ?? [];
+    const rooms: ListedRoom[] = [];
+    let from: number | null = 0;
+    for (let page = 0; from !== null && page < ROOM_PAGES; page++) {
+      const body = await admin.readOrNull(`/_synapse/admin/v1/rooms?limit=${ROOM_LIMIT}&from=${from}`, roomListSchema);
+      rooms.push(...(body?.rooms ?? []));
+      from = body?.next_batch ?? null;
+    }
+
+    return rooms;
   },
   download(server, id) {
     return admin.raw(`/_matrix/client/v1/media/download/${encodeURIComponent(server)}/${encodeURIComponent(id)}`);
