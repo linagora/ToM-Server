@@ -31,6 +31,7 @@ import { createLandingRouter } from "./modules/landing/router";
 import Database from "./modules/legacy/db/database";
 import { createLegacyRouter, mapToLegacyConfig } from "./modules/legacy/router";
 import AdminSettingsMiddleware from "./modules/legacy/tom-server/admin-settings-api/middlewares";
+import { DbReactionStore, REACTIONS_INDEXES, REACTIONS_SCHEMA } from "./modules/public-pages/reactions";
 import { createPublicPagesRouter } from "./modules/public-pages/router";
 import { makeSynapseSource } from "./modules/public-pages/source";
 import { EmailResolver } from "./modules/visio/email-resolver";
@@ -242,7 +243,7 @@ async function mountGifs(config: Config, logger: Logger, app: Express): Promise<
 }
 
 /** The public web pages of the rooms anyone may read; disabled is not mounted, so 404. */
-function mountPublicPages(config: Config, logger: Logger, app: Express): void {
+async function mountPublicPages(config: Config, logger: Logger, app: Express): Promise<void> {
   if (!config.public_pages.enabled) {
     return;
   }
@@ -269,11 +270,19 @@ function mountPublicPages(config: Config, logger: Logger, app: Express): void {
       pagesLogger,
     ),
   );
+  const db = new Database<"public_reactions">(
+    mapToLegacyConfig(config),
+    pagesLogger as never,
+    REACTIONS_SCHEMA,
+    REACTIONS_INDEXES,
+  );
+  await db.ready;
   app.use(
     createPublicPagesRouter(
       config.public_pages,
       {
         source,
+        reactions: new DbReactionStore(db),
         serverName: config.server.name,
       },
       pagesLogger,
@@ -330,7 +339,7 @@ export async function createApp(
   mountSfu(config, logger, app);
   mountBots(config, logger, app);
   await mountGifs(config, logger, app);
-  mountPublicPages(config, logger, app);
+  await mountPublicPages(config, logger, app);
 
   // --- End of new modules ---
 

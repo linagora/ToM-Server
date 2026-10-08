@@ -9,6 +9,7 @@ const MESSAGE_FILTER = encodeURIComponent(
   JSON.stringify({
     types: [
       "m.room.message",
+      "m.reaction",
     ],
   }),
 );
@@ -42,6 +43,12 @@ export const makeSynapseSource = (admin: SynapseAdmin): PagesSource => ({
     }
 
     return rooms;
+  },
+  async report(roomId, eventId, reason) {
+    await admin.post(`/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/report/${encodeURIComponent(eventId)}`, {
+      reason,
+      score: -100,
+    });
   },
   download(server, id) {
     return admin.raw(`/_matrix/client/v1/media/download/${encodeURIComponent(server)}/${encodeURIComponent(id)}`);
