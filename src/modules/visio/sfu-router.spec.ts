@@ -305,6 +305,31 @@ describe("SfuRouter", () => {
     expect((claims.video as Record<string, unknown>).room).toBe("7c9e6679-7425-40de-944b-e07fc1f90ae7");
   });
 
+  it("should make the Meet room for a first participant without an email, and sign for it", async () => {
+    // Arrange: the one who starts the call has no email, Meet cannot mint for them
+    const deps = makeDeps(true);
+    mockFetch(
+      userInfo(),
+      members(),
+      json(200, {
+        displayname: "Alice",
+        threepids: [],
+        external_ids: [],
+      }),
+      moderators(),
+      appToken(),
+      meetRoom(),
+    );
+
+    // Act
+    const response = await request(setupApp(deps)).post(SFU_ROUTE).send(body);
+
+    // Assert: the LiveKit room is the Meet room the next ones get from Meet
+    expect(response.status).toBe(200);
+    const claims = decodeJwtPayload(response.body.jwt);
+    expect((claims.video as Record<string, unknown>).room).toBe("7c9e6679-7425-40de-944b-e07fc1f90ae7");
+  });
+
   it("should answer 403 when the user is not a member of the room", async () => {
     // Arrange
     mockFetch(
