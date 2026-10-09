@@ -330,6 +330,35 @@ describe("SfuRouter", () => {
     expect((claims.video as Record<string, unknown>).room).toBe("7c9e6679-7425-40de-944b-e07fc1f90ae7");
   });
 
+  it("should keep the Meet room when Meet has no route to mint the token", async () => {
+    // Arrange: a Meet without the livekit-token route answers Django's HTML 404
+    const deps = makeDeps(true);
+    mockFetch(
+      userInfo(),
+      members(),
+      profile(),
+      moderators(),
+      appToken(),
+      meetRoom(),
+      appToken(),
+      new Response("<h1>Not Found</h1>", {
+        status: 404,
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+        },
+      }),
+    );
+
+    // Act
+    const response = await request(setupApp(deps)).post(SFU_ROUTE).send(body);
+
+    // Assert: signed by ToM for the room the others get, not made again
+    expect(response.status).toBe(200);
+    const claims = decodeJwtPayload(response.body.jwt);
+    expect((claims.video as Record<string, unknown>).room).toBe("7c9e6679-7425-40de-944b-e07fc1f90ae7");
+    expect(deps.service?.mappedRoom("!room:localhost")).toBe("7c9e6679-7425-40de-944b-e07fc1f90ae7");
+  });
+
   it("should answer 403 when the user is not a member of the room", async () => {
     // Arrange
     mockFetch(

@@ -86,8 +86,10 @@ export class VisioService {
       },
       accessToken,
     );
-    if (response.status === 404) {
-      // The room is gone on the Meet side: make another one next time
+    // The room is gone on the Meet side (its JSON 404): make another one next
+    // time. A Meet without this route answers an HTML 404: the room stays, the
+    // degraded mode signs for it
+    if (response.status === 404 && response.headers.get("content-type")?.includes("application/json")) {
       this.#rooms.delete(matrixRoomId);
       this.#settled.delete(matrixRoomId);
     }
