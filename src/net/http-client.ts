@@ -48,6 +48,20 @@ export class HttpClient {
     );
   }
 
+  put(path: string, body: Record<string, unknown>, token?: string): Promise<Response> {
+    return this.#request(
+      path,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      },
+      token,
+    );
+  }
+
   async #request(path: string, init: RequestInit, token?: string): Promise<Response> {
     try {
       return await fetch(`${this.#baseUrl}${path}`, {

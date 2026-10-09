@@ -50,6 +50,7 @@ const MOCK_DATA = {
     last_name: 'CS Last Name',
     language: 'es',
     timezone: 'Europe/Madrid',
+    theme: 'dark',
     email: 'cs@example.com',
     phone: '+1 999 888 7777'
   },
@@ -165,6 +166,7 @@ type useProfileCommonSettings = {
   phone: boolean
   language: boolean
   timezone: boolean
+  theme: boolean
 }
 const useProfileCommonSettingsDefaults: useProfileCommonSettings = {
   displayName: false,
@@ -173,7 +175,8 @@ const useProfileCommonSettingsDefaults: useProfileCommonSettings = {
   mail: false,
   phone: false,
   language: false,
-  timezone: false
+  timezone: false,
+  theme: false
 }
 /**
  * Configure TwakeDB mock response for common settings and profile settings.
@@ -203,7 +206,8 @@ const mockTwakeDB = (
               mail,
               phone,
               language,
-              timezone
+              timezone,
+              theme
             } = useProfileDefaults
             const profile = {}
 
@@ -239,6 +243,11 @@ const mockTwakeDB = (
             if (timezone)
               Object.defineProperty(profile, 'timezone', {
                 value: MOCK_DATA.COMMON_SETTINGS.timezone,
+                writable: false
+              })
+            if (theme)
+              Object.defineProperty(profile, 'theme', {
+                value: MOCK_DATA.COMMON_SETTINGS.theme,
                 writable: false
               })
             return [
@@ -7408,5 +7417,27 @@ describe('User Info Service getBatch', () => {
     matrixDBMock.get.mockRejectedValue(new Error('Database connection failed'))
 
     await expect(svc.getBatch([MXID_1])).rejects.toThrow()
+  })
+})
+
+describe('User Info Service GET theme: Common settings ON', () => {
+  const svc = createService(false, true)
+
+  it('Should return the theme to the user themself', async () => {
+    mockMatrix({ displayName: true })
+    mockTwakeDB({ theme: true })
+
+    const user = await svc.get(MATRIX_MXID, MATRIX_MXID)
+
+    expect(user).toHaveProperty('theme', MOCK_DATA.COMMON_SETTINGS.theme)
+  })
+
+  it('Should not return the theme to another user', async () => {
+    mockMatrix({ displayName: true })
+    mockTwakeDB({ theme: true })
+
+    const user = await svc.get(MATRIX_MXID, '@viewer:example.org')
+
+    expect(user).not.toHaveProperty('theme')
   })
 })

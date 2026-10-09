@@ -6,6 +6,9 @@ M_FORBIDDEN: "You do not have permission to perform this action"
 M_NOT_FOUND: "The requested resource was not found"
 M_TERMS_NOT_SIGNED: "You must accept the terms of service"
 M_INVALID_PEPPER: "Invalid pepper value"
+M_BOT_RECOVERY_NEEDED: "The assistant waits for its owner to recover its
+  identity"
+M_BOT_NOT_FOUND: "The user has no assistant"
 M_UNKNOWN: "An internal error occurred"
 M_SERVICE_UNAVAILABLE: "Service temporarily unavailable"
 M_BAD_GATEWAY: "The upstream service failed to process the request"
@@ -34,6 +37,13 @@ visio.room_unavailable: "The video conferencing service cannot create a room
 visio.upstream_failure: "The video conferencing service failed to process the
   request"
 visio.homeserver_failure: "The homeserver failed to process the request"
+visio.invalid_request: "Invalid call token request: {{detail}}"
+visio.user_not_local: "Only users of this server may join a call here"
+visio.openid_rejected: "The OpenID token was rejected by the homeserver"
+visio.not_a_member: "You are not a member of this room"
+visio.sfu_disabled: "The call token service is disabled"
+visio.no_service_account: "The video conferencing service has no service account
+  to own the rooms"
 
 # Log messages: English only, read with translate()
 log.net.request_failed: "request failed"
@@ -48,3 +58,55 @@ log.visio.room_unavailable: "visio token endpoint answered 404: external API
   disabled or user unknown to the service"
 log.visio.upstream_failure: "visio upstream failure on {{endpoint}}: {{reason}}"
 log.visio.homeserver_failure: "homeserver failure on {{endpoint}}: {{reason}}"
+log.visio.sfu_mounting: "Mounting sfuRouter... enabled: {{enabled}}, meet:
+  {{meet}}"
+log.visio.sfu_disabled: "call token service disabled"
+log.visio.degraded: "Meet could not mint the call token, ToM signs it itself:
+  {{reason}}"
+
+# Bots
+bots.no_authenticated_user: "No authenticated user"
+bots.disabled: "The assistants are disabled"
+bots.not_ready: "The assistant is being prepared, try again in a moment"
+bots.upstream_failure: "The homeserver failed to process the request"
+bots.invalid_room: "The room is not a Matrix room id"
+bots.invalid_suggestions: "The switch of the suggestions is not a boolean"
+bots.suggestions_unavailable: "The assistants make no suggestions here"
+bots.not_provisioned: "The user has no assistant yet"
+bots.not_found: "The user has no assistant"
+bots.recovery_needed: "The assistant waits for its owner to recover its
+  identity"
+bots.recovery_unsupported: "These assistants keep their identity: there is
+  nothing to recover"
+bots.owner_not_served: "The assistants do not serve this user's homeserver"
+bots.home_not_direct: "Someone other than the user and the assistant is in
+  this room"
+bots.harness_failure: "The assistants service failed to process the request"
+log.bots.mounting: "Mounting botsRouter... enabled: {{enabled}}"
+log.bots.disabled: "assistants disabled"
+log.bots.provisioned: "assistant provisioned"
+log.bots.not_ready: "assistant keys not published yet"
+log.bots.not_in_room: "the assistant has not joined its home room yet"
+log.bots.upstream_failure: "homeserver failure on {{endpoint}}: {{reason}}"
+log.bots.harness_failure: "assistants service failure on {{endpoint}}:
+  {{reason}}"
+
+# GIFs
+gifs.no_authenticated_user: "No authenticated user"
+gifs.disabled: "GIFs are disabled"
+gifs.invalid_request: "The request is not valid"
+gifs.upstream_failure: "The GIF service failed to answer"
+gifs.media_not_found: "This GIF is not available"
+gifs.media_refused: "This GIF cannot be served"
+gifs.bad_signature: "The signature of this GIF link is not valid"
+gifs.expired_signature: "This GIF link has expired"
+log.gifs.mounting: "Mounting gifsRouter... available: {{available}}"
+log.gifs.disabled: "GIFs disabled"
+log.gifs.upstream_failure: "GIF service request failed: {{reason}}"
+log.gifs.upstream_status: "GIF service answered {{status}}"
+log.gifs.media_aborted: "GIF media transfer aborted"
+
+# Public pages
+log.public_pages.mounting: "Mounting publicPagesRouter..."
+log.public_pages.no_admin: "Public pages need synapse.admin credentials: not mounted"
+log.public_pages.failed: "public page failure: {{reason}}"

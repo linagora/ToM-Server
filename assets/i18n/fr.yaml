@@ -6,6 +6,9 @@ M_FORBIDDEN: "Vous n'avez pas la permission d'effectuer cette action"
 M_NOT_FOUND: "La ressource demandée est introuvable"
 M_TERMS_NOT_SIGNED: "Vous devez accepter les conditions d'utilisation"
 M_INVALID_PEPPER: "Valeur de pepper invalide"
+M_BOT_RECOVERY_NEEDED: "L'assistant attend que son propriétaire récupère son
+  identité"
+M_BOT_NOT_FOUND: "L'utilisateur n'a pas d'assistant"
 M_UNKNOWN: "Une erreur interne est survenue"
 M_SERVICE_UNAVAILABLE: "Service temporairement indisponible"
 M_BAD_GATEWAY: "Le service amont n'a pas pu traiter la requête"
@@ -28,9 +31,90 @@ auth.homeserver_failure: "Le serveur Matrix n'a pas pu traiter la requête"
 # Visio
 visio.no_authenticated_user: "Aucun utilisateur authentifié"
 visio.disabled: "La création de salles de visio est désactivée"
-visio.email_unresolvable: "Aucune adresse email unique n'est connue pour cet
-  utilisateur"
+visio.email_unresolvable: "Aucune adresse e-mail unique n'est connue pour
+  cet utilisateur"
 visio.room_unavailable: "Le service de visio ne peut pas créer de salle pour
   cet utilisateur"
 visio.upstream_failure: "Le service de visio n'a pas pu traiter la requête"
 visio.homeserver_failure: "Le serveur Matrix n'a pas pu traiter la requête"
+visio.invalid_request: "Requête de jeton d'appel invalide : {{detail}}"
+visio.user_not_local: "Seuls les utilisateurs de ce serveur peuvent rejoindre un
+  appel ici"
+visio.openid_rejected: "Le jeton OpenID a été refusé par le serveur Matrix"
+visio.not_a_member: "Vous n'êtes pas membre de ce salon"
+visio.sfu_disabled: "Le service de jeton d'appel est désactivé"
+visio.no_service_account: "Le service de visio n'a pas de compte de service pour
+  posséder les salles"
+
+# Messages de journal : lus en anglais par translate(), traduits pour la parité
+log.net.request_failed: "échec de la requête"
+log.net.status: "statut {{status}}"
+log.net.unexpected_body: "corps de réponse inattendu"
+log.auth.homeserver_failure: "échec du serveur Matrix sur {{endpoint}} :
+  {{reason}}"
+log.visio.mounting: "Montage de visioRouter... activé : {{enabled}}"
+log.visio.disabled: "création de salles de visio désactivée"
+log.visio.email_unresolvable: "aucune adresse e-mail unique trouvée pour
+  l'utilisateur"
+log.visio.email_count: "impossible de choisir une adresse e-mail unique pour
+  l'utilisateur"
+log.visio.room_unavailable: "le point d'accès de jeton visio a répondu 404 :
+  API externe désactivée ou utilisateur inconnu du service"
+log.visio.upstream_failure: "échec du service visio amont sur {{endpoint}} :
+  {{reason}}"
+log.visio.homeserver_failure: "échec du serveur Matrix sur {{endpoint}} :
+  {{reason}}"
+log.visio.sfu_mounting: "Montage de sfuRouter... activé : {{enabled}}, meet :
+  {{meet}}"
+log.visio.sfu_disabled: "service de jeton d'appel désactivé"
+log.visio.degraded: "Meet n'a pas pu émettre le jeton d'appel, ToM le signe
+  lui-même : {{reason}}"
+
+# Bots
+bots.no_authenticated_user: "Aucun utilisateur authentifié"
+bots.disabled: "Les assistants sont désactivés"
+bots.not_ready: "L'assistant se prépare, réessayez dans un instant"
+bots.upstream_failure: "Le serveur Matrix n'a pas pu traiter la requête"
+bots.invalid_room: "Le salon n'est pas un identifiant de salon Matrix"
+bots.invalid_suggestions: "Le choix des suggestions n'est pas un booléen"
+bots.suggestions_unavailable: "Les assistants ne font pas de suggestions ici"
+bots.not_provisioned: "L'utilisateur n'a pas encore d'assistant"
+bots.not_found: "L'utilisateur n'a pas d'assistant"
+bots.recovery_needed: "L'assistant attend que son propriétaire récupère son
+  identité"
+bots.recovery_unsupported: "Ces assistants gardent leur identité : il n'y a
+  rien à récupérer"
+bots.owner_not_served: "Les assistants ne servent pas le serveur de cet
+  utilisateur"
+bots.home_not_direct: "Quelqu'un d'autre que l'utilisateur et l'assistant est
+  dans ce salon"
+bots.harness_failure: "Le service des assistants n'a pas pu traiter la requête"
+log.bots.mounting: "Montage de botsRouter... activé : {{enabled}}"
+log.bots.disabled: "assistants désactivés"
+log.bots.provisioned: "assistant provisionné"
+log.bots.not_ready: "clés de l'assistant pas encore publiées"
+log.bots.not_in_room: "l'assistant n'a pas encore rejoint son salon"
+log.bots.upstream_failure: "échec du serveur Matrix sur {{endpoint}} :
+  {{reason}}"
+log.bots.harness_failure: "échec du service des assistants sur {{endpoint}} :
+  {{reason}}"
+
+# GIFs
+gifs.no_authenticated_user: "Aucun utilisateur authentifié"
+gifs.disabled: "Les GIF sont désactivés"
+gifs.invalid_request: "La requête n'est pas valide"
+gifs.upstream_failure: "Le service de GIF n'a pas répondu"
+gifs.media_not_found: "Ce GIF n'est pas disponible"
+gifs.media_refused: "Ce GIF ne peut pas etre servi"
+gifs.bad_signature: "La signature de ce lien de GIF n'est pas valide"
+gifs.expired_signature: "Ce lien de GIF a expiré"
+log.gifs.mounting: "Mounting gifsRouter... available: {{available}}"
+log.gifs.disabled: "GIFs disabled"
+log.gifs.upstream_failure: "GIF service request failed: {{reason}}"
+log.gifs.upstream_status: "GIF service answered {{status}}"
+log.gifs.media_aborted: "GIF media transfer aborted"
+
+# Public pages
+log.public_pages.mounting: "Montage de publicPagesRouter..."
+log.public_pages.no_admin: "Les pages publiques demandent les identifiants synapse.admin : non montées"
+log.public_pages.failed: "échec d'une page publique : {{reason}}"

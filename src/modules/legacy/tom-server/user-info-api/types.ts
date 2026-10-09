@@ -27,6 +27,8 @@ export interface UserEnrichmentFields {
   phones?: string[]
   language?: string
   timezone?: string
+  /** Only in the profile of the viewer: a preference, not a profile field */
+  theme?: Theme
   workplaceFqdn?: string
   twakeWorkspaceUrl?: string
 }
@@ -47,7 +49,11 @@ export interface SettingsPayload {
   phone?: string
   matrix_id?: string
   display_name?: string
+  theme?: Theme
 }
+
+/** The theme chosen in the Twake settings, shared by every Twake app */
+export type Theme = 'light' | 'dark' | 'auto'
 
 export interface UserSettings {
   matrix_id: string

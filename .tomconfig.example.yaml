@@ -315,6 +315,64 @@ email:
 #                                  # "restricted"; unset: service default.
 #                                  # Ignored by Meet before 1.17.0
 #   timeout_ms: 10000              # Default: 10000 — per service request
+#   # The calls of Twake Chat (D30): the rooms Meet makes for the Matrix rooms
+#   # belong to this account (no human enters through Meet's UI), with this
+#   # configuration. Needs `livekit` below.
+#   service_account_email: "visio@example.com"
+#   room_configuration:
+#     screen_recording_permission: authenticated  # Default — or admin_owner
+#     transcript_permission: authenticated        # Default — or admin_owner
+#     everyone_can_mute: false                    # Default
+
+# -----------------------------------------------------------------------------
+# LiveKit: the MatrixRTC token service of the calls of Twake Chat (MSC4195)
+# Optional. Disabled by default.
+# Serves POST /_twake/v1/video_call/sfu/get: the well-known of the homeserver
+# names it as `org.matrix.msc4143.rtc_foci[].livekit_service_url` (without
+# the `/sfu/get`). With `visio` enabled, Meet mints the token so that its
+# functions (recording, transcription…) know the participant; without it, or
+# when Meet fails, ToM signs the token itself with the key below.
+# -----------------------------------------------------------------------------
+# livekit:
+#   enabled: false                 # Default: false
+#   # Required when enabled — as the browsers reach it
+#   url: "wss://livekit.example.com"
+#   # Required when enabled — the key LiveKit and Meet share
+#   api_key: ""
+#   api_secret: ""                 # Required when enabled
+#   # Default: 6 hours — LiveKit refreshes it while connected
+#   token_ttl_seconds: 21600
+
+# -----------------------------------------------------------------------------
+# GIFs for Twake Chat, through ToM: Klipy never sees the users. Off by default.
+# The admin API (`/_twake/v1/admin/features/gifs`, Bearer
+# `synapse.admin.access_token`) switches it at run time and overrides `enabled`.
+# -----------------------------------------------------------------------------
+# gifs:
+#   enabled: false                 # Default: false. Without a key, always off
+#   klipy_api_key: ""              # Secret
+#   klipy_base_url: "https://api.klipy.com"
+#   customer_id_secret: ""         # Default: the API key
+#   content_filter: medium         # off, low, medium or high
+#   timeout_ms: 15000
+#   max_media_bytes: 15728640
+#   trending_cache_ttl_ms: 300000
+
+# -----------------------------------------------------------------------------
+# Public pages of Twake Chat (D90): a read-only HTML page for each room anyone
+# may read, for people with no account. Off by default; needs `synapse.admin`.
+# Routes: GET /b/<slug or room id>, /b/<ref>/media/<server>/<id>, /sitemap.xml,
+# /robots.txt. A room is served only when its history is `world_readable`, it
+# is not end-to-end encrypted and it is not a space.
+# -----------------------------------------------------------------------------
+# public_pages:
+#   enabled: false                 # Default: false
+#   # Required when enabled — the origin the pages are reached at (canonical,
+#   # Open Graph and sitemap URLs), with no trailing slash
+#   public_url: "https://chat.example.com"
+#   # The « Follow in Twake Chat » link; none when unset
+#   chat_url: "https://chat.example.com"
+#   lang: en                       # Default: en — `lang` of the pages
 
 # -----------------------------------------------------------------------------
 # Telemetry (OpenTelemetry)
@@ -326,3 +384,38 @@ email:
 #   otlp_endpoint: ""             # Optional — OTLP collector for export
 #   trace_sample_ratio: 1.0        # Default: 1.0 (sample everything)
 #   diag_log_level: "NONE"        # Default: "NONE" — for OTel debugging
+
+# The assistants of the users (Twake Chat): one bot per user, a profile each on
+# the shared Hermes agent. `POST /_twake/v1/bots/me` provisions and answers
+# { userId, deviceId, masterKey }; `GET /_twake/v1/bots/me` answers the same
+# without provisioning, or 404 M_BOT_NOT_FOUND when the user has no bot.
+# bots:
+#   enabled: false
+#   # Who serves the bots, one backend per ToM: hermes, a profile per user for
+#   # the shared Hermes agent (the keys below)
+#   backend: hermes
+#   # $HERMES_HOME/profiles of the agent, as ToM sees it
+#   hermes_profiles_dir: /opt/hermes/profiles
+#   hermes_home: /opt/data  # the home of the agent as the agent sees it
+#   # as Hermes reaches it; the public URL when unset
+#   hermes_homeserver_url: http://synapse:8008
+#   model:
+#     provider: openrouter
+#     name: anthropic/claude-haiku-4.5
+#     api_key: ""
+#   bot_localpart_prefix: bot_
+#   device_id_prefix: HERMES
+#   ready_timeout_ms: 12000
+
+# The same section on a ToM served by the agent harness of the platform, which
+# owns the bots as its Matrix application service: no Hermes key there.
+# bots:
+#   enabled: true
+#   backend: harness
+#   harness:
+#     url: https://gateway.example.com/agents  # the base of the harness API
+#     token_url: https://auth.example.com/oauth2/token
+#     client_id: tom
+#     client_secret: change-me
+#     # the scope of the token request; LemonLDAP-NG refuses one with none
+#     scope: openid
