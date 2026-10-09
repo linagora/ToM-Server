@@ -66,10 +66,12 @@ export class VisioService {
    * so that its functions (recording, transcription…) know the participant (D30).
    */
   async mintCallToken(matrixRoomId: string, participant: CallParticipant, profile: MatrixProfile): Promise<CallToken> {
+    // The room first, whoever asks: a participant without an email is signed by
+    // ToM for it (degraded mode), in the same LiveKit room as the others
+    const meetRoomId = await this.#ensureRoom(matrixRoomId);
     if (!profile.email) {
       throw new VisioRoomUnavailableError("visio.email_unresolvable");
     }
-    const meetRoomId = await this.#ensureRoom(matrixRoomId);
     const accessToken = await this.#applicationToken(profile.email);
     const path = `${ROOMS_PATH}${encodeURIComponent(meetRoomId)}/livekit-token/`;
     const response = await this.#post(
