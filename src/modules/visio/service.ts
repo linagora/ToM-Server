@@ -86,14 +86,10 @@ export class VisioService {
       },
       accessToken,
     );
-    // The room is gone on the Meet side (its JSON 404): make another one next
-    // time. A Meet without this route answers an HTML 404: the room stays, the
-    // degraded mode signs for it
-    if (response.status === 404 && response.headers.get("content-type")?.includes("application/json")) {
-      this.#rooms.delete(matrixRoomId);
-      this.#settled.delete(matrixRoomId);
-    }
-
+    // A room Meet refuses (404: gone, or not one of this application) stays the
+    // room of the call: the degraded mode signs for it, and everyone is in the
+    // same LiveKit room. ponytail: such a room has no Meet function until a
+    // restart; replace it once LiveKit says it is empty, if Meet ever loses rooms
     return this.#parse(path, response, meetLivekitTokenSchema);
   }
 
