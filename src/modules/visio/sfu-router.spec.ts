@@ -330,8 +330,21 @@ describe("SfuRouter", () => {
     expect((claims.video as Record<string, unknown>).room).toBe("7c9e6679-7425-40de-944b-e07fc1f90ae7");
   });
 
-  it("should keep the Meet room when Meet has no route to mint the token", async () => {
-    // Arrange: a Meet without the livekit-token route answers Django's HTML 404
+  it.each([
+    // A Meet without the livekit-token route answers Django's HTML 404
+    [
+      "has no route to mint the token",
+      "<h1>Not Found</h1>",
+      "text/html; charset=utf-8",
+    ],
+    // A room Meet no longer has, or keeps for another application
+    [
+      "refuses the room",
+      '{"detail":"Not found."}',
+      "application/json",
+    ],
+  ])("should keep the Meet room when Meet %s", async (_case, notFound, contentType) => {
+    // Arrange
     const deps = makeDeps(true);
     mockFetch(
       userInfo(),
@@ -341,10 +354,10 @@ describe("SfuRouter", () => {
       appToken(),
       meetRoom(),
       appToken(),
-      new Response("<h1>Not Found</h1>", {
+      new Response(notFound, {
         status: 404,
         headers: {
-          "content-type": "text/html; charset=utf-8",
+          "content-type": contentType,
         },
       }),
     );
