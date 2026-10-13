@@ -202,7 +202,7 @@ function mountBots(config: Config, logger: Logger, app: Express, admin: SynapseA
       rateLimit: makeRateLimit(config, (req) => (req as AuthenticatedRequest).userId ?? "anonymous"),
     };
     // Hermes or the agent harness, never both: they would claim the same accounts
-    const backend = makeBotsBackend(
+    service = makeBotsBackend(
       config.bots,
       {
         serverUrl: config.synapse.server_url,
@@ -211,7 +211,6 @@ function mountBots(config: Config, logger: Logger, app: Express, admin: SynapseA
       },
       botsLogger,
     );
-    service = backend.service;
   }
   logger.info(
     translate("log.bots.mounting", {

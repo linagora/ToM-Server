@@ -8,15 +8,8 @@ import {
   UNPROCESSABLE,
 } from "../../errors/error-codes";
 
-/** The feature is off: the client hides its action (404). */
+/** The feature is off, or the user has no assistant yet: the client hides its action (404). */
 export class BotsDisabledError extends DomainError {
-  constructor(messageKey: string, context: Record<string, unknown> = {}) {
-    super(NOT_FOUND, messageKey, context);
-  }
-}
-
-/** The user has no assistant yet: `bots/me` first (404). */
-export class BotNotProvisionedError extends DomainError {
   constructor(messageKey: string, context: Record<string, unknown> = {}) {
     super(NOT_FOUND, messageKey, context);
   }

@@ -77,7 +77,7 @@ soon as it opens it: ToM writes `MATRIX_HOME_ROOM` in the profile, where
 Hermes delivers what the bot does on its own (cron jobs), as `/sethome` would.
 Until then the profile holds the owner's id, so that Hermes never asks the
 user to type `/sethome`. `204`; `400` for something that is not a room id;
-`404` when the user has no assistant yet. The route answers once the backend
+`404` when the user has no assistant yet; `422` for a room the user is not in. The route answers once the backend
 has recorded the room, so a backend that records it remotely answers `204`
 only when it has it, and its refusals reach the client.
 

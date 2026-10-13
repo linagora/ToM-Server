@@ -12,10 +12,10 @@ import { errorMiddleware } from "../../errors/error-middleware";
 import { loadMessages } from "../../i18n/index";
 import type { AuthenticatedRequest } from "../../middleware/auth/types";
 import {
-  BotNotProvisionedError,
   BotNotReadyError,
   BotOwnerNotServedError,
   BotRecoveryNeededError,
+  BotsDisabledError,
   BotsUpstreamError,
 } from "./errors";
 import {
@@ -403,7 +403,7 @@ describe("bots router", () => {
     const service = {
       setHome: async () => {
         await new Promise((resolve) => setTimeout(resolve, 5));
-        if (!known) throw new BotNotProvisionedError("bots.not_provisioned");
+        if (!known) throw new BotsDisabledError("bots.not_provisioned");
       },
     } as unknown as BotsService;
     const app = makeApp(

@@ -2,9 +2,9 @@ import { afterEach, describe, expect, it } from "bun:test";
 
 import { createLogger } from "winston";
 
+import { SynapseAdmin } from "../visio/synapse-admin";
 import { makeBotsBackend } from "./backend";
 import { BotsService } from "./service";
-import { SynapseAdmin } from "../visio/synapse-admin";
 import type { BotsSettings, SynapseAccess } from "./types";
 
 const silentLogger = createLogger({
@@ -60,7 +60,7 @@ describe("bots backend", () => {
       silentLogger,
     );
 
-    expect(backend.service).toBeInstanceOf(BotsService);
+    expect(backend).toBeInstanceOf(BotsService);
   });
 
   it("asks the harness for the bots when the harness serves them", async () => {
@@ -101,7 +101,7 @@ describe("bots backend", () => {
       synapse,
       silentLogger,
     );
-    const bot = await backend.service.provision("@dwho:example.com", "syt_owner");
+    const bot = await backend.provision("@dwho:example.com", "syt_owner");
 
     expect(bot.userId).toBe("@bot_dwho:example.com");
     expect(paths).toEqual([

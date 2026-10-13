@@ -9,7 +9,7 @@ import { DomainError } from "../../errors/domain-error";
 import { FORBIDDEN, INVALID_INPUT } from "../../errors/error-codes";
 import { translate } from "../../i18n/index";
 import { HttpClient, readJson } from "../../net/http-client";
-import { BotHomeRefusedError, BotNotProvisionedError, BotNotReadyError, BotsDisabledError, BotsUpstreamError } from "./errors";
+import { BotHomeRefusedError, BotNotReadyError, BotsDisabledError, BotsUpstreamError } from "./errors";
 import { existingUserSchema, keysQueryResponseSchema, loginResponseSchema } from "./schema";
 import type { BotsSettings, MyBot, SynapseAccess } from "./types";
 
@@ -130,7 +130,7 @@ export class BotsService {
     const bot = botIds(ownerId, this.#config, this.#synapse.serverName);
     const envFile = this.#envFile(bot);
     if (!existsSync(envFile)) {
-      throw new BotNotProvisionedError("bots.not_provisioned", {
+      throw new BotsDisabledError("bots.not_provisioned", {
         bot: bot.userId,
       });
     }
@@ -190,14 +190,12 @@ export class BotsService {
         bot: botUserId,
       });
     }
-    await admin
-      .put(path, {
-        password: this.#password(botUserId),
-        displayname: `${ownerId.slice(1, ownerId.indexOf(":"))} — assistant`,
-        admin: false,
-        user_type: "bot",
-      })
-      ;
+    await admin.put(path, {
+      password: this.#password(botUserId),
+      displayname: `${ownerId.slice(1, ownerId.indexOf(":"))} — assistant`,
+      admin: false,
+      user_type: "bot",
+    });
   }
 
   async #login(localpart: string, deviceId: string): Promise<string> {
