@@ -85,7 +85,7 @@ export class VisioService {
     // replaced, once per request. A Meet without the route answers Django's HTML 404:
     // that one keeps the row and fails.
     if (response.status === 404 && (response.headers.get("content-type") ?? "").includes("application/json")) {
-      await this.#callRooms?.forget(matrixRoomId, meetRoomId);
+      await this.#store(() => this.#callRooms?.forget(matrixRoomId, meetRoomId));
       [path, response] = await this.#postToken(await this.#ensureRoom(matrixRoomId), body, accessToken);
     }
 
@@ -130,7 +130,31 @@ export class VisioService {
       throw new Error("VisioService has no store for the call rooms");
     }
 
-    return (await this.#callRooms.get(matrixRoomId)) ?? this.#callRooms.add(matrixRoomId, await this.#createCallRoom());
+    const callRooms = this.#callRooms;
+    const known = await this.#store(() => callRooms.get(matrixRoomId));
+    if (known !== undefined) {
+      return known;
+    }
+    const meetRoomId = await this.#createCallRoom();
+
+    return this.#store(() => callRooms.add(matrixRoomId, meetRoomId));
+  }
+
+  /** A store failure (database down) is an upstream failure, not a raw 500. */
+  async #store<T>(operation: () => Promise<T> | undefined): Promise<T | undefined> {
+    try {
+      return await operation();
+    } catch (err) {
+      this.#log.error(
+        translate("log.visio.store_failure", {
+          reason: err instanceof Error ? err.message : translate("log.net.request_failed"),
+        }),
+      );
+
+      throw new VisioUpstreamError("visio.upstream_failure", {
+        endpoint: "visio_call_rooms",
+      });
+    }
   }
 
   /** The room of a Matrix room belongs to the service account: no human enters through Meet's UI. */

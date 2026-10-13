@@ -413,6 +413,26 @@ describe("SfuRouter", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[7]?.[1].body)).username).toBe("é".repeat(255));
   });
 
+  it("should answer 502 when the store of the call rooms fails", async () => {
+    // Arrange
+    const down = new Error("connection refused");
+    const failing: CallRooms = {
+      get: () => Promise.reject(down),
+      add: () => Promise.reject(down),
+      forget: () => Promise.reject(down),
+    };
+    mockFetch(userInfo(), members(), profile(), moderators());
+
+    // Act
+    const response = await request(setupApp(makeDeps(failing)))
+      .post(SFU_ROUTE)
+      .send(body);
+
+    // Assert
+    expect(response.status).toBe(502);
+    expect(response.body.code).toBe(BAD_GATEWAY);
+  });
+
   it("should answer 502 when Meet fails after the room was made", async () => {
     // Arrange
     const deps = makeDeps();

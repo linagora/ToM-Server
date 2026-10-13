@@ -69,6 +69,7 @@ log.config.livekit_removed: "the livekit section of the configuration is no
 log.config.trust_proxy_open: "server.trust_x_forwarded_for is true without
   server.trusted_proxies: any client can forge X-Forwarded-For and escape the
   per-IP rate limit; list the proxies in server.trusted_proxies"
+log.visio.store_failure: "call-rooms store failure (visio_call_rooms): {{reason}}"
 log.visio.moderator_unknown: "power levels unreadable: the participant joins as
   a member"
 
