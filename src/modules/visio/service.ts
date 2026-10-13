@@ -10,6 +10,8 @@ import type { CallParticipant, MatrixProfile, VisioRoom, VisioSettings } from ".
 
 const TOKEN_PATH = "/external-api/v1.0/application/token/";
 const ROOMS_PATH = "/external-api/v1.0/rooms/";
+/** Meet takes a `username` of 255 characters at most; a Synapse display name can have 256. */
+const MAX_USERNAME_LENGTH = 255;
 
 /** The token Meet minted for a participant of the call of a Matrix room. */
 export interface CallToken {
@@ -67,7 +69,11 @@ export class VisioService {
     const accessToken = await this.#applicationToken(profile.email);
     const body = {
       identity: participant.identity,
-      username: participant.name,
+      username: [
+        ...participant.name,
+      ]
+        .slice(0, MAX_USERNAME_LENGTH)
+        .join(""),
       role: participant.role,
       ...(profile.sub && {
         sub: profile.sub,

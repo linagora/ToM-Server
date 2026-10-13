@@ -382,6 +382,37 @@ describe("SfuRouter", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[7]?.[1].body)).role).toBe("member");
   });
 
+  it("should cut the display name to the 255 characters Meet takes as a username", async () => {
+    // Arrange
+    const name = "é".repeat(256);
+    const fetchMock = mockFetch(
+      userInfo(),
+      members(),
+      json(200, {
+        displayname: name,
+        threepids: [
+          {
+            medium: "email",
+            address: "alice@twake.test",
+          },
+        ],
+        external_ids: [],
+      }),
+      moderators(),
+      appToken(),
+      meetRoom(),
+      appToken(),
+      meetToken(),
+    );
+
+    // Act
+    const response = await request(setupApp(makeDeps())).post(SFU_ROUTE).send(body);
+
+    // Assert
+    expect(response.status).toBe(200);
+    expect(JSON.parse(String(fetchMock.mock.calls[7]?.[1].body)).username).toBe("é".repeat(255));
+  });
+
   it("should answer 502 when Meet fails after the room was made", async () => {
     // Arrange
     const deps = makeDeps();
