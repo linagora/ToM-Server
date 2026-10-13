@@ -72,7 +72,7 @@ function mountWellKnownClient(config: Config, logger: Logger, app: Express): voi
 }
 
 /** The limit of `server.rate_limiting`, counted per `key` (the IP of the caller when none). */
-function makeRateLimit(config: Config, key?: (req: Request) => string): RequestHandler {
+export function makeRateLimit(config: Config, key?: (req: Request) => string): RequestHandler {
   return rateLimit({
     windowMs: config.server.rate_limiting.window_ms,
     limit: config.server.rate_limiting.max_requests,

@@ -1,10 +1,11 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, type Mock, mock } from "bun:test";
 
 import express, { type RequestHandler } from "express";
-import { rateLimit } from "express-rate-limit";
 import request from "supertest";
 import { createLogger } from "winston";
 
+import { makeRateLimit } from "../../app";
+import { configSchema } from "../../config/schema";
 import { BAD_GATEWAY, FORBIDDEN, INVALID_INPUT, NOT_FOUND, UNAUTHORIZED } from "../../errors/error-codes";
 import { loadMessages } from "../../i18n/index";
 import Database from "../legacy/db/database";
@@ -217,9 +218,26 @@ describe("SfuRouter", () => {
     const fetchMock = mockFetch();
     const limited = setupApp({
       ...makeDeps(),
-      rateLimit: rateLimit({
-        limit: 1,
-      }),
+      // The real factory of app.ts, with a configuration of one request
+      rateLimit: makeRateLimit(
+        configSchema.parse({
+          synapse: {
+            server_url: "https://localhost:8448",
+          },
+          database: {
+            host: "localhost",
+            name: "tom",
+            user: "tom",
+            password: "tom",
+          },
+          server: {
+            name: "localhost",
+            rate_limiting: {
+              max_requests: 1,
+            },
+          },
+        }),
+      ),
     });
 
     // Act
@@ -229,6 +247,10 @@ describe("SfuRouter", () => {
     // Assert
     expect(first.status).toBe(400);
     expect(second.status).toBe(429);
+    expect(second.body).toEqual({
+      errcode: "M_LIMIT_EXCEEDED",
+      error: "Too many requests",
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
