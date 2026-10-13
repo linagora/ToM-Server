@@ -91,24 +91,49 @@ describe("the gate", () => {
     ).not.toBeNull();
   });
 
-  it("serves a room anyone may join, its history kept to members", () => {
-    expect(
-      isPublic(
-        state({
-          history: "shared",
-          joinRule: "public",
-        }),
-      ),
-    ).toBe(true);
-    expect(
-      isPublic(
-        state({
-          history: "shared",
-          joinRule: "public",
-          encrypted: true,
-        }),
-      ),
-    ).toBe(false);
+  it("refuses a room anyone may join but whose history is kept to members", () => {
+    for (const history of [
+      "shared",
+      "joined",
+      "invited",
+    ]) {
+      const room = state({
+        history,
+        joinRule: "public",
+      });
+      expect(isPublic(room)).toBe(false);
+      expect(
+        readPage("figaro", room, [
+          post("$1", "members only"),
+        ]),
+      ).toBeNull();
+    }
+  });
+
+  it("leaves out what was sent before the room became world readable", () => {
+    const room = state().map((e) =>
+      e.type === "m.room.history_visibility"
+        ? {
+            ...e,
+            origin_server_ts: 2000,
+          }
+        : e,
+    );
+    const at = (id: string, ts: number): MessageEvent => ({
+      ...post(id, id),
+      origin_server_ts: ts,
+    });
+
+    const page = readPage("figaro", room, [
+      at("$new", 3000),
+      at("$edge", 2000),
+      at("$old", 1999),
+    ]);
+
+    expect(page?.posts.map((p) => p.id)).toEqual([
+      "$new",
+      "$edge",
+    ]);
   });
 
   it("refuses any other history, encryption and spaces", () => {
@@ -331,7 +356,6 @@ describe("renderSitemap", () => {
         room({
           room_id: "!open:hs",
           history_visibility: "shared",
-          join_rules: "public",
         }),
         room({
           room_id: "!space:hs",
@@ -352,7 +376,6 @@ describe("renderSitemap", () => {
       "https://pages.test/b/figaro",
       "https://pages.test/b/!noalias%3Ahs",
       "https://pages.test/b/!remote%3Ahs",
-      "https://pages.test/b/!open%3Ahs",
     ]);
   });
 

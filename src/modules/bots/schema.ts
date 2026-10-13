@@ -3,7 +3,6 @@ import { z } from "zod";
 const DEFAULT_TIMEOUT_MS = 10000;
 const DEFAULT_READY_TIMEOUT_MS = 12000;
 
-
 /**
  * The agent harness of the platform (linagora/twake-harness), which owns the
  * assistants as its application service: ToM asks it for the bot of a user,
@@ -120,6 +119,11 @@ export const loginResponseSchema = z.object({
   device_id: z.string().optional(),
 });
 
+/** An account of the admin API of Synapse: its type only. */
+export const existingUserSchema = z.object({
+  user_type: z.string().nullish(),
+});
+
 export const keysQueryResponseSchema = z.object({
   master_keys: z
     .record(
@@ -150,7 +154,7 @@ export const myBotRequestSchema = z.object({
 
 /** The direct room of the owner with the bot, sent by the client (`bots/me/home`). */
 export const homeRequestSchema = z.object({
-  room_id: z.string().regex(/^![^:]+:.+$/),
+  room_id: z.string().regex(/^![^\s:]+:\S+$/),
 });
 
 /** The switch of the suggestions, sent by the client (`bots/me/suggestions`) and answered by the harness. */

@@ -1,19 +1,32 @@
 import { randomBytes } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 
 import type { Logger } from "winston";
 import type { z } from "zod";
 
+import { DomainError } from "../../errors/domain-error";
+import { FORBIDDEN, INVALID_INPUT } from "../../errors/error-codes";
 import { translate } from "../../i18n/index";
 import { HttpClient, readJson } from "../../net/http-client";
 import { BotNotProvisionedError, BotNotReadyError, BotsDisabledError, BotsUpstreamError } from "./errors";
-import { keysQueryResponseSchema, loginResponseSchema } from "./schema";
+import { existingUserSchema, keysQueryResponseSchema, loginResponseSchema } from "./schema";
 import type { BotsSettings, MyBot, SynapseAccess } from "./types";
 
 const LOGIN_PATH = "/_matrix/client/v3/login";
 const KEYS_QUERY_PATH = "/_matrix/client/v3/keys/query";
 const READY_POLL_MS = 1000;
+
+/**
+ * A value written in a profile file (`.env`, `config.yaml`, `SOUL.md`) on one line:
+ * a newline would add lines of its own to a file that holds the token of the bot.
+ */
+const oneLine = (value: string): string => {
+  if (/[\r\n]/.test(value)) {
+    throw new DomainError(INVALID_INPUT, "bots.invalid_room");
+  }
+  return value;
+};
 
 /** The Matrix ids of the bot of an owner, and the localpart that names its Hermes profile. */
 export interface BotIds {
@@ -28,6 +41,10 @@ export const botIds = (
   serverName: string,
 ): BotIds => {
   const ownerLocalpart = ownerId.slice(1, ownerId.indexOf(":"));
+  // The localpart names a folder: Matrix allows `/` in it, a profile must not leave its folder
+  if (!/^[a-z0-9._=-]+$/.test(ownerLocalpart)) {
+    throw new DomainError(INVALID_INPUT, "bots.invalid_owner");
+  }
   const localpart = `${config.bot_localpart_prefix}${ownerLocalpart}`;
   return {
     localpart,
@@ -111,7 +128,7 @@ export class BotsService {
       envFile,
       [
         ...lines,
-        `MATRIX_HOME_ROOM=${roomId}`,
+        `MATRIX_HOME_ROOM=${oneLine(roomId)}`,
         "",
       ].join("\n"),
     );
@@ -148,6 +165,16 @@ export class BotsService {
   async #createAccount(botUserId: string, ownerId: string): Promise<void> {
     const path = `/_synapse/admin/v2/users/${encodeURIComponent(botUserId)}`;
     const admin = await this.#admin();
+    // The PUT creates or modifies: an account that is no bot is never touched
+    const existing = await this.#request(() => this.#http.get(path, admin));
+    if (existing.status !== 404) {
+      const user = await this.#parse(path, existing, existingUserSchema);
+      if (user.user_type !== "bot") {
+        throw new DomainError(FORBIDDEN, "bots.account_taken", {
+          bot: botUserId,
+        });
+      }
+    }
     const response = await this.#request(() =>
       this.#http.put(
         path,
@@ -184,7 +211,14 @@ export class BotsService {
 
   /** The Hermes profile of the bot, among the profiles of the agent. */
   #profileDir(bot: BotIds): string {
-    return join(this.#config.hermes_profiles_dir ?? "", bot.localpart);
+    const profiles = resolve(this.#config.hermes_profiles_dir ?? "");
+    const dir = resolve(profiles, bot.localpart);
+    // `.` and `..` are in the charset of a localpart: the profile stays under the profiles folder
+    const inside = relative(profiles, dir);
+    if (inside === "" || inside.startsWith(`..${sep}`) || inside === "..") {
+      throw new DomainError(INVALID_INPUT, "bots.invalid_owner");
+    }
+    return dir;
   }
 
   /** The `.env` of the profile of the bot: the bot exists once it is written. */
@@ -226,7 +260,9 @@ export class BotsService {
             ]
           : []),
         "",
-      ].join("\n"),
+      ]
+        .map(oneLine)
+        .join("\n"),
       {
         mode: 0o600,
       },
@@ -253,14 +289,16 @@ export class BotsService {
         "gateway:",
         "  progress: false",
         "",
-      ].join("\n"),
+      ]
+        .map(oneLine)
+        .join("\n"),
       {
         mode: 0o600,
       },
     );
     writeFileSync(
       join(dir, "SOUL.md"),
-      `You are the personal assistant of ${ownerId} in Twake Chat. Answer briefly, in the language of the message.\n`,
+      `You are the personal assistant of ${oneLine(ownerId)} in Twake Chat. Answer briefly, in the language of the message.\n`,
     );
   }
 

@@ -803,19 +803,21 @@ public_pages:
 | `lang`       | `en`    | `lang` attribute of the pages.                                             |
 
 A room is served only if its `m.room.history_visibility` is `world_readable`
-or its `m.room.join_rules` is `public` (anyone may join and read it), it has no `m.room.encryption` state and it is not a space. This gate runs on the
-state of the room before any message or media is read, for pages, media and the
-sitemap alike (ToM reads Synapse as admin, so it reads every room).
+(a room anyone may join, whose history is kept to members, is not), it has no
+`m.room.encryption` state and it is not a space. Messages sent before the latest
+change of its history visibility are not shown. This gate runs on the state of
+the room before any message or media is read, for pages, media and the sitemap
+alike (ToM reads Synapse as admin, so it reads every room).
 
-| Route                                  | Answer                                                                          |
-| -------------------------------------- | ------------------------------------------------------------------------------- |
-| `GET /b/<ref>`                         | The page. `<ref>` is a slug (alias `#slug:<server.name>`) or a URL-encoded room id. |
-| `GET /b/<ref>/media/<server>/<id>`     | A media the page shows (images, audio, video only), sandboxed.                  |
-| `POST /b/<ref>/react`                  | A visitor's emoji reaction (form: `event_id`, `key` among 👍 ❤️ 😂 😮 😢 🎉); pressing again removes it. `303` back to `#post-<id>`. |
-| `POST /b/<ref>/report`                 | Reports a post to the Synapse moderators (form: `event_id`, `reason`, `comment`). `303` to `?reported=1#post-<id>`. |
+| Route                                   | Answer                                                                                                                                                                                       |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /b/<ref>`                          | The page. `<ref>` is a slug (alias `#slug:<server.name>`) or a URL-encoded room id.                                                                                                          |
+| `GET /b/<ref>/media/<server>/<id>`      | A media the page shows (images, audio, video only), sandboxed.                                                                                                                               |
+| `POST /b/<ref>/react`                   | A visitor's emoji reaction (form: `event_id`, `key` among 👍 ❤️ 😂 😮 😢 🎉); pressing again removes it. `303` back to `#post-<id>`.                                                         |
+| `POST /b/<ref>/report`                  | Reports a post to the Synapse moderators (form: `event_id`, `reason`, `comment`). `303` to `?reported=1#post-<id>`.                                                                          |
 | `GET /_twake/v1/public-pages/reactions` | `?room_id=…&event_id=…` (repeat, max 100): `{"reactions": {"<event_id>": {"👍": 3}}}`, visitor counts only. No auth, `Access-Control-Allow-Origin: *`; `404` for a room that fails the gate. |
-| `GET /sitemap.xml`                     | The served rooms (the first 500 of the Synapse admin list).                     |
-| `GET /robots.txt`                      | Allows `/b/`, names the sitemap.                                                |
+| `GET /sitemap.xml`                      | The served rooms (the first 500 of the Synapse admin list).                                                                                                                                  |
+| `GET /robots.txt`                       | Allows `/b/`, names the sitemap.                                                                                                                                                             |
 
 Visitors have no account and the page runs no script: reactions and reports are
 plain forms (the CSP is `form-action 'self'`). A visitor is a random id in the
