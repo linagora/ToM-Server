@@ -3,6 +3,7 @@ import type { z } from "zod";
 
 import { translate } from "../../i18n/index";
 import { HttpClient, readJson } from "../../net/http-client";
+import type { CallRooms } from "./call-rooms";
 import { VisioRoomUnavailableError, VisioUpstreamError } from "./errors";
 import { meetLivekitTokenSchema, meetRoomSchema, visioRoomResponseSchema, visioTokenResponseSchema } from "./schema";
 import type { CallParticipant, MatrixProfile, VisioRoom, VisioSettings } from "./types";
@@ -21,14 +22,12 @@ export class VisioService {
   #config: VisioSettings;
   #http: HttpClient;
   #log: Logger;
-  /**
-   * The Meet room of each Matrix room, as a promise so that two people joining at
-   * once get the same room. ponytail: kept in memory, lost at a restart (the room
-   * is then made again, Meet keeps the old one); a table when ToM runs twice.
-   */
-  #rooms = new Map<string, Promise<string>>();
+  #callRooms: CallRooms | undefined;
+  /** The rooms being made by this process, so that two people joining at once make one. */
+  #making = new Map<string, Promise<string>>();
 
-  constructor(config: VisioSettings, logger: Logger) {
+  constructor(config: VisioSettings, logger: Logger, callRooms?: CallRooms) {
+    this.#callRooms = callRooms;
     this.#config = config;
     this.#http = new HttpClient({
       baseUrl: config.base_url ?? "",
@@ -84,16 +83,26 @@ export class VisioService {
   }
 
   #ensureRoom(matrixRoomId: string): Promise<string> {
-    let room = this.#rooms.get(matrixRoomId);
+    let room = this.#making.get(matrixRoomId);
     if (!room) {
-      room = this.#createCallRoom().catch((err: unknown) => {
-        this.#rooms.delete(matrixRoomId);
-        throw err;
-      });
-      this.#rooms.set(matrixRoomId, room);
+      room = this.#findOrMakeRoom(matrixRoomId).finally(() => this.#making.delete(matrixRoomId));
+      this.#making.set(matrixRoomId, room);
     }
 
     return room;
+  }
+
+  /**
+   * The Meet room is the one in the table: Meet names its rooms itself, so the only
+   * stable link from a Matrix room is the row. Two replicas making one at once
+   * converge on the first row; the other Meet room stays empty, harmless.
+   */
+  async #findOrMakeRoom(matrixRoomId: string): Promise<string> {
+    if (!this.#callRooms) {
+      throw new Error("VisioService has no store for the call rooms");
+    }
+
+    return (await this.#callRooms.get(matrixRoomId)) ?? this.#callRooms.add(matrixRoomId, await this.#createCallRoom());
   }
 
   /** The room of a Matrix room belongs to the service account: no human enters through Meet's UI. */

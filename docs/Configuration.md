@@ -685,7 +685,9 @@ then answers `{"url", "jwt"}`. The LiveKit identity is always
 `{user id}:{device id}`, the one MatrixRTC clients derive for the media keys.
 
 The room of a Matrix room is made once on Meet (owner:
-`service_account_email`, `room_access_level`, `room_configuration`) and Meet
+`service_account_email`, `room_access_level`, `room_configuration`) and the
+room is kept in the table `visio_call_rooms` (shared by every ToM replica, kept across
+restarts: a call never splits in two). Meet
 mints the token for the user (`POST
 /external-api/v1.0/rooms/{id}/livekit-token/`, a route of the Linagora fork),
 so that its recording, transcription and moderation know the participant. ToM

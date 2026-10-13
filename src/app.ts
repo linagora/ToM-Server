@@ -34,6 +34,7 @@ import AdminSettingsMiddleware from "./modules/legacy/tom-server/admin-settings-
 import { DbReactionStore, REACTIONS_INDEXES, REACTIONS_SCHEMA } from "./modules/public-pages/reactions";
 import { createPublicPagesRouter } from "./modules/public-pages/router";
 import { makeSynapseSource } from "./modules/public-pages/source";
+import { CALL_ROOMS_SCHEMA, DbCallRooms } from "./modules/visio/call-rooms";
 import { EmailResolver } from "./modules/visio/email-resolver";
 import { OpenIdValidator } from "./modules/visio/openid";
 import { createVisioRouter } from "./modules/visio/router";
@@ -71,12 +72,14 @@ function mountWellKnownClient(config: Config, logger: Logger, app: Express): voi
 }
 
 /** The MatrixRTC token service of the calls of Twake Chat (D30): Meet behind it when `visio` is enabled. */
-function mountSfu(config: Config, logger: Logger, app: Express): void {
+async function mountSfu(config: Config, logger: Logger, app: Express): Promise<void> {
   const sfuLogger = logger.child({
     module: "visio-sfu",
   });
   let deps: SfuDeps | undefined;
   if (config.livekit.enabled && config.visio.enabled) {
+    const db = new Database<"visio_call_rooms">(mapToLegacyConfig(config), sfuLogger as never, CALL_ROOMS_SCHEMA);
+    await db.ready;
     deps = {
       openId: new OpenIdValidator(
         {
@@ -98,7 +101,7 @@ function mountSfu(config: Config, logger: Logger, app: Express): void {
         },
         sfuLogger,
       ),
-      service: new VisioService(config.visio, sfuLogger),
+      service: new VisioService(config.visio, sfuLogger, new DbCallRooms(db)),
     };
   }
   logger.info(
@@ -335,7 +338,7 @@ export async function createApp(
   // --- New modules routers here ---
   mountWellKnownClient(config, logger, app);
   mountVisio(config, logger, app);
-  mountSfu(config, logger, app);
+  await mountSfu(config, logger, app);
   mountBots(config, logger, app);
   await mountGifs(config, logger, app);
   await mountPublicPages(config, logger, app);
