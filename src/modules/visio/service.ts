@@ -74,10 +74,11 @@ export class VisioService {
       }),
     };
     let [path, response] = await this.#postToken(meetRoomId, body, accessToken);
-    // A 404 is not enough to drop a room (a Meet without the route, or a room of
-    // another application, answer it too): only a room Meet confirms gone is
-    // replaced, once per request. Anything else keeps the room and fails.
-    if (response.status === 404 && (await this.#isGone(meetRoomId))) {
+    // Meet answers a JSON 404 for a room it no longer has, and for a room made by
+    // another application (a rotated client_id): neither can serve us, so the row is
+    // replaced, once per request. A Meet without the route answers Django's HTML 404:
+    // that one keeps the row and fails.
+    if (response.status === 404 && (response.headers.get("content-type") ?? "").includes("application/json")) {
       await this.#callRooms?.forget(matrixRoomId, meetRoomId);
       [path, response] = await this.#postToken(await this.#ensureRoom(matrixRoomId), body, accessToken);
     }
@@ -101,26 +102,6 @@ export class VisioService {
       path,
       await this.#post(path, body, accessToken),
     ];
-  }
-
-  /**
-   * Whether Meet says the room no longer exists: a JSON 404 of the room itself,
-   * asked as its owner (the service account; the joiner has no role on it).
-   * Refused (403, a missing `rooms:retrieve` scope), failing or unreachable: not confirmed.
-   */
-  async #isGone(meetRoomId: string): Promise<boolean> {
-    const owner = this.#config.service_account_email;
-    if (!owner) {
-      return false;
-    }
-    try {
-      const accessToken = await this.#applicationToken(owner);
-      const response = await this.#http.get(`${ROOMS_PATH}${encodeURIComponent(meetRoomId)}/`, accessToken);
-
-      return response.status === 404 && (response.headers.get("content-type") ?? "").includes("application/json");
-    } catch {
-      return false;
-    }
   }
 
   #ensureRoom(matrixRoomId: string): Promise<string> {
