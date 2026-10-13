@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { createLogger } from "winston";
 
-import { BAD_GATEWAY, NOT_FOUND, SERVICE_UNAVAILABLE } from "../../errors/error-codes";
+import { BAD_GATEWAY, INVALID_INPUT, NOT_FOUND, SERVICE_UNAVAILABLE } from "../../errors/error-codes";
 import { loadMessages } from "../../i18n/index";
 import { BotsService, botIds } from "./service";
 import type { BotsSettings, SynapseAccess } from "./types";
@@ -151,6 +151,38 @@ describe("BotsService", () => {
       new BotsService(settings(), synapse, silentLogger).provision("@new:example.com", OWNER_TOKEN),
     ).rejects.toBeDefined();
     expect(existsSync(join(profilesDir, "bot_new", ".env"))).toBe(false);
+  });
+
+  it("refuses an owner whose localpart would leave the profiles folder", async () => {
+    profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
+    const fetchMock = mockFetch();
+    const service = new BotsService(settings(), synapse, silentLogger);
+    const refused = expect.objectContaining({
+      code: INVALID_INPUT,
+    });
+
+    for (const owner of [
+      "@x/../bot_bob:example.com",
+      "@a/b:example.com",
+      "@Up:example.com",
+      "@:example.com",
+    ]) {
+      await expect(service.provision(owner, OWNER_TOKEN)).rejects.toEqual(refused);
+      await expect(service.find(owner, OWNER_TOKEN)).rejects.toEqual(refused);
+      expect(() => service.setHome(owner, "!dm:example.com")).toThrow(refused);
+    }
+    // `..` is inside the charset: without a prefix, it names the folder above the profiles
+    const bare = new BotsService(
+      settings({
+        bot_localpart_prefix: "",
+      }),
+      synapse,
+      silentLogger,
+    );
+    await expect(bare.provision("@..:example.com", OWNER_TOKEN)).rejects.toEqual(refused);
+    await expect(bare.provision("@.:example.com", OWNER_TOKEN)).rejects.toEqual(refused);
+    expect(fetchMock.mock.calls).toHaveLength(0);
+    expect(existsSync(join(profilesDir, "..", ".env"))).toBe(false);
   });
 
   it("names the bot and its device after the owner", () => {

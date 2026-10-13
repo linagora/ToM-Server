@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 
 import type { Logger } from "winston";
 import type { z } from "zod";
@@ -41,6 +41,10 @@ export const botIds = (
   serverName: string,
 ): BotIds => {
   const ownerLocalpart = ownerId.slice(1, ownerId.indexOf(":"));
+  // The localpart names a folder: Matrix allows `/` in it, a profile must not leave its folder
+  if (!/^[a-z0-9._=-]+$/.test(ownerLocalpart)) {
+    throw new DomainError(INVALID_INPUT, "bots.invalid_owner");
+  }
   const localpart = `${config.bot_localpart_prefix}${ownerLocalpart}`;
   return {
     localpart,
@@ -197,7 +201,14 @@ export class BotsService {
 
   /** The Hermes profile of the bot, among the profiles of the agent. */
   #profileDir(bot: BotIds): string {
-    return join(this.#config.hermes_profiles_dir ?? "", bot.localpart);
+    const profiles = resolve(this.#config.hermes_profiles_dir ?? "");
+    const dir = resolve(profiles, bot.localpart);
+    // `.` and `..` are in the charset of a localpart: the profile stays under the profiles folder
+    const inside = relative(profiles, dir);
+    if (inside === "" || inside.startsWith(`..${sep}`) || inside === "..") {
+      throw new DomainError(INVALID_INPUT, "bots.invalid_owner");
+    }
+    return dir;
   }
 
   /** The `.env` of the profile of the bot: the bot exists once it is written. */
