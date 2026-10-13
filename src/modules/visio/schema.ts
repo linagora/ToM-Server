@@ -1,16 +1,10 @@
 import { z } from "zod";
 
 const DEFAULT_TIMEOUT_MS = 10000;
-const DEFAULT_TOKEN_TTL_SECONDS = 6 * 60 * 60;
 const REQUIRED_WHEN_ENABLED = [
   "base_url",
   "client_id",
   "client_secret",
-] as const;
-const LIVEKIT_REQUIRED_WHEN_ENABLED = [
-  "url",
-  "api_key",
-  "api_secret",
 ] as const;
 
 /** How the rooms ToM creates for the calls of Twake Chat are configured (D30 of Twake Chat). */
@@ -83,33 +77,6 @@ export const threepidsSchema = z.object({
   ),
 });
 
-/** The LiveKit server the calls of Twake Chat use, and the key ToM signs tokens with (D30, D-d). */
-export const livekitSettingsSchema = z
-  .object({
-    enabled: z.boolean().default(false),
-    url: z.string().optional(),
-    api_key: z.string().optional(),
-    api_secret: z.string().optional(),
-    token_ttl_seconds: z.number().int().positive().default(DEFAULT_TOKEN_TTL_SECONDS),
-  })
-  .superRefine((value, ctx) => {
-    if (!value.enabled) {
-      return;
-    }
-
-    for (const key of LIVEKIT_REQUIRED_WHEN_ENABLED) {
-      if (!value[key]) {
-        ctx.addIssue({
-          code: "custom",
-          path: [
-            key,
-          ],
-          message: `livekit.${key} is required when livekit.enabled is true`,
-        });
-      }
-    }
-  });
-
 /** The request of a MatrixRTC client to its token service (MSC4195, `POST /sfu/get`). */
 export const sfuGetRequestSchema = z.object({
   room: z.string().min(1),
@@ -175,6 +142,8 @@ export const meetRoomSchema = z.object({
 
 /** `POST /external-api/v1.0/rooms/{id}/livekit-token/`: the token Meet minted. */
 export const meetLivekitTokenSchema = z.object({
+  /** The LiveKit server the browsers connect to. */
+  url: z.string().min(1),
   room: z.string().min(1),
   token: z.string().min(1),
 });

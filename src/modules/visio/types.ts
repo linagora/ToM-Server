@@ -3,17 +3,11 @@ import type { z } from "zod";
 
 import type { AuthenticatedRequest } from "../../middleware/auth/types";
 import type { OpenIdValidator } from "./openid";
-import type {
-  livekitSettingsSchema,
-  sfuGetRequestSchema,
-  visioRoomResponseSchema,
-  visioSettingsSchema,
-} from "./schema";
+import type { sfuGetRequestSchema, visioRoomResponseSchema, visioSettingsSchema } from "./schema";
 import type { VisioService } from "./service";
 import type { SynapseAdmin } from "./synapse-admin";
 
 export type VisioSettings = z.infer<typeof visioSettingsSchema>;
-export type LivekitSettings = z.infer<typeof livekitSettingsSchema>;
 export type VisioRoom = z.infer<typeof visioRoomResponseSchema>;
 export type SfuGetRequest = z.infer<typeof sfuGetRequestSchema>;
 
@@ -26,8 +20,8 @@ export interface VisioDeps {
 export interface SfuDeps {
   openId: OpenIdValidator;
   admin: SynapseAdmin;
-  /** Meet behind the token service; undefined when `visio` is disabled (degraded mode only). */
-  service: VisioService | undefined;
+  /** Meet, behind the token service: the calls need it. */
+  service: VisioService;
 }
 
 /** What LiveKit will know the participant by. */

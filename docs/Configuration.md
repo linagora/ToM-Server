@@ -651,61 +651,52 @@ The route authenticates the user as described in
 from the homeserver (`/account/3pid`): Synapse must store exactly one email
 for each user, e.g. through the `email_template` of its OIDC user mapping.
 
-Two more fields serve the calls of Twake Chat (see [LiveKit](#livekit)):
+Two more fields serve the calls of Twake Chat (see [Call token service](#call-token-service)):
 
 | Field                   | Default                                                                                                        | Description                                                                                           |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `service_account_email` | —                                                                                                              | The account that owns the rooms made for the Matrix rooms. Required for Meet to mint the call tokens. |
 | `room_configuration`    | `{screen_recording_permission: authenticated, transcript_permission: authenticated, everyone_can_mute: false}` | The configuration of those rooms (`admin_owner` restricts to the owner of the room).                  |
 
-## LiveKit
+## Call token service
 
-Disabled by default. Serves the MatrixRTC token service (MSC4195) of the calls
-of Twake Chat: `POST /_twake/v1/video_call/sfu/get`. The homeserver names it
+Enabled with `visio` (it needs [Visio](#visio) and its `service_account_email`).
+Serves the MatrixRTC token service (MSC4195) of the calls of Twake Chat:
+`POST /_twake/v1/video_call/sfu/get`. The homeserver names it
 in its well-known as `org.matrix.msc4143.rtc_foci[].livekit_service_url`
 (`https://tom.example.com/_twake/v1/video_call`, the client appends
-`/sfu/get`).
-
-```yaml
-livekit:
-  enabled: true
-  url: "wss://livekit.example.com"
-  api_key: "devkey"
-  api_secret: "<LIVEKIT_API_SECRET>"
-  token_ttl_seconds: 21600
-```
-
-| Field               | Default | Description                                                                 |
-| ------------------- | ------- | --------------------------------------------------------------------------- |
-| `enabled`           | `false` | Enable the token service.                                                   |
-| `url`               | —       | The LiveKit server as the browsers reach it. Required when enabled.         |
-| `api_key`           | —       | The key LiveKit, Meet and ToM share. Required when enabled.                 |
-| `api_secret`        | —       | Its secret. Required when enabled.                                          |
-| `token_ttl_seconds` | `21600` | Lifetime of a token ToM signs itself; LiveKit refreshes it while connected. |
+`/sfu/get`). The LiveKit server and its key are Meet's: ToM answers the `url`
+Meet gives and holds no LiveKit setting.
 
 The request carries the OpenID token of the user (`openid_token`), the room
 and the device, as MSC4195 says: no Matrix access token. The service checks
 the token on the homeserver (`/_matrix/federation/v1/openid/userinfo`, only
 users of `server.name`), that the user is a member of the room (admin API),
-then answers `{"url", "jwt"}`. The LiveKit identity is always
+then answers `{"url", "jwt"}`, both from Meet. The LiveKit identity is always
 `{user id}:{device id}`, the one MatrixRTC clients derive for the media keys.
 
-With `visio` enabled, the room of a Matrix room is made once on Meet (owner:
-`service_account_email`, `room_access_level`, `room_configuration`) and Meet
+The room of a Matrix room is made once on Meet (owner:
+`service_account_email`, `room_access_level`, `room_configuration`) and the
+room is kept in the table `visio_call_rooms` (shared by every ToM replica, kept across
+restarts: a call never splits in two). Meet
 mints the token for the user (`POST
 /external-api/v1.0/rooms/{id}/livekit-token/`, a route of the Linagora fork),
-so that its recording, transcription and moderation know the participant.
-Without `visio`, or when Meet fails, ToM signs the token itself for the Meet
-room already made, or for a LiveKit room named after the Matrix room.
+so that its recording, transcription and moderation know the participant. ToM
+holds no LiveKit key: without Meet (`visio` disabled, Meet down or refusing),
+the call has no token and the service answers an error. When Meet answers `404` on
+the token route, ToM asks Meet, as the service account, whether the room still
+exists (`GET /external-api/v1.0/rooms/{id}/`, scope `rooms:retrieve`); only a JSON
+`404` there replaces the room, once per request. Any other answer keeps the room and
+fails with `502`.
 
-| Status | Meaning                                                              |
-| ------ | -------------------------------------------------------------------- |
-| `200`  | `{"url": "wss://…", "jwt": "…"}`                                     |
-| `400`  | The body is not an MSC4195 request.                                  |
-| `401`  | The homeserver rejected the OpenID token.                            |
-| `403`  | The token is for another homeserver, or the user is not in the room. |
-| `404`  | The service is disabled.                                             |
-| `502`  | The homeserver is unreachable or failing.                            |
+| Status | Meaning                                                                                                        |
+| ------ | -------------------------------------------------------------------------------------------------------------- |
+| `200`  | `{"url": "wss://…", "jwt": "…"}`                                                                               |
+| `400`  | The body is not an MSC4195 request.                                                                            |
+| `401`  | The homeserver rejected the OpenID token.                                                                      |
+| `403`  | The token is for another homeserver, or the user is not in the room.                                           |
+| `404`  | The service is disabled (`visio` off), or Meet cannot make a room for the user (no email, no service account). |
+| `502`  | The homeserver or Meet is unreachable, failing or refusing: no token is given.                                 |
 
 ### Route
 

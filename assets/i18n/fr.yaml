@@ -42,7 +42,8 @@ visio.user_not_local: "Seuls les utilisateurs de ce serveur peuvent rejoindre un
   appel ici"
 visio.openid_rejected: "Le jeton OpenID a été refusé par le serveur Matrix"
 visio.not_a_member: "Vous n'êtes pas membre de ce salon"
-visio.sfu_disabled: "Le service de jeton d'appel est désactivé"
+visio.sfu_disabled: "Le service de jeton d'appel est désactivé (il a besoin du
+  service de visio)"
 visio.no_service_account: "Le service de visio n'a pas de compte de service pour
   posséder les salles"
 
@@ -64,11 +65,8 @@ log.visio.upstream_failure: "échec du service visio amont sur {{endpoint}} :
   {{reason}}"
 log.visio.homeserver_failure: "échec du serveur Matrix sur {{endpoint}} :
   {{reason}}"
-log.visio.sfu_mounting: "Montage de sfuRouter... activé : {{enabled}}, meet :
-  {{meet}}"
+log.visio.sfu_mounting: "Montage de sfuRouter... activé : {{enabled}}"
 log.visio.sfu_disabled: "service de jeton d'appel désactivé"
-log.visio.degraded: "Meet n'a pas pu émettre le jeton d'appel, ToM le signe
-  lui-même : {{reason}}"
 
 # Bots
 bots.no_authenticated_user: "Aucun utilisateur authentifié"
