@@ -10,6 +10,8 @@ export interface CallRooms {
   get(matrixRoomId: string): Promise<string | undefined>;
   /** Records the Meet room; when another replica was first, returns its room instead. */
   add(matrixRoomId: string, meetRoomId: string): Promise<string>;
+  /** Drops the row only while it still holds this Meet room: a replica that was first keeps its new one. */
+  forget(matrixRoomId: string, meetRoomId: string): Promise<void>;
 }
 
 export class DbCallRooms implements CallRooms {
@@ -31,6 +33,20 @@ export class DbCallRooms implements CallRooms {
     );
 
     return rows[0] === undefined ? undefined : String(rows[0].meet_room_id);
+  }
+
+  forget(matrixRoomId: string, meetRoomId: string): Promise<void> {
+    return this.#db.deleteEqualAnd(
+      CALL_ROOMS_TABLE,
+      {
+        field: "matrix_room_id",
+        value: matrixRoomId,
+      },
+      {
+        field: "meet_room_id",
+        value: meetRoomId,
+      },
+    );
   }
 
   async add(matrixRoomId: string, meetRoomId: string): Promise<string> {

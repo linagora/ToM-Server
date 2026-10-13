@@ -683,7 +683,11 @@ mints the token for the user (`POST
 /external-api/v1.0/rooms/{id}/livekit-token/`, a route of the Linagora fork),
 so that its recording, transcription and moderation know the participant. ToM
 holds no LiveKit key: without Meet (`visio` disabled, Meet down or refusing),
-the call has no token and the service answers an error.
+the call has no token and the service answers an error. When Meet answers `404` on
+the token route, ToM asks Meet, as the service account, whether the room still
+exists (`GET /external-api/v1.0/rooms/{id}/`, scope `rooms:retrieve`); only a JSON
+`404` there replaces the room, once per request. Any other answer keeps the room and
+fails with `502`.
 
 | Status | Meaning                                                                                                        |
 | ------ | -------------------------------------------------------------------------------------------------------------- |

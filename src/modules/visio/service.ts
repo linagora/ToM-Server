@@ -65,23 +65,62 @@ export class VisioService {
     }
     const meetRoomId = await this.#ensureRoom(matrixRoomId);
     const accessToken = await this.#applicationToken(profile.email);
-    const path = `${ROOMS_PATH}${encodeURIComponent(meetRoomId)}/livekit-token/`;
-    const response = await this.#post(
-      path,
-      {
-        identity: participant.identity,
-        username: participant.name,
-        role: participant.role,
-        ...(profile.sub && {
-          sub: profile.sub,
-        }),
-      },
-      accessToken,
-    );
-    // A room Meet refuses (404: gone, or not one of this application) stays the
-    // room of the call, and the request fails: everyone is in the same LiveKit room.
-    // ponytail: replace it once LiveKit says it is empty, if Meet ever loses rooms
+    const body = {
+      identity: participant.identity,
+      username: participant.name,
+      role: participant.role,
+      ...(profile.sub && {
+        sub: profile.sub,
+      }),
+    };
+    let [path, response] = await this.#postToken(meetRoomId, body, accessToken);
+    // A 404 is not enough to drop a room (a Meet without the route, or a room of
+    // another application, answer it too): only a room Meet confirms gone is
+    // replaced, once per request. Anything else keeps the room and fails.
+    if (response.status === 404 && (await this.#isGone(meetRoomId))) {
+      await this.#callRooms?.forget(matrixRoomId, meetRoomId);
+      [path, response] = await this.#postToken(await this.#ensureRoom(matrixRoomId), body, accessToken);
+    }
+
     return this.#parse(path, response, meetLivekitTokenSchema);
+  }
+
+  async #postToken(
+    meetRoomId: string,
+    body: Record<string, unknown>,
+    accessToken: string,
+  ): Promise<
+    [
+      string,
+      Response,
+    ]
+  > {
+    const path = `${ROOMS_PATH}${encodeURIComponent(meetRoomId)}/livekit-token/`;
+
+    return [
+      path,
+      await this.#post(path, body, accessToken),
+    ];
+  }
+
+  /**
+   * Whether Meet says the room no longer exists: a JSON 404 of the room itself,
+   * asked as its owner (the service account; the joiner has no role on it).
+   * Refused (403, a missing `rooms:retrieve` scope), failing or unreachable: not confirmed.
+   */
+  async #isGone(meetRoomId: string): Promise<boolean> {
+    const owner = this.#config.service_account_email;
+    if (!owner) {
+      return false;
+    }
+    try {
+      const accessToken = await this.#applicationToken(owner);
+      const response = await this.#http.get(`${ROOMS_PATH}${encodeURIComponent(meetRoomId)}/`, accessToken);
+
+      return response.status === 404 && (response.headers.get("content-type") ?? "").includes("application/json");
+    } catch {
+      return false;
+    }
   }
 
   #ensureRoom(matrixRoomId: string): Promise<string> {
