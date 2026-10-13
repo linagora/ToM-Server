@@ -70,6 +70,9 @@ bots.disabled: "The assistants are disabled"
 bots.not_ready: "The assistant is being prepared, try again in a moment"
 bots.upstream_failure: "The homeserver failed to process the request"
 bots.invalid_room: "The room is not a Matrix room id"
+bots.invalid_owner: "The owner of the assistant has no usable user id"
+bots.account_taken:
+  "The account of the assistant exists and is not an assistant"
 bots.invalid_suggestions: "The switch of the suggestions is not a boolean"
 bots.suggestions_unavailable: "The assistants make no suggestions here"
 bots.not_provisioned: "The user has no assistant yet"
@@ -108,5 +111,6 @@ log.gifs.media_aborted: "GIF media transfer aborted"
 
 # Public pages
 log.public_pages.mounting: "Mounting publicPagesRouter..."
-log.public_pages.no_admin: "Public pages need synapse.admin credentials: not mounted"
+log.public_pages.no_admin:
+  "Public pages need synapse.admin credentials: not mounted"
 log.public_pages.failed: "public page failure: {{reason}}"

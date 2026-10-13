@@ -286,6 +286,41 @@ describe("bots router", () => {
 
     expect((await request(app).post(MY_BOT_ROUTE)).status).toBe(401);
     expect((await request(app).get(MY_BOT_ROUTE)).status).toBe(401);
+    expect(
+      (
+        await request(app).post(MY_BOT_HOME_ROUTE).send({
+          room_id: "!dm:example.com",
+        })
+      ).status,
+    ).toBe(401);
+    expect((await request(app).post(MY_BOT_RECOVER_ROUTE)).status).toBe(401);
+    expect((await request(app).get(MY_BOT_SUGGESTIONS_ROUTE)).status).toBe(401);
+    expect(
+      (
+        await request(app).put(MY_BOT_SUGGESTIONS_ROUTE).send({
+          enabled: true,
+        })
+      ).status,
+    ).toBe(401);
+  });
+
+  it("refuses a home room with a newline", async () => {
+    const app = makeApp(
+      createBotsRouter(
+        settings(true),
+        {
+          authenticate: authenticated,
+        },
+        serviceAnswering({}),
+        silentLogger,
+      ),
+    );
+
+    const response = await request(app).post(MY_BOT_HOME_ROUTE).send({
+      room_id: "!x:a\nMATRIX_HOMESERVER=evil",
+    });
+
+    expect(response.status).toBe(400);
   });
 
   it("takes the direct room of the user as the home channel of the bot", async () => {

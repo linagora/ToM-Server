@@ -122,7 +122,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const text = (value: unknown): string => (typeof value === "string" ? value : "");
 
 /**
- * THE gate: a room has a public page when anyone may read its history or join it, it is not
+ * THE gate: a room has a public page when anyone may read its history (`world_readable`; a room
+ * anyone may join but whose history is kept to members is not readable from outside), it is not
  * end-to-end encrypted and it is not a space. Every read of Synapse as admin goes through it.
  */
 export function isPublic(state: StateEvent[]): boolean {
@@ -130,8 +131,7 @@ export function isPublic(state: StateEvent[]): boolean {
     state.find((event) => event.type === type && event.state_key === "")?.content ?? {};
 
   return (
-    (of("m.room.history_visibility").history_visibility === "world_readable" ||
-      of("m.room.join_rules").join_rule === "public") &&
+    of("m.room.history_visibility").history_visibility === "world_readable" &&
     !state.some((event) => event.type === "m.room.encryption") &&
     of("m.room.create").type !== "m.space"
   );
@@ -227,6 +227,10 @@ export function readPage(ref: string, state: StateEvent[], messages: MessageEven
   }
   const of = (type: string): Record<string, unknown> =>
     state.find((event) => event.type === type && event.state_key === "")?.content ?? {};
+  // The rule applies per event: what was sent while the history was kept to members stays hidden
+  const since = state.find(
+    (event) => event.type === "m.room.history_visibility" && event.state_key === "",
+  )?.origin_server_ts;
   const members = state.filter((event) => event.type === "m.room.member");
   const names = new Map(
     members.map((event) => [
@@ -246,7 +250,7 @@ export function readPage(ref: string, state: StateEvent[], messages: MessageEven
     coverUrl: parseMxc(style.cover_url) ? text(style.cover_url) : null,
     accentColor: /^#[0-9a-f]{6}$/i.test(color) ? color : DEFAULT_ACCENT,
     followerCount: members.filter((event) => event.content.membership === "join").length,
-    posts: postsOf(messages, names),
+    posts: postsOf(since === undefined ? messages : messages.filter((m) => m.origin_server_ts >= since), names),
   };
 }
 
@@ -559,12 +563,7 @@ export function renderSitemap(
   },
 ): string {
   const urls = rooms
-    .filter(
-      (room) =>
-        (room.history_visibility === "world_readable" || room.join_rules === "public") &&
-        !room.encryption &&
-        room.room_type !== "m.space",
-    )
+    .filter((room) => room.history_visibility === "world_readable" && !room.encryption && room.room_type !== "m.space")
     .map((room) => sitemapRef(room, serverName))
     .filter((ref): ref is string => ref !== null)
     .map((ref) => `  <url><loc>${escapeHtml(publicUrl + pagePath(ref))}</loc></url>`);
