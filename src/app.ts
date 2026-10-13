@@ -116,6 +116,10 @@ async function mountSfu(config: Config, logger: Logger, app: Express, admin: Syn
   let deps: SfuDeps | undefined;
   // Without the service account that owns the rooms, Meet can make none: no token service
   const enabled = config.visio.enabled && Boolean(config.visio.service_account_email);
+  if (config.visio.enabled && !enabled) {
+    // Not a schema error: the room route of `visio` works without a service account
+    logger.error(translate("log.visio.no_service_account"));
+  }
   if (enabled) {
     const db = new Database<"visio_call_rooms">(mapToLegacyConfig(config), sfuLogger as never, CALL_ROOMS_SCHEMA);
     await db.ready;
@@ -307,8 +311,14 @@ export async function createApp(
 ): Promise<Express> {
   const app = express();
 
+  if (config.livekit !== undefined) {
+    logger.warn(translate("log.config.livekit_removed"));
+  }
   if (config.server.trust_x_forwarded_for) {
     const hops = config.server.trusted_proxies;
+    if (hops.length === 0) {
+      logger.warn(translate("log.config.trust_proxy_open"));
+    }
     app.set("trust proxy", hops.length > 0 ? hops : true);
   }
 

@@ -61,7 +61,7 @@ server:
 | `host`                   No          `"0.0.0.0"`  Bind address for the HTTP server.                                                        |
 | `port`                   No          `3000`       Listen port.                                                                             |
 | `trust_x_forwarded_for`  No          `false`      Enable when behind a reverse proxy.                                                      |
-| `trusted_proxies`        No          `[]`         List of trusted proxy IPs.                                                               |
+| `trusted_proxies`        No          `[]`         IPs or subnets of the trusted proxies; required for per-IP limits to hold behind a proxy. |
 | `additional_features`    No          `false`      Enable extra company features.                                                           |
 | `enable_cron_jobs`       No          `false`      Master switch for all scheduled background jobs.                                         |
 
@@ -81,8 +81,11 @@ server:
 
 This limit applies to the GIF routes and the assistant routes (`bots/me`),
 counted per user, and to the call token service (`sfu/get`), counted per IP
-address of the caller: set `trust_x_forwarded_for` behind a proxy, or every
-caller shares the address of the proxy. Past it the answer is `429
+address of the caller: set `trust_x_forwarded_for` and list the proxies in
+`trusted_proxies` behind a proxy, or every caller shares the address of the
+proxy. With `trust_x_forwarded_for` and no `trusted_proxies`, ToM trusts any
+`X-Forwarded-For` (a client can forge it to escape the limit) and warns at
+startup. Past it the answer is `429
 M_LIMIT_EXCEEDED`.
 
 ---
@@ -674,7 +677,8 @@ email.
 
 ## Call token service
 
-Enabled with `visio` (it needs [Visio](#visio) and its `service_account_email`).
+Enabled with `visio` (it needs [Visio](#visio) and its `service_account_email`;
+without it the service is not mounted and ToM logs an error at startup).
 Serves the MatrixRTC token service (MSC4195) of the calls of Twake Chat:
 `POST /_twake/v1/video_call/sfu/get`. The homeserver names it
 in its well-known as `org.matrix.msc4143.rtc_foci[].livekit_service_url`
