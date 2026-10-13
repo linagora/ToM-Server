@@ -119,6 +119,11 @@ export const loginResponseSchema = z.object({
   device_id: z.string().optional(),
 });
 
+/** An account of the admin API of Synapse: its type only. */
+export const existingUserSchema = z.object({
+  user_type: z.string().nullish(),
+});
+
 export const keysQueryResponseSchema = z.object({
   master_keys: z
     .record(

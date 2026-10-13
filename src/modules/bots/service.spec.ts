@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { createLogger } from "winston";
 
-import { BAD_GATEWAY, INVALID_INPUT, NOT_FOUND, SERVICE_UNAVAILABLE } from "../../errors/error-codes";
+import { BAD_GATEWAY, FORBIDDEN, INVALID_INPUT, NOT_FOUND, SERVICE_UNAVAILABLE } from "../../errors/error-codes";
 import { loadMessages } from "../../i18n/index";
 import { BotsService, botIds } from "./service";
 import type { BotsSettings, SynapseAccess } from "./types";
@@ -142,6 +142,7 @@ describe("BotsService", () => {
     expect(readFileSync(join(dir, ".env"), "utf8")).toBe(`MATRIX_USER_ID=${BOT}\n`);
 
     mockFetch(
+      json(404, {}),
       json(201, {}),
       json(200, {
         access_token: "syt_bot\nEVIL=1",
@@ -185,6 +186,61 @@ describe("BotsService", () => {
     expect(existsSync(join(profilesDir, "..", ".env"))).toBe(false);
   });
 
+  it("never takes over an account that exists and is no bot", async () => {
+    profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
+    const fetchMock = mockFetch(
+      json(200, {
+        name: BOT,
+        user_type: null,
+      }),
+    );
+    const service = new BotsService(settings(), synapse, silentLogger);
+
+    await expect(service.provision(OWNER, OWNER_TOKEN)).rejects.toMatchObject({
+      code: FORBIDDEN,
+    });
+
+    // Only the read: no PUT (password reset), no login
+    expect(fetchMock.mock.calls).toHaveLength(1);
+    expect(
+      (
+        fetchMock.mock.calls[0] as [
+          string,
+          RequestInit,
+        ]
+      )[1].method,
+    ).toBe("GET");
+    expect(existsSync(join(profilesDir, "bot_dwho", ".env"))).toBe(false);
+  });
+
+  it("provisions again an account that is already a bot", async () => {
+    profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
+    const fetchMock = mockFetch(
+      json(200, {
+        name: BOT,
+        user_type: "bot",
+      }),
+      json(200, {}),
+      json(200, {
+        access_token: "syt_bot",
+      }),
+      keysPublished(),
+    );
+    const service = new BotsService(settings(), synapse, silentLogger);
+
+    await service.provision(OWNER, OWNER_TOKEN);
+
+    expect(
+      (
+        fetchMock.mock.calls[1] as [
+          string,
+          RequestInit,
+        ]
+      )[1].method,
+    ).toBe("PUT");
+    expect(existsSync(join(profilesDir, "bot_dwho", ".env"))).toBe(true);
+  });
+
   it("names the bot and its device after the owner", () => {
     expect(botIds("@jean-luc.picard:example.com", settings(), "example.com")).toEqual({
       localpart: "bot_jean-luc.picard",
@@ -196,6 +252,7 @@ describe("BotsService", () => {
   it("creates the account, logs the bot in, writes its profile and answers its keys", async () => {
     profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
     const fetchMock = mockFetch(
+      json(404, {}),
       json(201, {}),
       json(200, {
         access_token: "syt_bot",
@@ -212,7 +269,7 @@ describe("BotsService", () => {
       deviceId: DEVICE,
       masterKey: MASTER_KEY,
     });
-    const [createUrl, createInit] = fetchMock.mock.calls[0] as [
+    const [createUrl, createInit] = fetchMock.mock.calls[1] as [
       string,
       RequestInit,
     ];
@@ -222,7 +279,7 @@ describe("BotsService", () => {
       admin: false,
       user_type: "bot",
     });
-    const [, loginInit] = fetchMock.mock.calls[1] as [
+    const [, loginInit] = fetchMock.mock.calls[2] as [
       string,
       RequestInit,
     ];
@@ -250,6 +307,7 @@ describe("BotsService", () => {
   it("points the profile at an OpenAI-compatible endpoint, the key in its config", async () => {
     profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
     mockFetch(
+      json(404, {}),
       json(201, {}),
       json(200, {
         access_token: "syt_bot",
@@ -283,6 +341,7 @@ describe("BotsService", () => {
   it("answers the same bot again without touching the homeserver, once the profile is there", async () => {
     profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
     mockFetch(
+      json(404, {}),
       json(201, {}),
       json(200, {
         access_token: "syt_bot",
@@ -302,6 +361,7 @@ describe("BotsService", () => {
   it("writes the timezone of the owner in the profile, and replaces it when it changes", async () => {
     profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
     mockFetch(
+      json(404, {}),
       json(201, {}),
       json(200, {
         access_token: "syt_bot",
@@ -375,6 +435,7 @@ describe("BotsService", () => {
   it("says the bot is not ready while Hermes has not published its keys", async () => {
     profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
     mockFetch(
+      json(404, {}),
       json(201, {}),
       json(200, {
         access_token: "syt_bot",
@@ -393,6 +454,7 @@ describe("BotsService", () => {
   it("reports a homeserver that refuses the account, and writes no profile", async () => {
     profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
     mockFetch(
+      json(404, {}),
       json(403, {
         errcode: "M_FORBIDDEN",
       }),
@@ -411,6 +473,7 @@ describe("BotsService", () => {
       json(200, {
         access_token: "syt_admin_login",
       }),
+      json(404, {}),
       json(201, {}),
       json(200, {
         access_token: "syt_bot",
@@ -442,7 +505,7 @@ describe("BotsService", () => {
       },
       password: "secret",
     });
-    const [, createInit] = fetchMock.mock.calls[1] as [
+    const [, createInit] = fetchMock.mock.calls[2] as [
       string,
       RequestInit,
     ];

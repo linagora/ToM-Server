@@ -6,11 +6,11 @@ import type { Logger } from "winston";
 import type { z } from "zod";
 
 import { DomainError } from "../../errors/domain-error";
-import { INVALID_INPUT } from "../../errors/error-codes";
+import { FORBIDDEN, INVALID_INPUT } from "../../errors/error-codes";
 import { translate } from "../../i18n/index";
 import { HttpClient, readJson } from "../../net/http-client";
 import { BotNotProvisionedError, BotNotReadyError, BotsDisabledError, BotsUpstreamError } from "./errors";
-import { keysQueryResponseSchema, loginResponseSchema } from "./schema";
+import { existingUserSchema, keysQueryResponseSchema, loginResponseSchema } from "./schema";
 import type { BotsSettings, MyBot, SynapseAccess } from "./types";
 
 const LOGIN_PATH = "/_matrix/client/v3/login";
@@ -165,6 +165,16 @@ export class BotsService {
   async #createAccount(botUserId: string, ownerId: string): Promise<void> {
     const path = `/_synapse/admin/v2/users/${encodeURIComponent(botUserId)}`;
     const admin = await this.#admin();
+    // The PUT creates or modifies: an account that is no bot is never touched
+    const existing = await this.#request(() => this.#http.get(path, admin));
+    if (existing.status !== 404) {
+      const user = await this.#parse(path, existing, existingUserSchema);
+      if (user.user_type !== "bot") {
+        throw new DomainError(FORBIDDEN, "bots.account_taken", {
+          bot: botUserId,
+        });
+      }
+    }
     const response = await this.#request(() =>
       this.#http.put(
         path,
