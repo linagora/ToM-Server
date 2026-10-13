@@ -9,6 +9,8 @@ import type { MatrixProfile } from "./types";
 
 const LOGIN_PATH = "/_matrix/client/v3/login";
 const MODERATOR_POWER_LEVEL = 50;
+/** From this room version, the creators hold the power of `m.room.create`, not a level in `m.room.power_levels`. */
+const CREATORS_FROM_ROOM_VERSION = 12;
 
 export interface SynapseAdminSettings {
   serverUrl: string;
@@ -57,6 +59,13 @@ export class SynapseAdmin {
   async isModerator(userId: string, roomId: string): Promise<boolean> {
     const path = `/_synapse/admin/v1/rooms/${encodeURIComponent(roomId)}/state`;
     const body = await this.#parse(path, await this.#get(path), roomStateSchema);
+    const create = body.state.find((event) => event.type === "m.room.create");
+    if (Number(create?.content.room_version) >= CREATORS_FROM_ROOM_VERSION) {
+      const additional = Array.isArray(create?.content.additional_creators) ? create.content.additional_creators : [];
+      if (create?.sender === userId || additional.includes(userId)) {
+        return true;
+      }
+    }
     const content = body.state.find((event) => event.type === "m.room.power_levels")?.content ?? {};
     const users = content.users as Record<string, unknown> | undefined;
     const level = users?.[userId] ?? content.users_default ?? 0;

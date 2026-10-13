@@ -165,6 +165,40 @@ describe("SynapseAdmin", () => {
     expect(await admin.isModerator("@bob:localhost", "!room:localhost")).toBe(false);
   });
 
+  it("should make the creators of a room of version 12 moderators, whatever its power levels", async () => {
+    // Arrange
+    const state = (roomVersion: string): Response =>
+      json(200, {
+        state: [
+          {
+            type: "m.room.create",
+            sender: "@alice:localhost",
+            content: {
+              room_version: roomVersion,
+              additional_creators: [
+                "@carol:localhost",
+              ],
+            },
+          },
+          {
+            type: "m.room.power_levels",
+            content: {
+              users_default: 0,
+            },
+          },
+        ],
+      });
+    mockFetch(loginOk(), state("12"), state("12"), state("12"), state("11"));
+    const admin = new SynapseAdmin(settings, silentLogger);
+
+    // Act & Assert
+    expect(await admin.isModerator("@alice:localhost", "!room:localhost")).toBe(true);
+    expect(await admin.isModerator("@carol:localhost", "!room:localhost")).toBe(true);
+    expect(await admin.isModerator("@bob:localhost", "!room:localhost")).toBe(false);
+    // Before version 12 the creator is only what the power levels say
+    expect(await admin.isModerator("@alice:localhost", "!room:localhost")).toBe(false);
+  });
+
   it("should read the name, the single email and the OIDC subject of a user", async () => {
     // Arrange
     mockFetch(

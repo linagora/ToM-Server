@@ -101,11 +101,12 @@ export const roomMembersSchema = z.object({
   members: z.array(z.string()),
 });
 
-/** `GET /_synapse/admin/v1/rooms/{roomId}/state`: only the power levels are read. */
+/** `GET /_synapse/admin/v1/rooms/{roomId}/state`: only the power levels and the creators are read. */
 export const roomStateSchema = z.object({
   state: z.array(
     z.object({
       type: z.string(),
+      sender: z.string().optional(),
       content: z.record(z.string(), z.unknown()),
     }),
   ),
