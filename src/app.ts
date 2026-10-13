@@ -95,6 +95,7 @@ async function mountSfu(config: Config, logger: Logger, app: Express): Promise<v
         {
           serverUrl: config.synapse.server_url,
           timeoutMs: config.auth.timeout_ms,
+          oidcProvider: config.visio.oidc_provider,
           admin: {
             login: config.synapse.admin?.login ?? "",
             password: config.synapse.admin?.password ?? "",

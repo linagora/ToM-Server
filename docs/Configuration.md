@@ -658,6 +658,12 @@ Two more fields serve the calls of Twake Chat (see [Call token service](#call-to
 | `service_account_email` | —                                                                                                              | The account that owns the rooms made for the Matrix rooms. Required for Meet to mint the call tokens. |
 | `room_configuration`    | `{screen_recording_permission: authenticated, transcript_permission: authenticated, everyone_can_mute: false}` | The configuration of those rooms (`admin_owner` restricts to the owner of the room).                  |
 
+`oidc_provider` is the `idp_id` Synapse gives the OIDC provider of Twake
+(`oidc_providers` of its configuration). The OIDC subject sent to Meet is the
+`external_id` of the user at that provider; with no `oidc_provider`, or when the
+user has no identity there, no subject is sent and Meet matches the user by
+email.
+
 ## Call token service
 
 Enabled with `visio` (it needs [Visio](#visio) and its `service_account_email`).

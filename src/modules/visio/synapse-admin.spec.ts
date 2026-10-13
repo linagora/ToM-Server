@@ -37,6 +37,11 @@ const settings = {
   },
 };
 
+const withProvider = {
+  ...settings,
+  oidcProvider: "oidc-twake",
+};
+
 const loginOk = (): Response =>
   json(200, {
     access_token: "admin-token",
@@ -190,7 +195,7 @@ describe("SynapseAdmin", () => {
         threepids: [],
       }),
     );
-    const admin = new SynapseAdmin(settings, silentLogger);
+    const admin = new SynapseAdmin(withProvider, silentLogger);
 
     // Act & Assert
     expect(await admin.profile("@alice:localhost")).toEqual({
@@ -203,6 +208,57 @@ describe("SynapseAdmin", () => {
       email: null,
       sub: null,
     });
+  });
+
+  it("should send the subject of the configured provider only, and none without one", async () => {
+    // Arrange
+    const user = (): Response =>
+      json(200, {
+        displayname: "Alice",
+        external_ids: [
+          {
+            auth_provider: "saml",
+            external_id: "saml-sub",
+          },
+          {
+            auth_provider: "oidc-twake",
+            external_id: "oidc-sub",
+          },
+        ],
+      });
+    mockFetch(
+      user(),
+      json(200, {
+        external_ids: [
+          {
+            auth_provider: "saml",
+            external_id: "saml-sub",
+          },
+        ],
+      }),
+      user(),
+    );
+    const withToken = (config: typeof settings): SynapseAdmin =>
+      new SynapseAdmin(
+        {
+          ...config,
+          admin: {
+            ...config.admin,
+            accessToken: "configured-token",
+          },
+        },
+        silentLogger,
+      );
+
+    // Act
+    const chosen = await withToken(withProvider).profile("@alice:localhost");
+    const otherOnly = await withToken(withProvider).profile("@alice:localhost");
+    const unconfigured = await withToken(settings).profile("@alice:localhost");
+
+    // Assert
+    expect(chosen.sub).toBe("oidc-sub");
+    expect(otherOnly.sub).toBeNull();
+    expect(unconfigured.sub).toBeNull();
   });
 
   it("should answer BAD_GATEWAY when the homeserver fails", async () => {

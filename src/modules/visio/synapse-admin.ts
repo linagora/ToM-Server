@@ -13,6 +13,8 @@ const MODERATOR_POWER_LEVEL = 50;
 export interface SynapseAdminSettings {
   serverUrl: string;
   timeoutMs: number;
+  /** `idp_id` of the OIDC provider whose subject Meet binds to its user; none, none sent. */
+  oidcProvider?: string;
   admin: {
     login: string;
     password: string;
@@ -70,7 +72,9 @@ export class SynapseAdmin {
     return {
       displayName: body.displayname ?? null,
       email: emails.length === 1 ? (emails[0]?.address ?? null) : null,
-      sub: body.external_ids[0]?.external_id ?? null,
+      sub: this.#config.oidcProvider
+        ? (body.external_ids.find((id) => id.auth_provider === this.#config.oidcProvider)?.external_id ?? null)
+        : null,
     };
   }
 

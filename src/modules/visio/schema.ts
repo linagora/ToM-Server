@@ -37,6 +37,8 @@ export const visioSettingsSchema = z
         "restricted",
       ])
       .optional(),
+    /** The `idp_id` Synapse gives the OIDC provider of Twake: the subject sent to Meet is the one of this provider. */
+    oidc_provider: z.string().optional(),
     /** The owner of the rooms of the calls of Twake Chat: a service account, no human. */
     service_account_email: z.email().optional(),
     room_configuration: roomConfigurationSchema.prefault({}),
