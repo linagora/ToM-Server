@@ -4,7 +4,7 @@ import type { z } from "zod";
 import { translate } from "../../i18n/index";
 import { HttpClient, readJson } from "../../net/http-client";
 import { VisioUpstreamError } from "./errors";
-import { adminUserSchema, loginResponseSchema, roomMembersSchema, roomStateSchema } from "./schema";
+import { adminUserSchema, loginResponseSchema, joinedRoomsSchema, roomStateSchema } from "./schema";
 import type { MatrixProfile } from "./types";
 
 const LOGIN_PATH = "/_matrix/client/v3/login";
@@ -45,14 +45,15 @@ export class SynapseAdmin {
   }
 
   async isMember(userId: string, roomId: string): Promise<boolean> {
-    const path = `/_synapse/admin/v1/rooms/${encodeURIComponent(roomId)}/members`;
+    // One small read of the user's rooms, not the member list of a room that may hold thousands
+    const path = `/_synapse/admin/v1/users/${encodeURIComponent(userId)}/joined_rooms`;
     const response = await this.#get(path);
     if (response.status === 404) {
       return false;
     }
-    const body = await this.#parse(path, response, roomMembersSchema);
+    const body = await this.#parse(path, response, joinedRoomsSchema);
 
-    return body.members.includes(userId);
+    return body.joined_rooms.includes(roomId);
   }
 
   /** True when the user may moderate the room (power level of a moderator or more). */

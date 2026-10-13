@@ -59,19 +59,18 @@ describe("SynapseAdmin", () => {
     globalThis.fetch = originalFetch;
   });
 
-  it("should log in once with the admin credentials, then read the members", async () => {
+  it("should log in once with the admin credentials, then read the rooms of the user", async () => {
     // Arrange
     const fetchMock = mockFetch(
       loginOk(),
       json(200, {
-        members: [
-          "@alice:localhost",
-          "@bob:localhost",
+        joined_rooms: [
+          "!room:localhost",
         ],
-        total: 2,
+        total: 1,
       }),
       json(200, {
-        members: [],
+        joined_rooms: [],
         total: 0,
       }),
     );
@@ -87,7 +86,7 @@ describe("SynapseAdmin", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls[0]?.[0]).toBe("https://localhost:8448/_matrix/client/v3/login");
     expect(fetchMock.mock.calls[1]?.[0]).toBe(
-      "https://localhost:8448/_synapse/admin/v1/rooms/!room%3Alocalhost/members",
+      "https://localhost:8448/_synapse/admin/v1/users/%40alice%3Alocalhost/joined_rooms",
     );
     expect((fetchMock.mock.calls[1]?.[1]?.headers as Record<string, string> | undefined)?.Authorization).toBe(
       "Bearer admin-token",

@@ -102,9 +102,9 @@ export const openIdUserInfoSchema = z.object({
   sub: z.string().regex(/^@[^:]+:.+$/),
 });
 
-/** `GET /_synapse/admin/v1/rooms/{roomId}/members` */
-export const roomMembersSchema = z.object({
-  members: z.array(z.string()),
+/** `GET /_synapse/admin/v1/users/{userId}/joined_rooms`: the rooms the user is in. */
+export const joinedRoomsSchema = z.object({
+  joined_rooms: z.array(z.string()),
 });
 
 /** `GET /_synapse/admin/v1/rooms/{roomId}/state`: only the power levels and the creators are read. */

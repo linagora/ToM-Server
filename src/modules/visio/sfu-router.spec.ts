@@ -63,10 +63,11 @@ const userInfo = (): Response =>
   });
 const members = (): Response =>
   json(200, {
-    members: [
-      "@alice:localhost",
+    joined_rooms: [
+      "!other:localhost",
+      "!room:localhost",
     ],
-    total: 1,
+    total: 2,
   });
 const profile = (): Response =>
   json(200, {
@@ -231,7 +232,7 @@ describe("SfuRouter", () => {
   it("should answer 400 when the identity would pass the 255 characters of Meet", async () => {
     // Arrange
     const longUser = `@${"a".repeat(200)}:localhost`;
-    mockFetch(json(200, { sub: longUser }), json(200, { members: [longUser], total: 1 }));
+    mockFetch(json(200, { sub: longUser }), members());
 
     // Act
     const response = await request(app())
@@ -717,8 +718,8 @@ describe("SfuRouter", () => {
     mockFetch(
       userInfo(),
       json(200, {
-        members: [
-          "@bob:localhost",
+        joined_rooms: [
+          "!other:localhost",
         ],
         total: 1,
       }),
