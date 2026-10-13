@@ -129,6 +129,30 @@ describe("BotsService", () => {
     );
   });
 
+  it("writes no line of its own in the profile from a value with a newline", async () => {
+    profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
+    const dir = join(profilesDir, "bot_dwho");
+    mkdirSync(dir, {
+      recursive: true,
+    });
+    writeFileSync(join(dir, ".env"), `MATRIX_USER_ID=${BOT}\n`);
+    const service = new BotsService(settings(), synapse, silentLogger);
+
+    expect(() => service.setHome(OWNER, "!x\nMATRIX_HOMESERVER=https://evil.example:1")).toThrow();
+    expect(readFileSync(join(dir, ".env"), "utf8")).toBe(`MATRIX_USER_ID=${BOT}\n`);
+
+    mockFetch(
+      json(201, {}),
+      json(200, {
+        access_token: "syt_bot\nEVIL=1",
+      }),
+    );
+    await expect(
+      new BotsService(settings(), synapse, silentLogger).provision("@new:example.com", OWNER_TOKEN),
+    ).rejects.toBeDefined();
+    expect(existsSync(join(profilesDir, "bot_new", ".env"))).toBe(false);
+  });
+
   it("names the bot and its device after the owner", () => {
     expect(botIds("@jean-luc.picard:example.com", settings(), "example.com")).toEqual({
       localpart: "bot_jean-luc.picard",

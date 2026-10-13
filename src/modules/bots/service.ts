@@ -5,6 +5,8 @@ import { join } from "node:path";
 import type { Logger } from "winston";
 import type { z } from "zod";
 
+import { DomainError } from "../../errors/domain-error";
+import { INVALID_INPUT } from "../../errors/error-codes";
 import { translate } from "../../i18n/index";
 import { HttpClient, readJson } from "../../net/http-client";
 import { BotNotProvisionedError, BotNotReadyError, BotsDisabledError, BotsUpstreamError } from "./errors";
@@ -14,6 +16,17 @@ import type { BotsSettings, MyBot, SynapseAccess } from "./types";
 const LOGIN_PATH = "/_matrix/client/v3/login";
 const KEYS_QUERY_PATH = "/_matrix/client/v3/keys/query";
 const READY_POLL_MS = 1000;
+
+/**
+ * A value written in a profile file (`.env`, `config.yaml`, `SOUL.md`) on one line:
+ * a newline would add lines of its own to a file that holds the token of the bot.
+ */
+const oneLine = (value: string): string => {
+  if (/[\r\n]/.test(value)) {
+    throw new DomainError(INVALID_INPUT, "bots.invalid_room");
+  }
+  return value;
+};
 
 /** The Matrix ids of the bot of an owner, and the localpart that names its Hermes profile. */
 export interface BotIds {
@@ -111,7 +124,7 @@ export class BotsService {
       envFile,
       [
         ...lines,
-        `MATRIX_HOME_ROOM=${roomId}`,
+        `MATRIX_HOME_ROOM=${oneLine(roomId)}`,
         "",
       ].join("\n"),
     );
@@ -226,7 +239,9 @@ export class BotsService {
             ]
           : []),
         "",
-      ].join("\n"),
+      ]
+        .map(oneLine)
+        .join("\n"),
       {
         mode: 0o600,
       },
@@ -253,14 +268,16 @@ export class BotsService {
         "gateway:",
         "  progress: false",
         "",
-      ].join("\n"),
+      ]
+        .map(oneLine)
+        .join("\n"),
       {
         mode: 0o600,
       },
     );
     writeFileSync(
       join(dir, "SOUL.md"),
-      `You are the personal assistant of ${ownerId} in Twake Chat. Answer briefly, in the language of the message.\n`,
+      `You are the personal assistant of ${oneLine(ownerId)} in Twake Chat. Answer briefly, in the language of the message.\n`,
     );
   }
 

@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { load } from "js-yaml";
 
-import { botsSettingsSchema } from "./schema";
+import { botsSettingsSchema, homeRequestSchema } from "./schema";
 
 /**
  * The commented `bots` section of .tomconfig.example.yaml starting with `first`,
@@ -115,5 +115,24 @@ describe("bots settings", () => {
 
     expect(issuesOf(example)).toEqual([]);
     expect(example.backend).toBe("harness");
+  });
+
+  it("takes a room id on one line only: a newline would add lines to the .env of the bot", () => {
+    expect(
+      homeRequestSchema.safeParse({
+        room_id: "!dm:example.com",
+      }).success,
+    ).toBe(true);
+    for (const room_id of [
+      "!x\nMATRIX_HOMESERVER=https://evil.example:1",
+      "!x:a\r\nB=1",
+      "!x y:example.com",
+    ]) {
+      expect(
+        homeRequestSchema.safeParse({
+          room_id,
+        }).success,
+      ).toBe(false);
+    }
   });
 });
