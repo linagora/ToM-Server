@@ -10,6 +10,9 @@ export interface SfuGetResponse {
   jwt: string;
 }
 
+/** The longest identity Meet takes. */
+const MAX_IDENTITY_LENGTH = 255;
+
 const localpart = (userId: string): string => userId.slice(1, userId.indexOf(":"));
 
 /**
@@ -24,10 +27,16 @@ export async function sfuGetController(body: unknown, deps: SfuDeps): Promise<Sf
   if (!(await deps.admin.isMember(userId, request.room))) {
     throw new VisioForbiddenError("visio.not_a_member");
   }
+  // The identity every MatrixRTC client derives for this device: never anything else
+  const identity = `${userId}:${request.device_id}`;
+  if (identity.length > MAX_IDENTITY_LENGTH) {
+    throw new DomainError(INVALID_INPUT, "visio.invalid_request", {
+      detail: "device_id",
+    });
+  }
   const profile = await deps.admin.profile(userId);
   const participant: CallParticipant = {
-    // The identity every MatrixRTC client derives for this device: never anything else
-    identity: `${userId}:${request.device_id}`,
+    identity,
     name: profile.displayName ?? localpart(userId),
     role: (await deps.admin.isModerator(userId, request.room)) ? "administrator" : "member",
     attributes: {

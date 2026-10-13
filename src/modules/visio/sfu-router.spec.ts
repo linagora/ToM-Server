@@ -207,6 +207,44 @@ describe("SfuRouter", () => {
     expect(response.body.code).toBe(INVALID_INPUT);
   });
 
+  it("should answer 400 for a device id that Meet would split wrong", async () => {
+    // Arrange
+    mockFetch();
+
+    // Act
+    const withColon = await request(app()).post(SFU_ROUTE).send({
+      ...body,
+      device_id: "DEV:ICE",
+    });
+    const tooLong = await request(app())
+      .post(SFU_ROUTE)
+      .send({
+        ...body,
+        device_id: "D".repeat(129),
+      });
+
+    // Assert
+    expect(withColon.status).toBe(400);
+    expect(tooLong.status).toBe(400);
+  });
+
+  it("should answer 400 when the identity would pass the 255 characters of Meet", async () => {
+    // Arrange
+    const longUser = `@${"a".repeat(200)}:localhost`;
+    mockFetch(json(200, { sub: longUser }), json(200, { members: [longUser], total: 1 }));
+
+    // Act
+    const response = await request(app())
+      .post(SFU_ROUTE)
+      .send({
+        ...body,
+        device_id: "D".repeat(128),
+      });
+
+    // Assert
+    expect(response.status).toBe(400);
+  });
+
   it("should answer 404 and no token when visio is disabled", async () => {
     // Arrange
     const fetchMock = mockFetch();

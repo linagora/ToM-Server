@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const DEFAULT_TIMEOUT_MS = 10000;
+const MAX_DEVICE_ID_LENGTH = 128;
 const REQUIRED_WHEN_ENABLED = [
   "base_url",
   "client_id",
@@ -88,7 +89,12 @@ export const sfuGetRequestSchema = z.object({
     matrix_server_name: z.string().min(1),
     expires_in: z.number().optional(),
   }),
-  device_id: z.string().min(1),
+  // The identity is `{mxid}:{device_id}` and Meet splits it at the last colon (255 characters at most)
+  device_id: z
+    .string()
+    .min(1)
+    .max(MAX_DEVICE_ID_LENGTH)
+    .regex(/^[^:]+$/),
 });
 
 /** `GET /_matrix/federation/v1/openid/userinfo`: the user the OpenID token stands for. */
