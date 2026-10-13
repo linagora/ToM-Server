@@ -4,7 +4,7 @@ import type { z } from "zod";
 import { translate } from "../../i18n/index";
 import { HttpClient, readJson } from "../../net/http-client";
 import { VisioUpstreamError } from "./errors";
-import { adminUserSchema, loginResponseSchema, joinedRoomsSchema, roomStateSchema } from "./schema";
+import { adminUserSchema, joinedRoomsSchema, loginResponseSchema, roomStateSchema } from "./schema";
 import type { MatrixProfile } from "./types";
 
 const LOGIN_PATH = "/_matrix/client/v3/login";
@@ -155,13 +155,13 @@ export class SynapseAdmin {
     }
   }
 
-  async #adminToken(): Promise<string> {
+  #adminToken(): Promise<string> {
     if (this.#token) {
-      return this.#token;
+      return Promise.resolve(this.#token);
     }
     if (this.#config.admin.accessToken) {
       this.#token = this.#config.admin.accessToken;
-      return this.#token;
+      return Promise.resolve(this.#token);
     }
     // Calls that need a token meanwhile share the login in flight: one device, not one per call
     this.#login ??= this.#logIn().finally(() => {

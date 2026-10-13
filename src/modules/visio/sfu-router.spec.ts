@@ -237,10 +237,12 @@ describe("SfuRouter", () => {
     mockFetch();
 
     // Act
-    const withColon = await request(app()).post(SFU_ROUTE).send({
-      ...body,
-      device_id: "DEV:ICE",
-    });
+    const withColon = await request(app())
+      .post(SFU_ROUTE)
+      .send({
+        ...body,
+        device_id: "DEV:ICE",
+      });
     const tooLong = await request(app())
       .post(SFU_ROUTE)
       .send({
@@ -256,7 +258,12 @@ describe("SfuRouter", () => {
   it("should answer 400 when the identity would pass the 255 characters of Meet", async () => {
     // Arrange
     const longUser = `@${"a".repeat(200)}:localhost`;
-    mockFetch(json(200, { sub: longUser }), members());
+    mockFetch(
+      json(200, {
+        sub: longUser,
+      }),
+      members(),
+    );
 
     // Act
     const response = await request(app())

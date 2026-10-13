@@ -149,9 +149,7 @@ describe("SynapseAdmin", () => {
     // Act & Assert
     await expect(admin.isMember("@alice:localhost", "!room:localhost")).rejects.toBeInstanceOf(VisioUpstreamError);
     expect(fetchMock).toHaveBeenCalledTimes(4);
-    await expect(configured.isMember("@alice:localhost", "!room:localhost")).rejects.toBeInstanceOf(
-      VisioUpstreamError,
-    );
+    await expect(configured.isMember("@alice:localhost", "!room:localhost")).rejects.toBeInstanceOf(VisioUpstreamError);
     expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 

@@ -5,10 +5,17 @@ import { join } from "node:path";
 
 import { createLogger } from "winston";
 
-import { BAD_GATEWAY, FORBIDDEN, INVALID_INPUT, NOT_FOUND, SERVICE_UNAVAILABLE, UNPROCESSABLE } from "../../errors/error-codes";
+import {
+  BAD_GATEWAY,
+  FORBIDDEN,
+  INVALID_INPUT,
+  NOT_FOUND,
+  SERVICE_UNAVAILABLE,
+  UNPROCESSABLE,
+} from "../../errors/error-codes";
 import { loadMessages } from "../../i18n/index";
-import { BotsService, botIds } from "./service";
 import { SynapseAdmin } from "../visio/synapse-admin";
+import { BotsService, botIds } from "./service";
 import type { BotsSettings, SynapseAccess } from "./types";
 
 const silentLogger = createLogger({
