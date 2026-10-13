@@ -342,6 +342,29 @@ describe("BotsService", () => {
     );
   });
 
+  it("makes the bot once for two calls of the same owner that start together", async () => {
+    profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
+    const fetchMock = mockFetch(
+      json(404, {}),
+      json(201, {}),
+      json(200, {
+        access_token: "syt_bot",
+        device_id: DEVICE,
+      }),
+      keysPublished(),
+    );
+    const service = new BotsService(settings(), synapse, silentLogger);
+
+    const [first, second] = await Promise.all([
+      service.provision(OWNER, OWNER_TOKEN),
+      service.provision(OWNER, OWNER_TOKEN),
+    ]);
+
+    expect(second).toEqual(first);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(readFileSync(join(profilesDir, "bot_dwho", ".env"), "utf8")).toContain("MATRIX_ACCESS_TOKEN=syt_bot");
+  });
+
   it("points the profile at an OpenAI-compatible endpoint, the key in its config", async () => {
     profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
     mockFetch(

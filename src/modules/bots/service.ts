@@ -65,6 +65,7 @@ export class BotsService {
   #synapse: SynapseAccess;
   #http: HttpClient;
   #log: Logger;
+  #provisioning = new Map<string, Promise<MyBot>>();
 
   constructor(config: BotsSettings, synapse: SynapseAccess, logger: Logger) {
     this.#config = config;
@@ -76,7 +77,20 @@ export class BotsService {
     this.#log = logger;
   }
 
-  async provision(ownerId: string, ownerToken: string, timezone?: string): Promise<MyBot> {
+  /** One provisioning at a time for an owner: a second call waits for the first, not for another login. */
+  provision(ownerId: string, ownerToken: string, timezone?: string): Promise<MyBot> {
+    let pending = this.#provisioning.get(ownerId);
+    if (!pending) {
+      pending = this.#provision(ownerId, ownerToken, timezone).finally(() => {
+        this.#provisioning.delete(ownerId);
+      });
+      this.#provisioning.set(ownerId, pending);
+    }
+
+    return pending;
+  }
+
+  async #provision(ownerId: string, ownerToken: string, timezone?: string): Promise<MyBot> {
     const bot = botIds(ownerId, this.#config, this.#synapse.serverName);
     const profileDir = this.#profileDir(bot);
 
