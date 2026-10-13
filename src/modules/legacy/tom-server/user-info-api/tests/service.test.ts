@@ -7432,6 +7432,22 @@ describe('User Info Service GET theme: Common settings ON', () => {
     expect(user).toHaveProperty('theme', MOCK_DATA.COMMON_SETTINGS.theme)
   })
 
+  it('Should drop a theme that is not light, dark or auto', async () => {
+    mockMatrix({ displayName: true })
+    const settings = MOCK_DATA.COMMON_SETTINGS as { theme: string }
+    const theme = settings.theme
+    settings.theme = '<script>'
+    try {
+      mockTwakeDB({ theme: true })
+
+      const user = await svc.get(MATRIX_MXID, MATRIX_MXID)
+
+      expect(user).not.toHaveProperty('theme')
+    } finally {
+      settings.theme = theme
+    }
+  })
+
   it('Should not return the theme to another user', async () => {
     mockMatrix({ displayName: true })
     mockTwakeDB({ theme: true })
