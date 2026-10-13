@@ -396,6 +396,40 @@ describe("SynapseAdmin", () => {
     expect(unconfigured.sub).toBeNull();
   });
 
+  it("should match the provider given as the bare idp_id Synapse prefixes with oidc-", async () => {
+    // Arrange
+    const user = (provider: string): Response =>
+      json(200, {
+        external_ids: [
+          {
+            auth_provider: provider,
+            external_id: "oidc-sub",
+          },
+        ],
+      });
+    mockFetch(user("oidc-twake"), user("oidc"));
+    const admin = (oidcProvider: string): SynapseAdmin =>
+      new SynapseAdmin(
+        {
+          ...settings,
+          oidcProvider,
+          admin: {
+            ...settings.admin,
+            accessToken: "configured-token",
+          },
+        },
+        silentLogger,
+      );
+
+    // Act
+    const bare = await admin("twake").profile("@alice:localhost");
+    const legacy = await admin("oidc").profile("@alice:localhost");
+
+    // Assert
+    expect(bare.sub).toBe("oidc-sub");
+    expect(legacy.sub).toBe("oidc-sub");
+  });
+
   it("should answer BAD_GATEWAY when the homeserver fails", async () => {
     // Arrange
     mockFetch(loginOk(), json(500, {}));
