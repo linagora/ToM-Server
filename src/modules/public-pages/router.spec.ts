@@ -410,6 +410,118 @@ describe("public pages router", () => {
     expect((await request(app).get("/sitemap.xml")).text).toContain("<loc>https://pages.test/b/figaro</loc>");
   });
 
+  describe("sitemap", () => {
+    const listed = (id: string, alias: string) => ({
+      room_id: id,
+      canonical_alias: alias,
+      history_visibility: "world_readable",
+      encryption: null,
+      room_type: null,
+    });
+    const sitemapSource = () => {
+      const source = fakeSource();
+      const calls = {
+        list: 0,
+        state: 0,
+      };
+      const readState = source.readState;
+      source.listRooms = () => {
+        calls.list += 1;
+
+        return Promise.resolve([
+          listed("!page:hs", "#figaro:hs"),
+          listed("!off:hs", "#off:hs"),
+        ]);
+      };
+      source.readState = (roomId) => {
+        calls.state += 1;
+
+        return readState(roomId);
+      };
+
+      return {
+        source,
+        calls,
+      };
+    };
+
+    it("renders once for ten concurrent hits, and again only after five minutes", async () => {
+      const { source, calls } = sitemapSource();
+      let clock = 1_000;
+      const app = makeApp(source, {
+        now: () => clock,
+      });
+
+      const answers = await Promise.all(
+        Array.from(
+          {
+            length: 10,
+          },
+          () => request(app).get("/sitemap.xml"),
+        ),
+      );
+      const reads = calls.state;
+      await request(app).get("/sitemap.xml");
+      const afterSecond = {
+        ...calls,
+      };
+      clock += 299_999;
+      await request(app).get("/sitemap.xml");
+      const justBefore = {
+        ...calls,
+      };
+      clock += 2;
+      await request(app).get("/sitemap.xml");
+
+      expect(answers.every((answer) => answer.text.includes("/b/figaro"))).toBe(true);
+      expect(calls.list).toBe(2);
+      expect(afterSecond).toEqual({
+        list: 1,
+        state: reads,
+      });
+      expect(justBefore).toEqual(afterSecond);
+      expect(calls.state).toBe(2 * reads);
+    });
+
+    it("drops a room whose state read fails and lists the others", async () => {
+      const { source } = sitemapSource();
+      const readState = source.readState;
+      source.readState = (roomId) => (roomId === "!off:hs" ? Promise.reject(new Error("down")) : readState(roomId));
+
+      const response = await request(makeApp(source)).get("/sitemap.xml");
+
+      expect(response.status).toBe(200);
+      expect(response.text).toContain("<loc>https://pages.test/b/figaro</loc>");
+    });
+
+    it("does not keep a failed render", async () => {
+      const { source } = sitemapSource();
+      const list = source.listRooms;
+      let failing = true;
+      source.listRooms = () => (failing ? Promise.reject(new Error("down")) : list());
+      const app = makeApp(source);
+
+      const first = await request(app).get("/sitemap.xml");
+      failing = false;
+      const second = await request(app).get("/sitemap.xml");
+
+      expect(first.status).toBe(502);
+      expect(second.status).toBe(200);
+    });
+
+    it("answers 429 past 30 hits a minute from one address", async () => {
+      const { source } = sitemapSource();
+      const app = makeApp(source);
+      let last = 200;
+
+      for (let i = 0; i < 31; i++) {
+        last = (await request(app).get("/sitemap.xml")).status;
+      }
+
+      expect(last).toBe(429);
+    });
+  });
+
   const react = (app: ReturnType<typeof makeApp>, cookie = "", key = "\u{1F44D}", event = "$1") =>
     request(app).post("/b/figaro/react").set("Cookie", cookie).type("form").send({
       event_id: event,
