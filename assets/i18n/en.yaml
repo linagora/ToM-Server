@@ -61,6 +61,8 @@ log.visio.upstream_failure: "visio upstream failure on {{endpoint}}: {{reason}}"
 log.visio.homeserver_failure: "homeserver failure on {{endpoint}}: {{reason}}"
 log.visio.sfu_mounting: "Mounting sfuRouter... enabled: {{enabled}}"
 log.visio.sfu_disabled: "call token service disabled"
+log.visio.moderator_unknown: "power levels unreadable: the participant joins as
+  a member"
 
 # Bots
 bots.no_authenticated_user: "No authenticated user"

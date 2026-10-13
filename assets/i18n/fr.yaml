@@ -67,6 +67,8 @@ log.visio.homeserver_failure: "échec du serveur Matrix sur {{endpoint}} :
   {{reason}}"
 log.visio.sfu_mounting: "Montage de sfuRouter... activé : {{enabled}}"
 log.visio.sfu_disabled: "service de jeton d'appel désactivé"
+log.visio.moderator_unknown: "niveaux de pouvoir illisibles : le participant
+  rejoint comme membre"
 
 # Bots
 bots.no_authenticated_user: "Aucun utilisateur authentifié"

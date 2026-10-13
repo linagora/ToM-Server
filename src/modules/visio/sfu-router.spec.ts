@@ -330,6 +330,27 @@ describe("SfuRouter", () => {
     expect(second.status).toBe(200);
   });
 
+  it("should let the participant join as a member when the power levels cannot be read", async () => {
+    // Arrange
+    const fetchMock = mockFetch(
+      userInfo(),
+      members(),
+      profile(),
+      json(500, {}),
+      appToken(),
+      meetRoom(),
+      appToken(),
+      meetToken(),
+    );
+
+    // Act
+    const response = await request(app()).post(SFU_ROUTE).send(body);
+
+    // Assert
+    expect(response.status).toBe(200);
+    expect(JSON.parse(String(fetchMock.mock.calls[7]?.[1].body)).role).toBe("member");
+  });
+
   it("should answer 502 when Meet fails after the room was made", async () => {
     // Arrange
     const deps = makeDeps();
