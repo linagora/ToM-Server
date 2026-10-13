@@ -816,10 +816,15 @@ public_pages:
 
 A room is served only if its `m.room.history_visibility` is `world_readable`
 (a room anyone may join, whose history is kept to members, is not), it has no
-`m.room.encryption` state and it is not a space. Messages sent before the latest
-change of its history visibility are not shown. This gate runs on the state of
-the room before any message or media is read, for pages, media and the sitemap
-alike (ToM reads Synapse as admin, so it reads every room).
+`m.room.encryption` state, it is not a space **and it opted in**: it carries the
+state event `app.twake.chat.public_page` (state key `""`) with the content
+`{ "enabled": true }`. No event, `enabled` false or not a boolean, or malformed
+content means no page: the routes answer what they answer for a private room
+(`404`, same body) and the sitemap leaves the room out. There is no server-wide
+setting to bypass the opt-in. Messages sent before the latest change of its
+history visibility are not shown. This gate runs on the state of the room before
+any message or media is read, for pages, media, reactions, reports and the
+sitemap alike (ToM reads Synapse as admin, so it reads every room).
 
 | Route                                   | Answer                                                                                                                                                                                       |
 | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -828,7 +833,7 @@ alike (ToM reads Synapse as admin, so it reads every room).
 | `POST /b/<ref>/react`                   | A visitor's emoji reaction (form: `event_id`, `key` among 👍 ❤️ 😂 😮 😢 🎉); pressing again removes it. `303` back to `#post-<id>`.                                                         |
 | `POST /b/<ref>/report`                  | Reports a post to the Synapse moderators (form: `event_id`, `reason`, `comment`). `303` to `?reported=1#post-<id>`.                                                                          |
 | `GET /_twake/v1/public-pages/reactions` | `?room_id=…&event_id=…` (repeat, max 100): `{"reactions": {"<event_id>": {"👍": 3}}}`, visitor counts only. No auth, `Access-Control-Allow-Origin: *`; `404` for a room that fails the gate. |
-| `GET /sitemap.xml`                      | The served rooms (the first 500 of the Synapse admin list).                                                                                                                                  |
+| `GET /sitemap.xml`                      | The served rooms that pass the gate: one state read each, 8 at a time, per render.                                                                                                           |
 | `GET /robots.txt`                       | Allows `/b/`, names the sitemap.                                                                                                                                                             |
 
 Visitors have no account and the page runs no script: reactions and reports are
