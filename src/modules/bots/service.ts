@@ -9,7 +9,7 @@ import { DomainError } from "../../errors/domain-error";
 import { FORBIDDEN, INVALID_INPUT } from "../../errors/error-codes";
 import { translate } from "../../i18n/index";
 import { HttpClient, readJson } from "../../net/http-client";
-import { BotNotProvisionedError, BotNotReadyError, BotsDisabledError, BotsUpstreamError } from "./errors";
+import { BotHomeRefusedError, BotNotProvisionedError, BotNotReadyError, BotsDisabledError, BotsUpstreamError } from "./errors";
 import { existingUserSchema, keysQueryResponseSchema, loginResponseSchema } from "./schema";
 import type { BotsSettings, MyBot, SynapseAccess } from "./types";
 
@@ -112,13 +112,18 @@ export class BotsService {
     throw new BotsDisabledError("bots.recovery_unsupported");
   }
 
-  setHome(ownerId: string, roomId: string): void {
+  async setHome(ownerId: string, roomId: string): Promise<void> {
     const bot = botIds(ownerId, this.#config, this.#synapse.serverName);
     const envFile = this.#envFile(bot);
     if (!existsSync(envFile)) {
       throw new BotNotProvisionedError("bots.not_provisioned", {
         bot: bot.userId,
       });
+    }
+    oneLine(roomId);
+    // The bot answers its owner in that room: a room the owner is not in is refused
+    if (!(await this.#synapse.admin.isMember(ownerId, roomId))) {
+      throw new BotHomeRefusedError("bots.home_not_member");
     }
     const lines = readFileSync(envFile, "utf8")
       .split("\n")

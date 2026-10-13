@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { createLogger } from "winston";
 
-import { BAD_GATEWAY, FORBIDDEN, INVALID_INPUT, NOT_FOUND, SERVICE_UNAVAILABLE } from "../../errors/error-codes";
+import { BAD_GATEWAY, FORBIDDEN, INVALID_INPUT, NOT_FOUND, SERVICE_UNAVAILABLE, UNPROCESSABLE } from "../../errors/error-codes";
 import { loadMessages } from "../../i18n/index";
 import { BotsService, botIds } from "./service";
 import { SynapseAdmin } from "../visio/synapse-admin";
@@ -84,6 +84,13 @@ const keysPublished = (): Response =>
     },
   });
 
+/** The admin answer for the rooms the owner is in. */
+const ownerIn = (...rooms: string[]): Response =>
+  json(200, {
+    joined_rooms: rooms,
+    total: rooms.length,
+  });
+
 const keysMissing = (): Response => json(200, {});
 
 const mockFetch = (...responses: Response[]): Mock<typeof fetch> => {
@@ -112,7 +119,7 @@ describe("BotsService", () => {
     profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
   });
 
-  it("sets the direct room as the home channel of the bot, once, whatever was there", () => {
+  it("sets the direct room as the home channel of the bot, once, whatever was there", async () => {
     profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
     const dir = join(profilesDir, "bot_dwho");
     mkdirSync(dir, {
@@ -121,19 +128,39 @@ describe("BotsService", () => {
     writeFileSync(join(dir, ".env"), `MATRIX_USER_ID=${BOT}\nMATRIX_HOME_ROOM=${OWNER}\n`);
     const service = new BotsService(settings(), synapse, silentLogger);
 
-    service.setHome(OWNER, "!dm:example.com");
-    service.setHome(OWNER, "!dm:example.com");
+    mockFetch(ownerIn("!dm:example.com"), ownerIn("!dm:example.com"));
+
+    await service.setHome(OWNER, "!dm:example.com");
+    await service.setHome(OWNER, "!dm:example.com");
 
     const env = readFileSync(join(dir, ".env"), "utf8");
     expect(env).toBe(`MATRIX_USER_ID=${BOT}\nMATRIX_HOME_ROOM=!dm:example.com\n`);
     expect(statSync(join(dir, ".env")).mode & 0o777).toBe(0o600);
   });
 
-  it("refuses a home channel for a user without an assistant", () => {
+  it("refuses a home channel the owner is not in, and leaves the profile as it was", async () => {
+    profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
+    const dir = join(profilesDir, "bot_dwho");
+    mkdirSync(dir, {
+      recursive: true,
+    });
+    writeFileSync(join(dir, ".env"), `MATRIX_USER_ID=${BOT}\n`);
+    mockFetch(ownerIn("!other:example.com"));
+    const service = new BotsService(settings(), synapse, silentLogger);
+
+    await expect(service.setHome(OWNER, "!dm:example.com")).rejects.toEqual(
+      expect.objectContaining({
+        code: UNPROCESSABLE,
+      }),
+    );
+    expect(readFileSync(join(dir, ".env"), "utf8")).toBe(`MATRIX_USER_ID=${BOT}\n`);
+  });
+
+  it("refuses a home channel for a user without an assistant", async () => {
     profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
     const service = new BotsService(settings(), synapse, silentLogger);
 
-    expect(() => service.setHome(OWNER, "!dm:example.com")).toThrow(
+    await expect(service.setHome(OWNER, "!dm:example.com")).rejects.toEqual(
       expect.objectContaining({
         code: NOT_FOUND,
       }),
@@ -149,7 +176,7 @@ describe("BotsService", () => {
     writeFileSync(join(dir, ".env"), `MATRIX_USER_ID=${BOT}\n`);
     const service = new BotsService(settings(), synapse, silentLogger);
 
-    expect(() => service.setHome(OWNER, "!x\nMATRIX_HOMESERVER=https://evil.example:1")).toThrow();
+    await expect(service.setHome(OWNER, "!x\nMATRIX_HOMESERVER=https://evil.example:1")).rejects.toBeDefined();
     expect(readFileSync(join(dir, ".env"), "utf8")).toBe(`MATRIX_USER_ID=${BOT}\n`);
 
     mockFetch(
@@ -181,7 +208,7 @@ describe("BotsService", () => {
     ]) {
       await expect(service.provision(owner, OWNER_TOKEN)).rejects.toEqual(refused);
       await expect(service.find(owner, OWNER_TOKEN)).rejects.toEqual(refused);
-      expect(() => service.setHome(owner, "!dm:example.com")).toThrow(refused);
+      await expect(service.setHome(owner, "!dm:example.com")).rejects.toEqual(refused);
     }
     // `..` is inside the charset: without a prefix, it names the folder above the profiles
     const bare = new BotsService(
