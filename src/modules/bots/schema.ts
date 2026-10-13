@@ -152,9 +152,9 @@ export const myBotRequestSchema = z.object({
     .catch(undefined),
 });
 
-/** The direct room of the owner with the bot, sent by the client (`bots/me/home`). */
+/** The direct room of the owner with the bot, sent by the client (`bots/me/home`); room version 12 ids have no server part. */
 export const homeRequestSchema = z.object({
-  room_id: z.string().regex(/^![^\s:]+:\S+$/),
+  room_id: z.string().regex(/^![^\s:]+(?::\S+)?$/),
 });
 
 /** The switch of the suggestions, sent by the client (`bots/me/suggestions`) and answered by the harness. */
