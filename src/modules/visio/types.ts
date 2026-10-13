@@ -3,17 +3,11 @@ import type { z } from "zod";
 
 import type { AuthenticatedRequest } from "../../middleware/auth/types";
 import type { OpenIdValidator } from "./openid";
-import type {
-  livekitSettingsSchema,
-  sfuGetRequestSchema,
-  visioRoomResponseSchema,
-  visioSettingsSchema,
-} from "./schema";
+import type { sfuGetRequestSchema, visioRoomResponseSchema, visioSettingsSchema } from "./schema";
 import type { VisioService } from "./service";
 import type { SynapseAdmin } from "./synapse-admin";
 
 export type VisioSettings = z.infer<typeof visioSettingsSchema>;
-export type LivekitSettings = z.infer<typeof livekitSettingsSchema>;
 export type VisioRoom = z.infer<typeof visioRoomResponseSchema>;
 export type SfuGetRequest = z.infer<typeof sfuGetRequestSchema>;
 

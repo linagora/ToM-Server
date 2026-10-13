@@ -65,8 +65,7 @@ log.visio.upstream_failure: "échec du service visio amont sur {{endpoint}} :
   {{reason}}"
 log.visio.homeserver_failure: "échec du serveur Matrix sur {{endpoint}} :
   {{reason}}"
-log.visio.sfu_mounting: "Montage de sfuRouter... activé : {{enabled}}, meet :
-  {{meet}}"
+log.visio.sfu_mounting: "Montage de sfuRouter... activé : {{enabled}}"
 log.visio.sfu_disabled: "service de jeton d'appel désactivé"
 
 # Bots

@@ -317,7 +317,7 @@ email:
 #   timeout_ms: 10000              # Default: 10000 — per service request
 #   # The calls of Twake Chat (D30): the rooms Meet makes for the Matrix rooms
 #   # belong to this account (no human enters through Meet's UI), with this
-#   # configuration. Needs `livekit` below.
+#   # configuration. See the call token service below.
 #   service_account_email: "visio@example.com"
 #   room_configuration:
 #     screen_recording_permission: authenticated  # Default — or admin_owner
@@ -325,18 +325,14 @@ email:
 #     everyone_can_mute: false                    # Default
 
 # -----------------------------------------------------------------------------
-# LiveKit: the MatrixRTC token service of the calls of Twake Chat (MSC4195)
-# Optional. Disabled by default.
-# Serves POST /_twake/v1/video_call/sfu/get: the well-known of the homeserver
-# names it as `org.matrix.msc4143.rtc_foci[].livekit_service_url` (without
-# the `/sfu/get`). Needs `visio` enabled: Meet mints the token so that its
+# Call token service: the MatrixRTC token service of the calls of Twake Chat
+# (MSC4195). Served with `visio` above, nothing else to configure.
+# POST /_twake/v1/video_call/sfu/get: the well-known of the homeserver names it
+# as `org.matrix.msc4143.rtc_foci[].livekit_service_url` (without the
+# `/sfu/get`). Meet mints the token and gives the LiveKit url, so that its
 # functions (recording, transcription…) know the participant. ToM holds no
-# LiveKit key; without Meet the service answers an error and no token.
+# LiveKit setting; without Meet the service answers an error and no token.
 # -----------------------------------------------------------------------------
-# livekit:
-#   enabled: false                 # Default: false
-#   # Required when enabled — as the browsers reach it
-#   url: "wss://livekit.example.com"
 
 # -----------------------------------------------------------------------------
 # GIFs for Twake Chat, through ToM: Klipy never sees the users. Off by default.

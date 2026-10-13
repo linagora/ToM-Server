@@ -12,7 +12,7 @@ import { OpenIdValidator } from "./openid";
 import { VisioService } from "./service";
 import { createSfuRouter, SFU_ROUTE } from "./sfu-router";
 import { SynapseAdmin } from "./synapse-admin";
-import type { LivekitSettings, SfuDeps, VisioSettings } from "./types";
+import type { SfuDeps, VisioSettings } from "./types";
 
 const STATUS: Record<string, number> = {
   [INVALID_INPUT]: 400,
@@ -25,11 +25,6 @@ const STATUS: Record<string, number> = {
 const silentLogger = createLogger({
   silent: true,
 });
-
-const livekit: LivekitSettings = {
-  enabled: true,
-  url: "ws://127.0.0.1:7880",
-};
 
 const visio: VisioSettings = {
   enabled: true,
@@ -168,10 +163,10 @@ const makeDeps = (callRooms: CallRooms = defaultRooms): SfuDeps => ({
   service: new VisioService(visio, silentLogger, callRooms),
 });
 
-const setupApp = (deps: SfuDeps | undefined, settings: LivekitSettings = livekit): express.Express => {
+const setupApp = (deps: SfuDeps | undefined): express.Express => {
   const app = express();
   app.use(express.json());
-  app.use(createSfuRouter(settings, deps, silentLogger));
+  app.use(createSfuRouter(deps, silentLogger));
   // biome-ignore lint/suspicious/noExplicitAny: Express err is loosely typed
   app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     res.status(STATUS[err.code] ?? 500).json({
@@ -198,21 +193,6 @@ describe("SfuRouter", () => {
     globalThis.fetch = originalFetch;
   });
 
-  it("should answer 404 when LiveKit is not configured", async () => {
-    // Arrange
-    const fetchMock = mockFetch();
-    const app = setupApp(undefined, {
-      enabled: false,
-    });
-
-    // Act
-    const response = await request(app).post(SFU_ROUTE).send(body);
-
-    // Assert
-    expect(response.status).toBe(404);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
   it("should answer 400 for a request that is not MSC4195", async () => {
     // Arrange
     mockFetch();
@@ -231,7 +211,7 @@ describe("SfuRouter", () => {
     // Arrange
     const fetchMock = mockFetch();
 
-    // Act: livekit on, but no Meet behind it
+    // Act: no Meet behind the service
     const response = await request(setupApp(undefined)).post(SFU_ROUTE).send(body);
 
     // Assert
@@ -281,7 +261,7 @@ describe("SfuRouter", () => {
     // Assert
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
-      url: "ws://127.0.0.1:7880",
+      url: "http://synapse:7880",
       jwt: "meet-livekit-jwt",
     });
     const calls = fetchMock.mock.calls.map(([url]) => url);
@@ -467,6 +447,29 @@ describe("SfuRouter", () => {
 
     // Assert
     expect(a.room).toBe(b.room);
+  });
+
+  it("should answer 502 when Meet gives no LiveKit url", async () => {
+    // Arrange
+    mockFetch(
+      userInfo(),
+      members(),
+      profile(),
+      moderators(),
+      appToken(),
+      meetRoom(),
+      appToken(),
+      json(200, {
+        room: "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+        token: "meet-livekit-jwt",
+      }),
+    );
+
+    // Act
+    const response = await request(app()).post(SFU_ROUTE).send(body);
+
+    // Assert
+    expect(response.status).toBe(502);
   });
 
   it("should answer 403 when the user is not a member of the room", async () => {

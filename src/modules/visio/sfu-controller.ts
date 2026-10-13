@@ -2,7 +2,7 @@ import { DomainError } from "../../errors/domain-error";
 import { INVALID_INPUT } from "../../errors/error-codes";
 import { VisioForbiddenError } from "./errors";
 import { sfuGetRequestSchema } from "./schema";
-import type { CallParticipant, LivekitSettings, SfuDeps, SfuGetRequest } from "./types";
+import type { CallParticipant, SfuDeps, SfuGetRequest } from "./types";
 
 /** The answer of the token service (MSC4195): where the media go, and the token for it. */
 export interface SfuGetResponse {
@@ -18,11 +18,7 @@ const localpart = (userId: string): string => userId.slice(1, userId.indexOf(":"
  * room. Meet mints the token, so that its functions know the participant; when
  * it does not answer or refuses, the call has no token (no degraded mode).
  */
-export async function sfuGetController(
-  body: unknown,
-  deps: SfuDeps,
-  livekit: LivekitSettings,
-): Promise<SfuGetResponse> {
+export async function sfuGetController(body: unknown, deps: SfuDeps): Promise<SfuGetResponse> {
   const request = parseRequest(body);
   const userId = await deps.openId.resolve(request.openid_token);
   if (!(await deps.admin.isMember(userId, request.room))) {
@@ -40,10 +36,10 @@ export async function sfuGetController(
     },
   };
 
-  const { token } = await deps.service.mintCallToken(request.room, participant, profile);
+  const { url, token } = await deps.service.mintCallToken(request.room, participant, profile);
 
   return {
-    url: livekit.url ?? "",
+    url,
     jwt: token,
   };
 }

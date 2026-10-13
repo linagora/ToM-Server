@@ -13,6 +13,8 @@ const ROOMS_PATH = "/external-api/v1.0/rooms/";
 
 /** The token Meet minted for a participant of the call of a Matrix room. */
 export interface CallToken {
+  /** The LiveKit server, as Meet gives it. */
+  url: string;
   /** The LiveKit room: the id of the Meet room. */
   room: string;
   token: string;

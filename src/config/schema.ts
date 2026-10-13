@@ -9,7 +9,7 @@ import { botsSettingsSchema } from "../modules/bots/schema";
 import { gifsSettingsSchema } from "../modules/gifs/schema";
 import { landingSettingsSchema } from "../modules/landing/schema";
 import { publicPagesSettingsSchema } from "../modules/public-pages/schema";
-import { livekitSettingsSchema, visioSettingsSchema } from "../modules/visio/schema";
+import { visioSettingsSchema } from "../modules/visio/schema";
 import { wellKnownSettingsSchema } from "../modules/well-known/schema";
 
 const DEFAULT_HOST = "0.0.0.0";
@@ -603,10 +603,6 @@ const visioConfigSchema = z.object({
   visio: visioSettingsSchema.prefault({}),
 });
 
-const livekitConfigSchema = z.object({
-  livekit: livekitSettingsSchema.prefault({}),
-});
-
 const botsConfigSchema = z.object({
   bots: botsSettingsSchema.prefault({}),
 });
@@ -646,7 +642,6 @@ export const configSchema = z.object({
   ...wellKnownConfigSchema.shape,
   ...authConfigSchema.shape,
   ...visioConfigSchema.shape,
-  ...livekitConfigSchema.shape,
   ...botsConfigSchema.shape,
   ...gifsConfigSchema.shape,
   ...publicPagesConfigSchema.shape,

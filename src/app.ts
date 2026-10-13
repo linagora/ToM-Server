@@ -77,7 +77,9 @@ async function mountSfu(config: Config, logger: Logger, app: Express): Promise<v
     module: "visio-sfu",
   });
   let deps: SfuDeps | undefined;
-  if (config.livekit.enabled && config.visio.enabled) {
+  // Without the service account that owns the rooms, Meet can make none: no token service
+  const enabled = config.visio.enabled && Boolean(config.visio.service_account_email);
+  if (enabled) {
     const db = new Database<"visio_call_rooms">(mapToLegacyConfig(config), sfuLogger as never, CALL_ROOMS_SCHEMA);
     await db.ready;
     deps = {
@@ -106,11 +108,10 @@ async function mountSfu(config: Config, logger: Logger, app: Express): Promise<v
   }
   logger.info(
     translate("log.visio.sfu_mounting", {
-      enabled: String(config.livekit.enabled),
-      meet: String(config.visio.enabled),
+      enabled: String(enabled),
     }),
   );
-  app.use(createSfuRouter(config.livekit, deps, sfuLogger));
+  app.use(createSfuRouter(deps, sfuLogger));
 }
 
 function mountVisio(config: Config, logger: Logger, app: Express): void {

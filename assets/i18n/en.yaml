@@ -59,8 +59,7 @@ log.visio.room_unavailable: "visio token endpoint answered 404: external API
   disabled or user unknown to the service"
 log.visio.upstream_failure: "visio upstream failure on {{endpoint}}: {{reason}}"
 log.visio.homeserver_failure: "homeserver failure on {{endpoint}}: {{reason}}"
-log.visio.sfu_mounting: "Mounting sfuRouter... enabled: {{enabled}}, meet:
-  {{meet}}"
+log.visio.sfu_mounting: "Mounting sfuRouter... enabled: {{enabled}}"
 log.visio.sfu_disabled: "call token service disabled"
 
 # Bots
