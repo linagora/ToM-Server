@@ -231,6 +231,17 @@ describe("BotsService", () => {
     expect(existsSync(join(profilesDir, "..", ".env"))).toBe(false);
   });
 
+  it("answers a failure of the admin API with the key of the assistants, not of the calls", async () => {
+    profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
+    mockFetch(json(500, {}));
+    const service = new BotsService(settings(), synapse, silentLogger);
+
+    await expect(service.provision(OWNER, OWNER_TOKEN)).rejects.toMatchObject({
+      code: BAD_GATEWAY,
+      message: "bots.upstream_failure",
+    });
+  });
+
   it("never takes over an account that exists and is no bot", async () => {
     profilesDir = mkdtempSync(join(tmpdir(), "tom-bots-"));
     const fetchMock = mockFetch(

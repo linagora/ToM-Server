@@ -402,6 +402,10 @@ describe("SynapseAdmin", () => {
     const admin = new SynapseAdmin(settings, silentLogger);
 
     // Act & Assert
-    await expect(admin.profile("@alice:localhost")).rejects.toBeInstanceOf(VisioUpstreamError);
+    const failure = admin.profile("@alice:localhost");
+    await expect(failure).rejects.toBeInstanceOf(VisioUpstreamError);
+    await expect(failure).rejects.toMatchObject({
+      message: "visio.homeserver_failure",
+    });
   });
 });

@@ -9,6 +9,7 @@ import { DomainError } from "../../errors/domain-error";
 import { FORBIDDEN, INVALID_INPUT } from "../../errors/error-codes";
 import { translate } from "../../i18n/index";
 import { HttpClient, readJson } from "../../net/http-client";
+import { VisioUpstreamError } from "../visio/errors";
 import { BotHomeRefusedError, BotNotReadyError, BotsDisabledError, BotsUpstreamError } from "./errors";
 import { existingUserSchema, keysQueryResponseSchema, loginResponseSchema } from "./schema";
 import type { BotsSettings, MyBot, SynapseAccess } from "./types";
@@ -136,7 +137,7 @@ export class BotsService {
     }
     oneLine(roomId);
     // The bot answers its owner in that room: a room the owner is not in is refused
-    if (!(await this.#synapse.admin.isMember(ownerId, roomId))) {
+    if (!(await this.#asBots(() => this.#synapse.admin.isMember(ownerId, roomId)))) {
       throw new BotHomeRefusedError("bots.home_not_member");
     }
     const lines = readFileSync(envFile, "utf8")
@@ -184,18 +185,32 @@ export class BotsService {
     const path = `/_synapse/admin/v2/users/${encodeURIComponent(botUserId)}`;
     const admin = this.#synapse.admin;
     // The PUT creates or modifies: an account that is no bot is never touched
-    const existing = await admin.readOrNull(path, existingUserSchema);
+    const existing = await this.#asBots(() => admin.readOrNull(path, existingUserSchema));
     if (existing && existing.user_type !== "bot") {
       throw new DomainError(FORBIDDEN, "bots.account_taken", {
         bot: botUserId,
       });
     }
-    await admin.put(path, {
-      password: this.#password(botUserId),
-      displayname: `${ownerId.slice(1, ownerId.indexOf(":"))} — assistant`,
-      admin: false,
-      user_type: "bot",
-    });
+    await this.#asBots(() =>
+      admin.put(path, {
+        password: this.#password(botUserId),
+        displayname: `${ownerId.slice(1, ownerId.indexOf(":"))} — assistant`,
+        admin: false,
+        user_type: "bot",
+      }),
+    );
+  }
+
+  /** The shared admin fails as a homeserver failure of the calls; for the assistants it is theirs. */
+  async #asBots<T>(call: () => Promise<T>): Promise<T> {
+    try {
+      return await call();
+    } catch (err) {
+      if (err instanceof VisioUpstreamError) {
+        throw this.#upstreamError(String(err.context.endpoint ?? "homeserver"), err.message);
+      }
+      throw err;
+    }
   }
 
   async #login(localpart: string, deviceId: string): Promise<string> {
