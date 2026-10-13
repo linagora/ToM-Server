@@ -27,8 +27,6 @@ export class VisioService {
    * is then made again, Meet keeps the old one); a table when ToM runs twice.
    */
   #rooms = new Map<string, Promise<string>>();
-  /** The rooms already made, readable at once (the degraded mode signs for them, R20). */
-  #settled = new Map<string, string>();
 
   constructor(config: VisioSettings, logger: Logger) {
     this.#config = config;
@@ -56,22 +54,15 @@ export class VisioService {
     return this.#parse(ROOMS_PATH, roomResponse, visioRoomResponseSchema);
   }
 
-  /** The Meet room already made for a Matrix room, when there is one. */
-  mappedRoom(matrixRoomId: string): string | undefined {
-    return this.#settled.get(matrixRoomId);
-  }
-
   /**
    * A LiveKit token for a participant of the call of a Matrix room, minted by Meet
    * so that its functions (recording, transcription…) know the participant (D30).
    */
   async mintCallToken(matrixRoomId: string, participant: CallParticipant, profile: MatrixProfile): Promise<CallToken> {
-    // The room first, whoever asks: a participant without an email is signed by
-    // ToM for it (degraded mode), in the same LiveKit room as the others
-    const meetRoomId = await this.#ensureRoom(matrixRoomId);
     if (!profile.email) {
       throw new VisioRoomUnavailableError("visio.email_unresolvable");
     }
+    const meetRoomId = await this.#ensureRoom(matrixRoomId);
     const accessToken = await this.#applicationToken(profile.email);
     const path = `${ROOMS_PATH}${encodeURIComponent(meetRoomId)}/livekit-token/`;
     const response = await this.#post(
@@ -87,25 +78,18 @@ export class VisioService {
       accessToken,
     );
     // A room Meet refuses (404: gone, or not one of this application) stays the
-    // room of the call: the degraded mode signs for it, and everyone is in the
-    // same LiveKit room. ponytail: such a room has no Meet function until a
-    // restart; replace it once LiveKit says it is empty, if Meet ever loses rooms
+    // room of the call, and the request fails: everyone is in the same LiveKit room.
+    // ponytail: replace it once LiveKit says it is empty, if Meet ever loses rooms
     return this.#parse(path, response, meetLivekitTokenSchema);
   }
 
   #ensureRoom(matrixRoomId: string): Promise<string> {
     let room = this.#rooms.get(matrixRoomId);
     if (!room) {
-      room = this.#createCallRoom().then(
-        (id) => {
-          this.#settled.set(matrixRoomId, id);
-          return id;
-        },
-        (err: unknown) => {
-          this.#rooms.delete(matrixRoomId);
-          throw err;
-        },
-      );
+      room = this.#createCallRoom().catch((err: unknown) => {
+        this.#rooms.delete(matrixRoomId);
+        throw err;
+      });
       this.#rooms.set(matrixRoomId, room);
     }
 

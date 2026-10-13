@@ -26,8 +26,8 @@ export interface VisioDeps {
 export interface SfuDeps {
   openId: OpenIdValidator;
   admin: SynapseAdmin;
-  /** Meet behind the token service; undefined when `visio` is disabled (degraded mode only). */
-  service: VisioService | undefined;
+  /** Meet, behind the token service: the calls need it. */
+  service: VisioService;
 }
 
 /** What LiveKit will know the participant by. */

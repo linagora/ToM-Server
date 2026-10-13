@@ -28,7 +28,7 @@ export const createSfuRouter = (livekit: LivekitSettings, deps: SfuDeps | undefi
 
   router.post(SFU_ROUTE, async (req, res, next) => {
     try {
-      res.json(await sfuGetController(req.body, deps, livekit, logger));
+      res.json(await sfuGetController(req.body, deps, livekit));
     } catch (err) {
       next(err);
     }

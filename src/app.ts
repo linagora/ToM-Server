@@ -76,7 +76,7 @@ function mountSfu(config: Config, logger: Logger, app: Express): void {
     module: "visio-sfu",
   });
   let deps: SfuDeps | undefined;
-  if (config.livekit.enabled) {
+  if (config.livekit.enabled && config.visio.enabled) {
     deps = {
       openId: new OpenIdValidator(
         {
@@ -98,13 +98,13 @@ function mountSfu(config: Config, logger: Logger, app: Express): void {
         },
         sfuLogger,
       ),
-      service: config.visio.enabled ? new VisioService(config.visio, sfuLogger) : undefined,
+      service: new VisioService(config.visio, sfuLogger),
     };
   }
   logger.info(
     translate("log.visio.sfu_mounting", {
       enabled: String(config.livekit.enabled),
-      meet: String(config.livekit.enabled && config.visio.enabled),
+      meet: String(config.visio.enabled),
     }),
   );
   app.use(createSfuRouter(config.livekit, deps, sfuLogger));

@@ -6,7 +6,6 @@ import { createLogger } from "winston";
 
 import { BAD_GATEWAY, FORBIDDEN, INVALID_INPUT, NOT_FOUND, UNAUTHORIZED } from "../../errors/error-codes";
 import { loadMessages } from "../../i18n/index";
-import { decodeJwtPayload } from "./livekit-token";
 import { OpenIdValidator } from "./openid";
 import { VisioService } from "./service";
 import { createSfuRouter, SFU_ROUTE } from "./sfu-router";
@@ -28,9 +27,6 @@ const silentLogger = createLogger({
 const livekit: LivekitSettings = {
   enabled: true,
   url: "ws://127.0.0.1:7880",
-  api_key: "devkey",
-  api_secret: "secret",
-  token_ttl_seconds: 3600,
 };
 
 const visio: VisioSettings = {
@@ -127,7 +123,7 @@ const mockFetch = (...results: Response[]): FetchMock => {
   return fetchMock;
 };
 
-const makeDeps = (withMeet: boolean): SfuDeps => ({
+const makeDeps = (): SfuDeps => ({
   openId: new OpenIdValidator(
     {
       serverUrl: "https://localhost:8448",
@@ -148,7 +144,7 @@ const makeDeps = (withMeet: boolean): SfuDeps => ({
     },
     silentLogger,
   ),
-  service: withMeet ? new VisioService(visio, silentLogger) : undefined,
+  service: new VisioService(visio, silentLogger),
 });
 
 const setupApp = (deps: SfuDeps | undefined, settings: LivekitSettings = livekit): express.Express => {
@@ -182,7 +178,6 @@ describe("SfuRouter", () => {
     const fetchMock = mockFetch();
     const app = setupApp(undefined, {
       enabled: false,
-      token_ttl_seconds: 3600,
     });
 
     // Act
@@ -198,7 +193,7 @@ describe("SfuRouter", () => {
     mockFetch();
 
     // Act
-    const response = await request(app(false)).post(SFU_ROUTE).send({
+    const response = await request(app()).post(SFU_ROUTE).send({
       room: "!room:localhost",
     });
 
@@ -207,26 +202,38 @@ describe("SfuRouter", () => {
     expect(response.body.code).toBe(INVALID_INPUT);
   });
 
-  it("should sign the token itself for the Matrix room when Meet is not there (degraded mode)", async () => {
+  it("should answer 404 and no token when visio is disabled", async () => {
     // Arrange
-    const fetchMock = mockFetch(userInfo(), members(), profile());
+    const fetchMock = mockFetch();
 
-    // Act
-    const response = await request(app(false)).post(SFU_ROUTE).send(body);
+    // Act: livekit on, but no Meet behind it
+    const response = await request(setupApp(undefined)).post(SFU_ROUTE).send(body);
 
     // Assert
-    expect(response.status).toBe(200);
-    expect(response.body.url).toBe("ws://127.0.0.1:7880");
-    const claims = decodeJwtPayload(response.body.jwt);
-    expect(claims.iss).toBe("devkey");
-    expect(claims.sub).toBe("@alice:localhost:DEVICE");
-    expect(claims.name).toBe("Alice");
-    expect((claims.video as Record<string, unknown>).room).toBe("!room:localhost");
-    expect(claims.attributes).toEqual({
-      matrix_user_id: "@alice:localhost",
-      matrix_device_id: "DEVICE",
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(response.status).toBe(404);
+    expect(response.body.jwt).toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("should answer 502 and no token when Meet does not answer", async () => {
+    // Arrange: the user checks pass, then the application token of the service account fails
+    mockFetch(
+      userInfo(),
+      members(),
+      profile(),
+      moderators(),
+      json(502, {
+        error: "down",
+      }),
+    );
+
+    // Act
+    const response = await request(app()).post(SFU_ROUTE).send(body);
+
+    // Assert
+    expect(response.status).toBe(502);
+    expect(response.body.code).toBe(BAD_GATEWAY);
+    expect(response.body.jwt).toBeUndefined();
   });
 
   it("should make the Meet room once, then let Meet mint the token with the identity of the device", async () => {
@@ -241,7 +248,7 @@ describe("SfuRouter", () => {
       appToken(), // alice
       meetToken(),
     );
-    const deps = makeDeps(true);
+    const deps = makeDeps();
 
     // Act
     const response = await request(setupApp(deps)).post(SFU_ROUTE).send(body);
@@ -277,12 +284,11 @@ describe("SfuRouter", () => {
     mockFetch(userInfo(), members(), profile(), moderators(), appToken(), meetToken());
     const second = await request(setupApp(deps)).post(SFU_ROUTE).send(body);
     expect(second.status).toBe(200);
-    expect(deps.service?.mappedRoom("!room:localhost")).toBe("7c9e6679-7425-40de-944b-e07fc1f90ae7");
   });
 
-  it("should fall back on signing itself, for the Meet room already made, when Meet fails", async () => {
+  it("should answer 502 when Meet fails after the room was made", async () => {
     // Arrange
-    const deps = makeDeps(true);
+    const deps = makeDeps();
     mockFetch(userInfo(), members(), profile(), moderators(), appToken(), meetRoom(), appToken(), meetToken());
     await request(setupApp(deps)).post(SFU_ROUTE).send(body);
     mockFetch(
@@ -299,16 +305,13 @@ describe("SfuRouter", () => {
     const response = await request(setupApp(deps)).post(SFU_ROUTE).send(body);
 
     // Assert
-    expect(response.status).toBe(200);
-    const claims = decodeJwtPayload(response.body.jwt);
-    expect(claims.iss).toBe("devkey");
-    expect((claims.video as Record<string, unknown>).room).toBe("7c9e6679-7425-40de-944b-e07fc1f90ae7");
+    expect(response.status).toBe(502);
+    expect(response.body.jwt).toBeUndefined();
   });
 
-  it("should make the Meet room for a first participant without an email, and sign for it", async () => {
-    // Arrange: the one who starts the call has no email, Meet cannot mint for them
-    const deps = makeDeps(true);
-    mockFetch(
+  it("should answer 404 for a participant without an email", async () => {
+    // Arrange
+    const fetchMock = mockFetch(
       userInfo(),
       members(),
       json(200, {
@@ -317,17 +320,14 @@ describe("SfuRouter", () => {
         external_ids: [],
       }),
       moderators(),
-      appToken(),
-      meetRoom(),
     );
 
     // Act
-    const response = await request(setupApp(deps)).post(SFU_ROUTE).send(body);
+    const response = await request(app()).post(SFU_ROUTE).send(body);
 
-    // Assert: the LiveKit room is the Meet room the next ones get from Meet
-    expect(response.status).toBe(200);
-    const claims = decodeJwtPayload(response.body.jwt);
-    expect((claims.video as Record<string, unknown>).room).toBe("7c9e6679-7425-40de-944b-e07fc1f90ae7");
+    // Assert: no room made for nothing
+    expect(response.status).toBe(404);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   it.each([
@@ -343,9 +343,8 @@ describe("SfuRouter", () => {
       '{"detail":"Not found."}',
       "application/json",
     ],
-  ])("should keep the Meet room when Meet %s", async (_case, notFound, contentType) => {
+  ])("should answer 502 when Meet %s", async (_case, notFound, contentType) => {
     // Arrange
-    const deps = makeDeps(true);
     mockFetch(
       userInfo(),
       members(),
@@ -363,13 +362,11 @@ describe("SfuRouter", () => {
     );
 
     // Act
-    const response = await request(setupApp(deps)).post(SFU_ROUTE).send(body);
+    const response = await request(app()).post(SFU_ROUTE).send(body);
 
-    // Assert: signed by ToM for the room the others get, not made again
-    expect(response.status).toBe(200);
-    const claims = decodeJwtPayload(response.body.jwt);
-    expect((claims.video as Record<string, unknown>).room).toBe("7c9e6679-7425-40de-944b-e07fc1f90ae7");
-    expect(deps.service?.mappedRoom("!room:localhost")).toBe("7c9e6679-7425-40de-944b-e07fc1f90ae7");
+    // Assert
+    expect(response.status).toBe(502);
+    expect(response.body.jwt).toBeUndefined();
   });
 
   it("should answer 403 when the user is not a member of the room", async () => {
@@ -385,7 +382,7 @@ describe("SfuRouter", () => {
     );
 
     // Act
-    const response = await request(app(true)).post(SFU_ROUTE).send(body);
+    const response = await request(app()).post(SFU_ROUTE).send(body);
 
     // Assert
     expect(response.status).toBe(403);
@@ -397,7 +394,7 @@ describe("SfuRouter", () => {
     mockFetch(json(401, {}));
 
     // Act
-    const response = await request(app(true)).post(SFU_ROUTE).send(body);
+    const response = await request(app()).post(SFU_ROUTE).send(body);
 
     // Assert
     expect(response.status).toBe(401);
@@ -406,7 +403,7 @@ describe("SfuRouter", () => {
 
   it("should answer 403 for a token of another homeserver", async () => {
     // Act
-    const response = await request(app(true))
+    const response = await request(app())
       .post(SFU_ROUTE)
       .send({
         ...body,
@@ -420,7 +417,7 @@ describe("SfuRouter", () => {
     expect(response.status).toBe(403);
   });
 
-  function app(withMeet: boolean): express.Express {
-    return setupApp(makeDeps(withMeet));
+  function app(): express.Express {
+    return setupApp(makeDeps());
   }
 });
