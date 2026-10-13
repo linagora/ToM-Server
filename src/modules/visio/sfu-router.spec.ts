@@ -1,6 +1,7 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, type Mock, mock } from "bun:test";
 
-import express from "express";
+import express, { type RequestHandler } from "express";
+import { rateLimit } from "express-rate-limit";
 import request from "supertest";
 import { createLogger } from "winston";
 
@@ -140,7 +141,10 @@ const newCallRooms = async (): Promise<DbCallRooms> => {
 
 let defaultRooms: CallRooms;
 
+const unlimited: RequestHandler = (_req, _res, next): void => next();
+
 const makeDeps = (callRooms: CallRooms = defaultRooms): SfuDeps => ({
+  rateLimit: unlimited,
   openId: new OpenIdValidator(
     {
       serverUrl: "https://localhost:8448",
@@ -206,6 +210,26 @@ describe("SfuRouter", () => {
     // Assert
     expect(response.status).toBe(400);
     expect(response.body.code).toBe(INVALID_INPUT);
+  });
+
+  it("should answer 429 to a caller who goes past the limit, before any call to the homeserver", async () => {
+    // Arrange
+    const fetchMock = mockFetch();
+    const limited = setupApp({
+      ...makeDeps(),
+      rateLimit: rateLimit({
+        limit: 1,
+      }),
+    });
+
+    // Act
+    const first = await request(limited).post(SFU_ROUTE).send({});
+    const second = await request(limited).post(SFU_ROUTE).send(body);
+
+    // Assert
+    expect(first.status).toBe(400);
+    expect(second.status).toBe(429);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("should answer 400 for a device id that Meet would split wrong", async () => {

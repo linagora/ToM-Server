@@ -79,6 +79,12 @@ server:
 | `window_ms`     `60000`    Rate-limit window in milliseconds (1 minute). |
 | `max_requests`  `100`      Maximum requests per window.                  |
 
+This limit applies to the GIF routes and the assistant routes (`bots/me`),
+counted per user, and to the call token service (`sfu/get`), counted per IP
+address of the caller: set `trust_x_forwarded_for` behind a proxy, or every
+caller shares the address of the proxy. Past it the answer is `429
+M_LIMIT_EXCEEDED`.
+
 ---
 
 ## URLs

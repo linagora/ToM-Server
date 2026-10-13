@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import type { RequestHandler } from "express";
 import express from "express";
+import { rateLimit } from "express-rate-limit";
 import request from "supertest";
 import { createLogger } from "winston";
 
@@ -52,6 +53,8 @@ const authenticated: RequestHandler = (req: AuthenticatedRequest, _res, next): v
   next();
 };
 
+const unlimited: RequestHandler = (_req, _res, next): void => next();
+
 const rejecting: RequestHandler = (_req, res): void => {
   res.status(401).json({
     errcode: "M_UNAUTHORIZED",
@@ -91,6 +94,29 @@ describe("bots router", () => {
     expect(response.body.errcode).toBe("M_NOT_FOUND");
   });
 
+  it("answers 429 to a user who goes past the limit", async () => {
+    const app = makeApp(
+      createBotsRouter(
+        settings(true),
+        {
+          authenticate: authenticated,
+          rateLimit: rateLimit({
+            limit: 1,
+            keyGenerator: (req) => (req as AuthenticatedRequest).userId ?? "anonymous",
+          }),
+        },
+        serviceAnswering({}),
+        silentLogger,
+      ),
+    );
+
+    const first = await request(app).post(MY_BOT_ROUTE);
+    const second = await request(app).post(MY_BOT_ROUTE);
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(429);
+  });
+
   it("answers the bot of the authenticated user", async () => {
     const bot = {
       userId: "@bot_dwho:example.com",
@@ -102,6 +128,7 @@ describe("bots router", () => {
         settings(true),
         {
           authenticate: authenticated,
+          rateLimit: unlimited,
         },
         serviceAnswering(bot),
         silentLogger,
@@ -135,6 +162,7 @@ describe("bots router", () => {
         settings(true),
         {
           authenticate: authenticated,
+          rateLimit: unlimited,
         },
         service,
         silentLogger,
@@ -162,6 +190,7 @@ describe("bots router", () => {
         settings(true),
         {
           authenticate: authenticated,
+          rateLimit: unlimited,
         },
         service,
         silentLogger,
@@ -222,6 +251,7 @@ describe("bots router", () => {
         settings(true),
         {
           authenticate: authenticated,
+          rateLimit: unlimited,
         },
         service,
         silentLogger,
@@ -250,6 +280,7 @@ describe("bots router", () => {
         settings(true),
         {
           authenticate: authenticated,
+          rateLimit: unlimited,
         },
         service,
         silentLogger,
@@ -278,6 +309,7 @@ describe("bots router", () => {
         settings(true),
         {
           authenticate: rejecting,
+          rateLimit: unlimited,
         },
         serviceAnswering({}),
         silentLogger,
@@ -310,6 +342,7 @@ describe("bots router", () => {
         settings(true),
         {
           authenticate: authenticated,
+          rateLimit: unlimited,
         },
         serviceAnswering({}),
         silentLogger,
@@ -341,6 +374,7 @@ describe("bots router", () => {
         settings(true),
         {
           authenticate: authenticated,
+          rateLimit: unlimited,
         },
         service,
         silentLogger,
@@ -377,6 +411,7 @@ describe("bots router", () => {
         settings(true),
         {
           authenticate: authenticated,
+          rateLimit: unlimited,
         },
         service,
         silentLogger,
@@ -407,6 +442,7 @@ describe("bots router", () => {
         settings(true),
         {
           authenticate: authenticated,
+          rateLimit: unlimited,
         },
         service,
         silentLogger,
@@ -445,6 +481,7 @@ describe("bots router", () => {
         settings(true),
         {
           authenticate: authenticated,
+          rateLimit: unlimited,
         },
         service,
         silentLogger,
@@ -484,6 +521,7 @@ describe("bots router", () => {
         settings(true),
         {
           authenticate: authenticated,
+          rateLimit: unlimited,
         },
         serviceAnswering(null),
         silentLogger,

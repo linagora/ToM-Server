@@ -10,6 +10,8 @@ export type MyBot = z.infer<typeof myBotResponseSchema>;
 
 export interface BotsDeps {
   authenticate: RequestHandler;
+  /** Runs after `authenticate`: counts per user. */
+  rateLimit: RequestHandler;
 }
 
 /** What the routes ask of a backend, Hermes or the agent harness. */

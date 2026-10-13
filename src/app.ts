@@ -71,6 +71,25 @@ function mountWellKnownClient(config: Config, logger: Logger, app: Express): voi
   app.use(wellKnownRouter);
 }
 
+/** The limit of `server.rate_limiting`, counted per `key` (the IP of the caller when none). */
+function makeRateLimit(config: Config, key?: (req: Request) => string): RequestHandler {
+  return rateLimit({
+    windowMs: config.server.rate_limiting.window_ms,
+    limit: config.server.rate_limiting.max_requests,
+    ...(key
+      ? {
+          keyGenerator: key,
+        }
+      : {}),
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      errcode: "M_LIMIT_EXCEEDED",
+      error: "Too many requests",
+    },
+  });
+}
+
 function makeSynapseAdmin(config: Config, logger: Logger): SynapseAdmin {
   return new SynapseAdmin(
     {
@@ -110,6 +129,8 @@ async function mountSfu(config: Config, logger: Logger, app: Express, admin: Syn
         sfuLogger,
       ),
       admin,
+      // Anonymous by design (MSC4195), and each call costs Synapse a userinfo: counted per IP
+      rateLimit: makeRateLimit(config),
       service: new VisioService(config.visio, sfuLogger, new DbCallRooms(db)),
     };
   }
@@ -177,6 +198,8 @@ function mountBots(config: Config, logger: Logger, app: Express, admin: SynapseA
     );
     deps = {
       authenticate: tokenValidator.middleware(),
+      // A provisioning holds the request while it polls Synapse: counted per user
+      rateLimit: makeRateLimit(config, (req) => (req as AuthenticatedRequest).userId ?? "anonymous"),
     };
     // Hermes or the agent harness, never both: they would claim the same accounts
     const backend = makeBotsBackend(
@@ -226,17 +249,7 @@ async function mountGifs(config: Config, logger: Logger, app: Express): Promise<
       authenticateAdmin: legacy.admin_access_token
         ? (adminCheck as RequestHandler)
         : (_req: Request, _res: Response, next: NextFunction): void => next(new GifsDisabledError("gifs.disabled")),
-      rateLimit: rateLimit({
-        windowMs: config.server.rate_limiting.window_ms,
-        limit: config.server.rate_limiting.max_requests,
-        keyGenerator: (req: Request): string => (req as AuthenticatedRequest).userId ?? "anonymous",
-        standardHeaders: true,
-        legacyHeaders: false,
-        message: {
-          errcode: "M_LIMIT_EXCEEDED",
-          error: "Too many requests",
-        },
-      }),
+      rateLimit: makeRateLimit(config, (req) => (req as AuthenticatedRequest).userId ?? "anonymous"),
     };
     service = new GifsService(config.gifs, new DbGifsFlag(db), config.server.base_url, gifsLogger);
   }
