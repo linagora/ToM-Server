@@ -53,7 +53,7 @@ export const createBotsRouter = (
     return router;
   }
 
-  router.post(MY_BOT_ROUTE, deps.authenticate, async (req, res, next) => {
+  router.post(MY_BOT_ROUTE, deps.authenticate, deps.rateLimit, async (req, res, next) => {
     try {
       res.status(200).json(await myBotController(service, req));
     } catch (err) {
@@ -61,7 +61,7 @@ export const createBotsRouter = (
     }
   });
 
-  router.get(MY_BOT_ROUTE, deps.authenticate, async (req, res, next) => {
+  router.get(MY_BOT_ROUTE, deps.authenticate, deps.rateLimit, async (req, res, next) => {
     try {
       res.status(200).json(await myBotFindController(service, req));
     } catch (err) {
@@ -69,7 +69,7 @@ export const createBotsRouter = (
     }
   });
 
-  router.post(MY_BOT_HOME_ROUTE, deps.authenticate, async (req, res, next) => {
+  router.post(MY_BOT_HOME_ROUTE, deps.authenticate, deps.rateLimit, async (req, res, next) => {
     try {
       await myBotHomeController(service, req);
       res.status(204).end();
@@ -78,7 +78,7 @@ export const createBotsRouter = (
     }
   });
 
-  router.post(MY_BOT_RECOVER_ROUTE, deps.authenticate, async (req, res, next) => {
+  router.post(MY_BOT_RECOVER_ROUTE, deps.authenticate, deps.rateLimit, async (req, res, next) => {
     try {
       await myBotRecoverController(service, req);
       res.status(202).end();
@@ -94,8 +94,8 @@ export const createBotsRouter = (
       next(err);
     }
   };
-  router.get(MY_BOT_SUGGESTIONS_ROUTE, deps.authenticate, suggestions);
-  router.put(MY_BOT_SUGGESTIONS_ROUTE, deps.authenticate, suggestions);
+  router.get(MY_BOT_SUGGESTIONS_ROUTE, deps.authenticate, deps.rateLimit, suggestions);
+  router.put(MY_BOT_SUGGESTIONS_ROUTE, deps.authenticate, deps.rateLimit, suggestions);
 
   return router;
 };

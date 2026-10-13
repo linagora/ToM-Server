@@ -1,6 +1,7 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, type Mock, mock } from "bun:test";
 
-import express from "express";
+import express, { type RequestHandler } from "express";
+import { rateLimit } from "express-rate-limit";
 import request from "supertest";
 import { createLogger } from "winston";
 
@@ -63,10 +64,11 @@ const userInfo = (): Response =>
   });
 const members = (): Response =>
   json(200, {
-    members: [
-      "@alice:localhost",
+    joined_rooms: [
+      "!other:localhost",
+      "!room:localhost",
     ],
-    total: 1,
+    total: 2,
   });
 const profile = (): Response =>
   json(200, {
@@ -139,7 +141,10 @@ const newCallRooms = async (): Promise<DbCallRooms> => {
 
 let defaultRooms: CallRooms;
 
+const unlimited: RequestHandler = (_req, _res, next): void => next();
+
 const makeDeps = (callRooms: CallRooms = defaultRooms): SfuDeps => ({
+  rateLimit: unlimited,
   openId: new OpenIdValidator(
     {
       serverUrl: "https://localhost:8448",
@@ -205,6 +210,71 @@ describe("SfuRouter", () => {
     // Assert
     expect(response.status).toBe(400);
     expect(response.body.code).toBe(INVALID_INPUT);
+  });
+
+  it("should answer 429 to a caller who goes past the limit, before any call to the homeserver", async () => {
+    // Arrange
+    const fetchMock = mockFetch();
+    const limited = setupApp({
+      ...makeDeps(),
+      rateLimit: rateLimit({
+        limit: 1,
+      }),
+    });
+
+    // Act
+    const first = await request(limited).post(SFU_ROUTE).send({});
+    const second = await request(limited).post(SFU_ROUTE).send(body);
+
+    // Assert
+    expect(first.status).toBe(400);
+    expect(second.status).toBe(429);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("should answer 400 for a device id that Meet would split wrong", async () => {
+    // Arrange
+    mockFetch();
+
+    // Act
+    const withColon = await request(app())
+      .post(SFU_ROUTE)
+      .send({
+        ...body,
+        device_id: "DEV:ICE",
+      });
+    const tooLong = await request(app())
+      .post(SFU_ROUTE)
+      .send({
+        ...body,
+        device_id: "D".repeat(129),
+      });
+
+    // Assert
+    expect(withColon.status).toBe(400);
+    expect(tooLong.status).toBe(400);
+  });
+
+  it("should answer 400 when the identity would pass the 255 characters of Meet", async () => {
+    // Arrange
+    const longUser = `@${"a".repeat(200)}:localhost`;
+    mockFetch(
+      json(200, {
+        sub: longUser,
+      }),
+      members(),
+    );
+
+    // Act
+    const response = await request(app())
+      .post(SFU_ROUTE)
+      .send({
+        ...body,
+        device_id: "D".repeat(128),
+      });
+
+    // Assert
+    expect(response.status).toBe(400);
   });
 
   it("should answer 404 and no token when visio is disabled", async () => {
@@ -289,6 +359,27 @@ describe("SfuRouter", () => {
     mockFetch(userInfo(), members(), profile(), moderators(), appToken(), meetToken());
     const second = await request(setupApp(deps)).post(SFU_ROUTE).send(body);
     expect(second.status).toBe(200);
+  });
+
+  it("should let the participant join as a member when the power levels cannot be read", async () => {
+    // Arrange
+    const fetchMock = mockFetch(
+      userInfo(),
+      members(),
+      profile(),
+      json(500, {}),
+      appToken(),
+      meetRoom(),
+      appToken(),
+      meetToken(),
+    );
+
+    // Act
+    const response = await request(app()).post(SFU_ROUTE).send(body);
+
+    // Assert
+    expect(response.status).toBe(200);
+    expect(JSON.parse(String(fetchMock.mock.calls[7]?.[1].body)).role).toBe("member");
   });
 
   it("should answer 502 when Meet fails after the room was made", async () => {
@@ -679,8 +770,8 @@ describe("SfuRouter", () => {
     mockFetch(
       userInfo(),
       json(200, {
-        members: [
-          "@bob:localhost",
+        joined_rooms: [
+          "!other:localhost",
         ],
         total: 1,
       }),

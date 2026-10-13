@@ -26,9 +26,9 @@ export const createSfuRouter = (deps: SfuDeps | undefined, logger: Logger): Rout
     return router;
   }
 
-  router.post(SFU_ROUTE, async (req, res, next) => {
+  router.post(SFU_ROUTE, deps.rateLimit, async (req, res, next) => {
     try {
-      res.json(await sfuGetController(req.body, deps));
+      res.json(await sfuGetController(req.body, deps, logger));
     } catch (err) {
       next(err);
     }

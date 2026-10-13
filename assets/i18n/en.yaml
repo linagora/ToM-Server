@@ -61,6 +61,8 @@ log.visio.upstream_failure: "visio upstream failure on {{endpoint}}: {{reason}}"
 log.visio.homeserver_failure: "homeserver failure on {{endpoint}}: {{reason}}"
 log.visio.sfu_mounting: "Mounting sfuRouter... enabled: {{enabled}}"
 log.visio.sfu_disabled: "call token service disabled"
+log.visio.moderator_unknown: "power levels unreadable: the participant joins as
+  a member"
 
 # Bots
 bots.no_authenticated_user: "No authenticated user"
@@ -82,6 +84,7 @@ bots.recovery_unsupported: "These assistants keep their identity: there is
 bots.owner_not_served: "The assistants do not serve this user's homeserver"
 bots.home_not_direct: "Someone other than the user and the assistant is in
   this room"
+bots.home_not_member: "The user is not in this room"
 bots.harness_failure: "The assistants service failed to process the request"
 log.bots.mounting: "Mounting botsRouter... enabled: {{enabled}}"
 log.bots.disabled: "assistants disabled"

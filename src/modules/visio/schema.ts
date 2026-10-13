@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const DEFAULT_TIMEOUT_MS = 10000;
+const MAX_DEVICE_ID_LENGTH = 128;
 const REQUIRED_WHEN_ENABLED = [
   "base_url",
   "client_id",
@@ -37,6 +38,8 @@ export const visioSettingsSchema = z
         "restricted",
       ])
       .optional(),
+    /** The `idp_id` Synapse gives the OIDC provider of Twake: the subject sent to Meet is the one of this provider. */
+    oidc_provider: z.string().optional(),
     /** The owner of the rooms of the calls of Twake Chat: a service account, no human. */
     service_account_email: z.email().optional(),
     room_configuration: roomConfigurationSchema.prefault({}),
@@ -86,7 +89,12 @@ export const sfuGetRequestSchema = z.object({
     matrix_server_name: z.string().min(1),
     expires_in: z.number().optional(),
   }),
-  device_id: z.string().min(1),
+  // The identity is `{mxid}:{device_id}` and Meet splits it at the last colon (255 characters at most)
+  device_id: z
+    .string()
+    .min(1)
+    .max(MAX_DEVICE_ID_LENGTH)
+    .regex(/^[^:]+$/),
 });
 
 /** `GET /_matrix/federation/v1/openid/userinfo`: the user the OpenID token stands for. */
@@ -94,16 +102,17 @@ export const openIdUserInfoSchema = z.object({
   sub: z.string().regex(/^@[^:]+:.+$/),
 });
 
-/** `GET /_synapse/admin/v1/rooms/{roomId}/members` */
-export const roomMembersSchema = z.object({
-  members: z.array(z.string()),
+/** `GET /_synapse/admin/v1/users/{userId}/joined_rooms`: the rooms the user is in. */
+export const joinedRoomsSchema = z.object({
+  joined_rooms: z.array(z.string()),
 });
 
-/** `GET /_synapse/admin/v1/rooms/{roomId}/state`: only the power levels are read. */
+/** `GET /_synapse/admin/v1/rooms/{roomId}/state`: only the power levels and the creators are read. */
 export const roomStateSchema = z.object({
   state: z.array(
     z.object({
       type: z.string(),
+      sender: z.string().optional(),
       content: z.record(z.string(), z.unknown()),
     }),
   ),

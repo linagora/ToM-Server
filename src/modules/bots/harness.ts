@@ -5,10 +5,10 @@ import { translate } from "../../i18n/index";
 import { readJson } from "../../net/http-client";
 import {
   BotHomeRefusedError,
-  BotNotProvisionedError,
   BotNotReadyError,
   BotOwnerNotServedError,
   BotRecoveryNeededError,
+  BotsDisabledError,
   BotsUpstreamError,
 } from "./errors";
 import { myBotResponseSchema, suggestionsSchema } from "./schema";
@@ -186,7 +186,7 @@ export class HarnessBotsService {
       }
       await response.body?.cancel();
       if (response.status === 404) {
-        throw new BotNotProvisionedError("bots.not_provisioned");
+        throw new BotsDisabledError("bots.not_provisioned");
       }
       if (!response.ok) {
         throw this.#upstreamError(HOME_ENDPOINT, String(response.status));
@@ -205,7 +205,7 @@ export class HarnessBotsService {
     const response = await this.#send("POST", RECOVER_ENDPOINT, path, {}, deadline);
     await response.body?.cancel();
     if (response.status === 404) {
-      throw new BotNotProvisionedError("bots.not_provisioned");
+      throw new BotsDisabledError("bots.not_provisioned");
     }
     if (response.status === 422) {
       throw new BotOwnerNotServedError("bots.owner_not_served");

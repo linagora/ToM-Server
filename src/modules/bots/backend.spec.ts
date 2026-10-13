@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 
 import { createLogger } from "winston";
 
+import { SynapseAdmin } from "../visio/synapse-admin";
 import { makeBotsBackend } from "./backend";
 import { BotsService } from "./service";
 import type { BotsSettings, SynapseAccess } from "./types";
@@ -13,11 +14,18 @@ const silentLogger = createLogger({
 const synapse: SynapseAccess = {
   serverUrl: "https://matrix.example.com",
   serverName: "example.com",
-  admin: {
-    login: "",
-    password: "",
-    accessToken: "syt_admin",
-  },
+  admin: new SynapseAdmin(
+    {
+      serverUrl: "https://matrix.example.com",
+      timeoutMs: 1000,
+      admin: {
+        login: "",
+        password: "",
+        accessToken: "syt_admin",
+      },
+    },
+    silentLogger,
+  ),
 };
 
 const common: Omit<BotsSettings, "backend"> = {
@@ -52,7 +60,7 @@ describe("bots backend", () => {
       silentLogger,
     );
 
-    expect(backend.service).toBeInstanceOf(BotsService);
+    expect(backend).toBeInstanceOf(BotsService);
   });
 
   it("asks the harness for the bots when the harness serves them", async () => {
@@ -93,7 +101,7 @@ describe("bots backend", () => {
       synapse,
       silentLogger,
     );
-    const bot = await backend.service.provision("@dwho:example.com", "syt_owner");
+    const bot = await backend.provision("@dwho:example.com", "syt_owner");
 
     expect(bot.userId).toBe("@bot_dwho:example.com");
     expect(paths).toEqual([

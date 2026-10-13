@@ -9,7 +9,8 @@ import { DomainError } from "../../errors/domain-error";
 import { FORBIDDEN, INVALID_INPUT } from "../../errors/error-codes";
 import { translate } from "../../i18n/index";
 import { HttpClient, readJson } from "../../net/http-client";
-import { BotNotProvisionedError, BotNotReadyError, BotsDisabledError, BotsUpstreamError } from "./errors";
+import { VisioUpstreamError } from "../visio/errors";
+import { BotHomeRefusedError, BotNotReadyError, BotsDisabledError, BotsUpstreamError } from "./errors";
 import { existingUserSchema, keysQueryResponseSchema, loginResponseSchema } from "./schema";
 import type { BotsSettings, MyBot, SynapseAccess } from "./types";
 
@@ -65,7 +66,7 @@ export class BotsService {
   #synapse: SynapseAccess;
   #http: HttpClient;
   #log: Logger;
-  #adminToken: string | null = null;
+  #provisioning = new Map<string, Promise<MyBot>>();
 
   constructor(config: BotsSettings, synapse: SynapseAccess, logger: Logger) {
     this.#config = config;
@@ -77,7 +78,20 @@ export class BotsService {
     this.#log = logger;
   }
 
-  async provision(ownerId: string, ownerToken: string, timezone?: string): Promise<MyBot> {
+  /** One provisioning at a time for an owner: a second call waits for the first, not for another login. */
+  provision(ownerId: string, ownerToken: string, timezone?: string): Promise<MyBot> {
+    let pending = this.#provisioning.get(ownerId);
+    if (!pending) {
+      pending = this.#provision(ownerId, ownerToken, timezone).finally(() => {
+        this.#provisioning.delete(ownerId);
+      });
+      this.#provisioning.set(ownerId, pending);
+    }
+
+    return pending;
+  }
+
+  async #provision(ownerId: string, ownerToken: string, timezone?: string): Promise<MyBot> {
     const bot = botIds(ownerId, this.#config, this.#synapse.serverName);
     const profileDir = this.#profileDir(bot);
 
@@ -113,13 +127,18 @@ export class BotsService {
     throw new BotsDisabledError("bots.recovery_unsupported");
   }
 
-  setHome(ownerId: string, roomId: string): void {
+  async setHome(ownerId: string, roomId: string): Promise<void> {
     const bot = botIds(ownerId, this.#config, this.#synapse.serverName);
     const envFile = this.#envFile(bot);
     if (!existsSync(envFile)) {
-      throw new BotNotProvisionedError("bots.not_provisioned", {
+      throw new BotsDisabledError("bots.not_provisioned", {
         bot: bot.userId,
       });
+    }
+    oneLine(roomId);
+    // The bot answers its owner in that room: a room the owner is not in is refused
+    if (!(await this.#asBots(() => this.#synapse.admin.isMember(ownerId, roomId)))) {
+      throw new BotHomeRefusedError("bots.home_not_member");
     }
     const lines = readFileSync(envFile, "utf8")
       .split("\n")
@@ -164,31 +183,33 @@ export class BotsService {
   /** The admin API of Synapse: the account, kept out of the directory and the stats. */
   async #createAccount(botUserId: string, ownerId: string): Promise<void> {
     const path = `/_synapse/admin/v2/users/${encodeURIComponent(botUserId)}`;
-    const admin = await this.#admin();
+    const admin = this.#synapse.admin;
     // The PUT creates or modifies: an account that is no bot is never touched
-    const existing = await this.#request(() => this.#http.get(path, admin));
-    if (existing.status !== 404) {
-      const user = await this.#parse(path, existing, existingUserSchema);
-      if (user.user_type !== "bot") {
-        throw new DomainError(FORBIDDEN, "bots.account_taken", {
-          bot: botUserId,
-        });
-      }
+    const existing = await this.#asBots(() => admin.readOrNull(path, existingUserSchema));
+    if (existing && existing.user_type !== "bot") {
+      throw new DomainError(FORBIDDEN, "bots.account_taken", {
+        bot: botUserId,
+      });
     }
-    const response = await this.#request(() =>
-      this.#http.put(
-        path,
-        {
-          password: this.#password(botUserId),
-          displayname: `${ownerId.slice(1, ownerId.indexOf(":"))} — assistant`,
-          admin: false,
-          user_type: "bot",
-        },
-        admin,
-      ),
+    await this.#asBots(() =>
+      admin.put(path, {
+        password: this.#password(botUserId),
+        displayname: `${ownerId.slice(1, ownerId.indexOf(":"))} — assistant`,
+        admin: false,
+        user_type: "bot",
+      }),
     );
-    if (!response.ok) {
-      throw this.#upstreamError(path, await this.#status(response));
+  }
+
+  /** The shared admin fails as a homeserver failure of the calls; for the assistants it is theirs. */
+  async #asBots<T>(call: () => Promise<T>): Promise<T> {
+    try {
+      return await call();
+    } catch (err) {
+      if (err instanceof VisioUpstreamError) {
+        throw this.#upstreamError(String(err.context.endpoint ?? "homeserver"), err.message);
+      }
+      throw err;
     }
   }
 
@@ -343,30 +364,6 @@ export class BotsService {
       }
       await new Promise((resolve) => setTimeout(resolve, READY_POLL_MS));
     }
-  }
-
-  async #admin(): Promise<string> {
-    if (this.#adminToken) {
-      return this.#adminToken;
-    }
-    if (this.#synapse.admin.accessToken) {
-      this.#adminToken = this.#synapse.admin.accessToken;
-      return this.#adminToken;
-    }
-    const response = await this.#request(() =>
-      this.#http.post(LOGIN_PATH, {
-        type: "m.login.password",
-        identifier: {
-          type: "m.id.user",
-          user: this.#synapse.admin.login,
-        },
-        password: this.#synapse.admin.password,
-        initial_device_display_name: "ToM bots",
-      }),
-    );
-    const login = await this.#parse(LOGIN_PATH, response, loginResponseSchema);
-    this.#adminToken = login.access_token;
-    return this.#adminToken;
   }
 
   /**

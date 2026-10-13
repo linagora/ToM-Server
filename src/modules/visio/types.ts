@@ -20,6 +20,8 @@ export interface VisioDeps {
 export interface SfuDeps {
   openId: OpenIdValidator;
   admin: SynapseAdmin;
+  /** Limits the callers of the route, which has no authentication. */
+  rateLimit: RequestHandler;
   /** Meet, behind the token service: the calls need it. */
   service: VisioService;
 }
