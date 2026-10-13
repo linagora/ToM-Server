@@ -812,9 +812,11 @@ public_pages:
 | `lang`       | `en`    | `lang` attribute of the pages.                                             |
 
 A room is served only if its `m.room.history_visibility` is `world_readable`
-or its `m.room.join_rules` is `public` (anyone may join and read it), it has no `m.room.encryption` state and it is not a space. This gate runs on the
-state of the room before any message or media is read, for pages, media and the
-sitemap alike (ToM reads Synapse as admin, so it reads every room).
+(a room anyone may join, whose history is kept to members, is not), it has no
+`m.room.encryption` state and it is not a space. Messages sent before the latest
+change of its history visibility are not shown. This gate runs on the state of
+the room before any message or media is read, for pages, media and the sitemap
+alike (ToM reads Synapse as admin, so it reads every room).
 
 | Route                                  | Answer                                                                          |
 | -------------------------------------- | ------------------------------------------------------------------------------- |
