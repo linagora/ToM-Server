@@ -13,7 +13,22 @@ const silentLogger = createLogger({
   silent: true,
 });
 
-const state = (history: string, extra: StateEvent[] = []): StateEvent[] => [
+const state = (
+  history: string,
+  extra: StateEvent[] = [],
+  optIn: unknown = {
+    enabled: true,
+  },
+): StateEvent[] => [
+  ...(optIn === null
+    ? []
+    : [
+        {
+          type: "app.twake.chat.public_page",
+          state_key: "",
+          content: optIn as Record<string, unknown>,
+        },
+      ]),
   {
     type: "m.room.create",
     state_key: "",
@@ -72,6 +87,13 @@ const reaction = (sender: string, key: string): MessageEvent => ({
 const rooms: Record<string, StateEvent[]> = {
   "!page:hs": state("world_readable"),
   "!private:hs": state("shared"),
+  "!noevent:hs": state("world_readable", [], null),
+  "!off:hs": state("world_readable", [], {
+    enabled: false,
+  }),
+  "!bad:hs": state("world_readable", [], {
+    enabled: "yes",
+  }),
   "!secret:hs": state("world_readable", [
     {
       type: "m.room.encryption",
@@ -84,6 +106,9 @@ const aliases: Record<string, string> = {
   "#figaro:hs": "!page:hs",
   "#private:hs": "!private:hs",
   "#secret:hs": "!secret:hs",
+  "#noevent:hs": "!noevent:hs",
+  "#off:hs": "!off:hs",
+  "#bad:hs": "!bad:hs",
 };
 
 const fakeSource = (): PagesSource & {
@@ -258,6 +283,50 @@ describe("public pages router", () => {
     expect(source.downloads).toEqual([]);
   });
 
+  it("answers the same 404 for a room that did not opt in as for a private one, and reads nothing of it", async () => {
+    const source = fakeSource();
+    const app = makeApp(source);
+    const reference = await request(app).get("/b/private");
+
+    for (const ref of [
+      "noevent",
+      "off",
+      "bad",
+      encodeURIComponent("!off:hs"),
+    ]) {
+      const res = await request(app).get(`/b/${ref}`);
+      expect(res.status).toBe(reference.status);
+      expect(res.text).toBe(reference.text);
+      expect((await request(app).get(`/b/${ref}/media/hs/avatar`)).status).toBe(404);
+      expect(
+        (
+          await form(app, `/b/${ref}/react`, {
+            event_id: "$1",
+            key: "\u{1F44D}",
+          })
+        ).status,
+      ).toBe(404);
+      expect(
+        (
+          await form(app, `/b/${ref}/report`, {
+            event_id: "$1",
+            reason: "spam",
+          })
+        ).status,
+      ).toBe(404);
+    }
+    for (const id of [
+      "!noevent:hs",
+      "!off:hs",
+      "!bad:hs",
+    ]) {
+      expect((await request(app).get(`/_twake/v1/public-pages/reactions?room_id=${id}&event_id=$1`)).status).toBe(404);
+    }
+    expect(source.reads).toEqual([]);
+    expect(source.downloads).toEqual([]);
+    expect(source.reports).toEqual([]);
+  });
+
   it("answers 404 for an unknown room, a bad ref and a room id that does not exist", async () => {
     const app = makeApp(fakeSource());
 
@@ -317,8 +386,26 @@ describe("public pages router", () => {
           room_type: null,
         },
       ]);
+    const listed = (id: string, alias: string) => ({
+      room_id: id,
+      canonical_alias: alias,
+      history_visibility: "world_readable",
+      encryption: null,
+      room_type: null,
+    });
+    source.listRooms = () =>
+      Promise.resolve([
+        listed("!page:hs", "#figaro:hs"),
+        listed("!noevent:hs", "#noevent:hs"),
+        listed("!off:hs", "#off:hs"),
+        listed("!bad:hs", "#bad:hs"),
+        listed("!gone:hs", "#gone:hs"),
+      ]);
     const app = makeApp(source);
 
+    const xml = (await request(app).get("/sitemap.xml")).text;
+    expect(xml).toContain("<loc>https://pages.test/b/figaro</loc>");
+    expect(xml.match(/<loc>/g)).toHaveLength(1);
     expect((await request(app).get("/robots.txt")).text).toContain("Sitemap: https://pages.test/sitemap.xml");
     expect((await request(app).get("/sitemap.xml")).text).toContain("<loc>https://pages.test/b/figaro</loc>");
   });

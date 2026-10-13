@@ -10,6 +10,7 @@ import { translate } from "../../i18n/index";
 import {
   baseKey,
   isPublic,
+  isSitemapCandidate,
   mediaOf,
   pagePath,
   parseRef,
@@ -20,11 +21,13 @@ import {
   renderRobots,
   renderSitemap,
 } from "./pages";
-import type { Page, PagesSource, PublicPagesSettings, ReactionStore } from "./types";
+import type { ListedRoom, Page, PagesSource, PublicPagesSettings, ReactionStore } from "./types";
 
 /** How long a page is kept before the homeserver is read again. */
 const CACHE_MS = 60_000;
 const CACHE_MAX = 1000;
+/** State reads of the sitemap in flight at once. */
+const SITEMAP_READS = 8;
 
 const HTML_HEADERS = {
   "Content-Type": "text/html; charset=utf-8",
@@ -177,13 +180,27 @@ export const createPublicPagesRouter = (
     res.status(502).type("text/plain").send("The homeserver did not answer.\n");
   };
 
+  /** The rooms of the admin list that pass THE gate: one state read per room the list lets through. */
+  async function optedIn(listed: ListedRoom[]): Promise<ListedRoom[]> {
+    const candidates = listed.filter(isSitemapCandidate);
+    const kept: ListedRoom[] = [];
+    for (let i = 0; i < candidates.length; i += SITEMAP_READS) {
+      const batch = candidates.slice(i, i + SITEMAP_READS);
+      const states = await Promise.all(batch.map((room) => source.readState(room.room_id)));
+      kept.push(...batch.filter((_, j) => states[j] && isPublic(states[j])));
+    }
+
+    return kept;
+  }
+
   router.get("/robots.txt", (_req, res) => {
     res.type("text/plain").send(renderRobots(publicUrl));
   });
 
   router.get("/sitemap.xml", async (_req, res) => {
     try {
-      const rooms = await source.listRooms();
+      // The admin list carries no state: read the opt-in of each candidate, 8 at a time (`optedIn`)
+      const rooms = await optedIn(await source.listRooms());
       res.set("Cache-Control", "public, max-age=300").type("application/xml").send(
         renderSitemap(rooms, {
           publicUrl,
