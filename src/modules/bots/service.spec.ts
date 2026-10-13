@@ -8,6 +8,7 @@ import { createLogger } from "winston";
 import { BAD_GATEWAY, FORBIDDEN, INVALID_INPUT, NOT_FOUND, SERVICE_UNAVAILABLE } from "../../errors/error-codes";
 import { loadMessages } from "../../i18n/index";
 import { BotsService, botIds } from "./service";
+import { SynapseAdmin } from "../visio/synapse-admin";
 import type { BotsSettings, SynapseAccess } from "./types";
 
 const silentLogger = createLogger({
@@ -20,14 +21,24 @@ const BOT = "@bot_dwho:example.com";
 const DEVICE = "HERMESDWHO";
 const MASTER_KEY = "mk+base64";
 
+const adminOf = (accessToken: string): SynapseAdmin =>
+  new SynapseAdmin(
+    {
+      serverUrl: "https://matrix.example.com",
+      timeoutMs: 1000,
+      admin: {
+        login: "tomadmin",
+        password: "secret",
+        accessToken,
+      },
+    },
+    silentLogger,
+  );
+
 const synapse: SynapseAccess = {
   serverUrl: "https://matrix.example.com",
   serverName: "example.com",
-  admin: {
-    login: "",
-    password: "",
-    accessToken: "syt_admin",
-  },
+  admin: adminOf("syt_admin"),
 };
 
 let profilesDir = "";
@@ -484,11 +495,7 @@ describe("BotsService", () => {
       settings(),
       {
         ...synapse,
-        admin: {
-          login: "tomadmin",
-          password: "secret",
-          accessToken: "",
-        },
+        admin: adminOf(""),
       },
       silentLogger,
     );

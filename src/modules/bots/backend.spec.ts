@@ -4,6 +4,7 @@ import { createLogger } from "winston";
 
 import { makeBotsBackend } from "./backend";
 import { BotsService } from "./service";
+import { SynapseAdmin } from "../visio/synapse-admin";
 import type { BotsSettings, SynapseAccess } from "./types";
 
 const silentLogger = createLogger({
@@ -13,11 +14,18 @@ const silentLogger = createLogger({
 const synapse: SynapseAccess = {
   serverUrl: "https://matrix.example.com",
   serverName: "example.com",
-  admin: {
-    login: "",
-    password: "",
-    accessToken: "syt_admin",
-  },
+  admin: new SynapseAdmin(
+    {
+      serverUrl: "https://matrix.example.com",
+      timeoutMs: 1000,
+      admin: {
+        login: "",
+        password: "",
+        accessToken: "syt_admin",
+      },
+    },
+    silentLogger,
+  ),
 };
 
 const common: Omit<BotsSettings, "backend"> = {

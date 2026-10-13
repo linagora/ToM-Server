@@ -1,6 +1,7 @@
 import type { RequestHandler } from "express";
 import type { z } from "zod";
 
+import type { SynapseAdmin } from "../visio/synapse-admin";
 import type { botsSettingsSchema, myBotResponseSchema } from "./schema";
 
 export type BotsSettings = z.infer<typeof botsSettingsSchema>;
@@ -34,9 +35,6 @@ export interface BotsProvisioner {
 export interface SynapseAccess {
   serverUrl: string;
   serverName: string;
-  admin: {
-    login: string;
-    password: string;
-    accessToken: string;
-  };
+  /** The admin of ToM, shared with the other modules: one login, replaced when Synapse refuses it. */
+  admin: SynapseAdmin;
 }

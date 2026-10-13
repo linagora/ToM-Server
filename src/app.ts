@@ -71,8 +71,26 @@ function mountWellKnownClient(config: Config, logger: Logger, app: Express): voi
   app.use(wellKnownRouter);
 }
 
+function makeSynapseAdmin(config: Config, logger: Logger): SynapseAdmin {
+  return new SynapseAdmin(
+    {
+      serverUrl: config.synapse.server_url,
+      timeoutMs: config.auth.timeout_ms,
+      oidcProvider: config.visio.oidc_provider,
+      admin: {
+        login: config.synapse.admin?.login ?? "",
+        password: config.synapse.admin?.password ?? "",
+        accessToken: config.synapse.admin?.access_token ?? "",
+      },
+    },
+    logger.child({
+      module: "synapse-admin",
+    }),
+  );
+}
+
 /** The MatrixRTC token service of the calls of Twake Chat (D30): Meet behind it when `visio` is enabled. */
-async function mountSfu(config: Config, logger: Logger, app: Express): Promise<void> {
+async function mountSfu(config: Config, logger: Logger, app: Express, admin: SynapseAdmin): Promise<void> {
   const sfuLogger = logger.child({
     module: "visio-sfu",
   });
@@ -91,19 +109,7 @@ async function mountSfu(config: Config, logger: Logger, app: Express): Promise<v
         },
         sfuLogger,
       ),
-      admin: new SynapseAdmin(
-        {
-          serverUrl: config.synapse.server_url,
-          timeoutMs: config.auth.timeout_ms,
-          oidcProvider: config.visio.oidc_provider,
-          admin: {
-            login: config.synapse.admin?.login ?? "",
-            password: config.synapse.admin?.password ?? "",
-            accessToken: config.synapse.admin?.access_token ?? "",
-          },
-        },
-        sfuLogger,
-      ),
+      admin,
       service: new VisioService(config.visio, sfuLogger, new DbCallRooms(db)),
     };
   }
@@ -152,7 +158,7 @@ function mountVisio(config: Config, logger: Logger, app: Express): void {
   app.use(createVisioRouter(config.visio, deps, visioLogger));
 }
 
-function mountBots(config: Config, logger: Logger, app: Express): void {
+function mountBots(config: Config, logger: Logger, app: Express, admin: SynapseAdmin): void {
   const botsLogger = logger.child({
     module: "bots",
   });
@@ -178,11 +184,7 @@ function mountBots(config: Config, logger: Logger, app: Express): void {
       {
         serverUrl: config.synapse.server_url,
         serverName: config.server.name,
-        admin: {
-          login: config.synapse.admin?.login ?? "",
-          password: config.synapse.admin?.password ?? "",
-          accessToken: config.synapse.admin?.access_token ?? "",
-        },
+        admin,
       },
       botsLogger,
     );
@@ -247,7 +249,12 @@ async function mountGifs(config: Config, logger: Logger, app: Express): Promise<
 }
 
 /** The public web pages of the rooms anyone may read; disabled is not mounted, so 404. */
-async function mountPublicPages(config: Config, logger: Logger, app: Express): Promise<void> {
+async function mountPublicPages(
+  config: Config,
+  logger: Logger,
+  app: Express,
+  synapseAdmin: SynapseAdmin,
+): Promise<void> {
   if (!config.public_pages.enabled) {
     return;
   }
@@ -260,20 +267,7 @@ async function mountPublicPages(config: Config, logger: Logger, app: Express): P
     return;
   }
   logger.info(translate("log.public_pages.mounting"));
-  const source = makeSynapseSource(
-    new SynapseAdmin(
-      {
-        serverUrl: config.synapse.server_url,
-        timeoutMs: config.auth.timeout_ms,
-        admin: {
-          login: admin.login,
-          password: admin.password,
-          accessToken: admin.access_token,
-        },
-      },
-      pagesLogger,
-    ),
-  );
+  const source = makeSynapseSource(synapseAdmin);
   const db = new Database<"public_reactions">(
     mapToLegacyConfig(config),
     pagesLogger as never,
@@ -340,10 +334,12 @@ export async function createApp(
   // --- New modules routers here ---
   mountWellKnownClient(config, logger, app);
   mountVisio(config, logger, app);
-  await mountSfu(config, logger, app);
-  mountBots(config, logger, app);
+  // One admin of the homeserver for the modules that read it: one login, not one per module
+  const synapseAdmin = makeSynapseAdmin(config, logger);
+  await mountSfu(config, logger, app, synapseAdmin);
+  mountBots(config, logger, app, synapseAdmin);
   await mountGifs(config, logger, app);
-  await mountPublicPages(config, logger, app);
+  await mountPublicPages(config, logger, app, synapseAdmin);
 
   // --- End of new modules ---
 

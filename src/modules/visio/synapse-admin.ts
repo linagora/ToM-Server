@@ -34,6 +34,7 @@ export class SynapseAdmin {
   #http: HttpClient;
   #log: Logger;
   #token: string | null = null;
+  #login: Promise<string> | null = null;
 
   constructor(config: SynapseAdminSettings, logger: Logger) {
     this.#config = config;
@@ -104,14 +105,17 @@ export class SynapseAdmin {
   }
 
   /** A POST with the admin token; throws when Synapse refuses. */
-  async post(path: string, body: Record<string, unknown>): Promise<void> {
-    const token = await this.#adminToken();
-    let response: Response;
-    try {
-      response = await this.#http.post(path, body, token);
-    } catch (err) {
-      throw this.#upstreamError(path, err instanceof Error ? err.message : translate("log.net.request_failed"));
-    }
+  post(path: string, body: Record<string, unknown>): Promise<void> {
+    return this.#write(path, (token) => this.#http.post(path, body, token));
+  }
+
+  /** A PUT with the admin token; throws when Synapse refuses. */
+  put(path: string, body: Record<string, unknown>): Promise<void> {
+    return this.#write(path, (token) => this.#http.put(path, body, token));
+  }
+
+  async #write(path: string, send: (token: string) => Promise<Response>): Promise<void> {
+    const response = await this.#authorized(path, send);
     if (!response.ok) {
       throw this.#upstreamError(
         path,
@@ -122,10 +126,30 @@ export class SynapseAdmin {
     }
   }
 
-  async #get(path: string): Promise<Response> {
+  #get(path: string): Promise<Response> {
+    return this.#authorized(path, (token) => this.#http.get(path, token));
+  }
+
+  /**
+   * A call with the admin token. A token Synapse refuses (revoked, expired) is
+   * dropped and replaced by a new login, once; a configured token cannot be
+   * replaced, so its 401 is the answer.
+   */
+  async #authorized(path: string, send: (token: string) => Promise<Response>): Promise<Response> {
+    const response = await this.#attempt(path, send);
+    if (response.status !== 401 || this.#config.admin.accessToken) {
+      return response;
+    }
+    await response.body?.cancel();
+    this.#token = null;
+
+    return this.#attempt(path, send);
+  }
+
+  async #attempt(path: string, send: (token: string) => Promise<Response>): Promise<Response> {
     const token = await this.#adminToken();
     try {
-      return await this.#http.get(path, token);
+      return await send(token);
     } catch (err) {
       throw this.#upstreamError(path, err instanceof Error ? err.message : translate("log.net.request_failed"));
     }
@@ -139,6 +163,15 @@ export class SynapseAdmin {
       this.#token = this.#config.admin.accessToken;
       return this.#token;
     }
+    // Calls that need a token meanwhile share the login in flight: one device, not one per call
+    this.#login ??= this.#logIn().finally(() => {
+      this.#login = null;
+    });
+
+    return this.#login;
+  }
+
+  async #logIn(): Promise<string> {
     let response: Response;
     try {
       response = await this.#http.post(LOGIN_PATH, {
@@ -148,7 +181,7 @@ export class SynapseAdmin {
           user: this.#config.admin.login,
         },
         password: this.#config.admin.password,
-        initial_device_display_name: "ToM calls",
+        initial_device_display_name: "ToM",
       });
     } catch (err) {
       throw this.#upstreamError(LOGIN_PATH, err instanceof Error ? err.message : translate("log.net.request_failed"));

@@ -93,6 +93,110 @@ describe("SynapseAdmin", () => {
     );
   });
 
+  it("should drop a refused token, log in again and retry once", async () => {
+    // Arrange
+    const fetchMock = mockFetch(
+      loginOk(),
+      json(401, {
+        errcode: "M_UNKNOWN_TOKEN",
+      }),
+      json(200, {
+        access_token: "admin-token-2",
+      }),
+      json(200, {
+        joined_rooms: [
+          "!room:localhost",
+        ],
+        total: 1,
+      }),
+    );
+    const admin = new SynapseAdmin(settings, silentLogger);
+
+    // Act
+    const member = await admin.isMember("@alice:localhost", "!room:localhost");
+
+    // Assert
+    expect(member).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect((fetchMock.mock.calls[3]?.[1]?.headers as Record<string, string> | undefined)?.Authorization).toBe(
+      "Bearer admin-token-2",
+    );
+  });
+
+  it("should not retry a second 401, nor replace a configured token", async () => {
+    // Arrange
+    const fetchMock = mockFetch(
+      loginOk(),
+      json(401, {}),
+      json(200, {
+        access_token: "admin-token-2",
+      }),
+      json(401, {}),
+      json(401, {}),
+    );
+    const admin = new SynapseAdmin(settings, silentLogger);
+    const configured = new SynapseAdmin(
+      {
+        ...settings,
+        admin: {
+          ...settings.admin,
+          accessToken: "configured-token",
+        },
+      },
+      silentLogger,
+    );
+
+    // Act & Assert
+    await expect(admin.isMember("@alice:localhost", "!room:localhost")).rejects.toBeInstanceOf(VisioUpstreamError);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    await expect(configured.isMember("@alice:localhost", "!room:localhost")).rejects.toBeInstanceOf(
+      VisioUpstreamError,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+  });
+
+  it("should log in once for calls that start together", async () => {
+    // Arrange
+    const joined = (): Response =>
+      json(200, {
+        joined_rooms: [],
+        total: 0,
+      });
+    const fetchMock = mockFetch(loginOk(), joined(), joined());
+    const admin = new SynapseAdmin(settings, silentLogger);
+
+    // Act
+    await Promise.all([
+      admin.isMember("@alice:localhost", "!room:localhost"),
+      admin.isMember("@bob:localhost", "!room:localhost"),
+    ]);
+
+    // Assert
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("should PUT with the admin token and throw when Synapse refuses", async () => {
+    // Arrange
+    const fetchMock = mockFetch(json(201, {}), json(500, {}));
+    const admin = new SynapseAdmin(
+      {
+        ...settings,
+        admin: {
+          ...settings.admin,
+          accessToken: "configured-token",
+        },
+      },
+      silentLogger,
+    );
+
+    // Act & Assert
+    await admin.put("/_synapse/admin/v2/users/x", {
+      admin: false,
+    });
+    expect(fetchMock.mock.calls[0]?.[1]?.method).toBe("PUT");
+    await expect(admin.put("/_synapse/admin/v2/users/x", {})).rejects.toBeInstanceOf(VisioUpstreamError);
+  });
+
   it("should use the configured access token without logging in", async () => {
     // Arrange
     const fetchMock = mockFetch(

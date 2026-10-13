@@ -65,7 +65,6 @@ export class BotsService {
   #synapse: SynapseAccess;
   #http: HttpClient;
   #log: Logger;
-  #adminToken: string | null = null;
 
   constructor(config: BotsSettings, synapse: SynapseAccess, logger: Logger) {
     this.#config = config;
@@ -164,32 +163,22 @@ export class BotsService {
   /** The admin API of Synapse: the account, kept out of the directory and the stats. */
   async #createAccount(botUserId: string, ownerId: string): Promise<void> {
     const path = `/_synapse/admin/v2/users/${encodeURIComponent(botUserId)}`;
-    const admin = await this.#admin();
+    const admin = this.#synapse.admin;
     // The PUT creates or modifies: an account that is no bot is never touched
-    const existing = await this.#request(() => this.#http.get(path, admin));
-    if (existing.status !== 404) {
-      const user = await this.#parse(path, existing, existingUserSchema);
-      if (user.user_type !== "bot") {
-        throw new DomainError(FORBIDDEN, "bots.account_taken", {
-          bot: botUserId,
-        });
-      }
+    const existing = await admin.readOrNull(path, existingUserSchema);
+    if (existing && existing.user_type !== "bot") {
+      throw new DomainError(FORBIDDEN, "bots.account_taken", {
+        bot: botUserId,
+      });
     }
-    const response = await this.#request(() =>
-      this.#http.put(
-        path,
-        {
-          password: this.#password(botUserId),
-          displayname: `${ownerId.slice(1, ownerId.indexOf(":"))} — assistant`,
-          admin: false,
-          user_type: "bot",
-        },
-        admin,
-      ),
-    );
-    if (!response.ok) {
-      throw this.#upstreamError(path, await this.#status(response));
-    }
+    await admin
+      .put(path, {
+        password: this.#password(botUserId),
+        displayname: `${ownerId.slice(1, ownerId.indexOf(":"))} — assistant`,
+        admin: false,
+        user_type: "bot",
+      })
+      ;
   }
 
   async #login(localpart: string, deviceId: string): Promise<string> {
@@ -343,30 +332,6 @@ export class BotsService {
       }
       await new Promise((resolve) => setTimeout(resolve, READY_POLL_MS));
     }
-  }
-
-  async #admin(): Promise<string> {
-    if (this.#adminToken) {
-      return this.#adminToken;
-    }
-    if (this.#synapse.admin.accessToken) {
-      this.#adminToken = this.#synapse.admin.accessToken;
-      return this.#adminToken;
-    }
-    const response = await this.#request(() =>
-      this.#http.post(LOGIN_PATH, {
-        type: "m.login.password",
-        identifier: {
-          type: "m.id.user",
-          user: this.#synapse.admin.login,
-        },
-        password: this.#synapse.admin.password,
-        initial_device_display_name: "ToM bots",
-      }),
-    );
-    const login = await this.#parse(LOGIN_PATH, response, loginResponseSchema);
-    this.#adminToken = login.access_token;
-    return this.#adminToken;
   }
 
   /**
