@@ -601,7 +601,7 @@ describe("SfuRouter", () => {
     expect(a.room).toBe(b.room);
   });
 
-  describe("a room Meet lost or kept for another application", () => {
+  describe("a room Meet lost", () => {
     const OLD = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
     const NEW = "11111111-2222-3333-4444-555555555555";
     const goneJson = (): Response =>
@@ -614,7 +614,7 @@ describe("SfuRouter", () => {
     const roomsMade = (fetchMock: FetchMock): number =>
       fetchMock.mock.calls.filter(([url, init]) => url.endsWith("/rooms/") && init?.method === "POST").length;
 
-    it("should replace a room Meet refuses with a JSON 404 (gone, or made by another client_id), once, and mint for the new one", async () => {
+    it("should replace a room Meet says is gone, once, and mint for the new one", async () => {
       // Arrange
       const callRooms = await newCallRooms();
       mockFetch(userInfo(), members(), profile(), moderators(), appToken(), meetRoom(), appToken(), meetToken());
@@ -627,7 +627,9 @@ describe("SfuRouter", () => {
         profile(),
         moderators(),
         appToken(),
-        goneJson(), // token route: 404, JSON
+        goneJson(), // token route: 404
+        appToken(),
+        goneJson(), // retrieve: the room is gone
         appToken(),
         json(201, {
           id: NEW,
@@ -650,6 +652,7 @@ describe("SfuRouter", () => {
       expect(response.body.jwt).toBe("new-jwt");
       expect(roomsMade(fetchMock)).toBe(1);
       expect(await callRooms.get("!room:localhost")).toBe(NEW);
+      expect(fetchMock.mock.calls.map(([url]) => url)).toContain(`http://meet:8000/external-api/v1.0/rooms/${OLD}/`);
 
       // The next joiner gets the new room without another creation
       const next = mockFetch(
@@ -671,6 +674,48 @@ describe("SfuRouter", () => {
       expect(next.mock.calls[5]?.[0]).toContain(`/rooms/${NEW}/livekit-token/`);
     });
 
+    it("should replace a room Meet still has but refuses in JSON, made before Meet recorded its application", async () => {
+      // Arrange
+      const callRooms = await newCallRooms();
+      mockFetch(userInfo(), members(), profile(), moderators(), appToken(), meetRoom(), appToken(), meetToken());
+      await request(setupApp(makeDeps(callRooms)))
+        .post(SFU_ROUTE)
+        .send(body);
+      const fetchMock = mockFetch(
+        userInfo(),
+        members(),
+        profile(),
+        moderators(),
+        appToken(),
+        goneJson(), // token route: 404 in JSON
+        appToken(),
+        json(200, {
+          id: OLD,
+        }), // retrieve: the room is still there
+        appToken(),
+        json(201, {
+          id: NEW,
+          slug: "n",
+        }),
+        json(200, {
+          url: "http://synapse:7880",
+          room: NEW,
+          token: "new-jwt",
+        }),
+      );
+
+      // Act
+      const response = await request(setupApp(makeDeps(callRooms)))
+        .post(SFU_ROUTE)
+        .send(body);
+
+      // Assert
+      expect(response.status).toBe(200);
+      expect(response.body.jwt).toBe("new-jwt");
+      expect(roomsMade(fetchMock)).toBe(1);
+      expect(await callRooms.get("!room:localhost")).toBe(NEW);
+    });
+
     it("should answer 502 and not loop when the new room is refused too", async () => {
       // Arrange
       const callRooms = await newCallRooms();
@@ -683,6 +728,8 @@ describe("SfuRouter", () => {
         members(),
         profile(),
         moderators(),
+        appToken(),
+        goneJson(),
         appToken(),
         goneJson(),
         appToken(),
@@ -701,6 +748,36 @@ describe("SfuRouter", () => {
       // Assert
       expect(response.status).toBe(502);
       expect(roomsMade(fetchMock)).toBe(1);
+    });
+
+    it("should keep the row when Meet refuses to say whether the room exists", async () => {
+      // Arrange
+      const callRooms = await newCallRooms();
+      mockFetch(userInfo(), members(), profile(), moderators(), appToken(), meetRoom(), appToken(), meetToken());
+      await request(setupApp(makeDeps(callRooms)))
+        .post(SFU_ROUTE)
+        .send(body);
+      mockFetch(
+        userInfo(),
+        members(),
+        profile(),
+        moderators(),
+        appToken(),
+        goneJson(),
+        appToken(),
+        json(403, {
+          detail: "Insufficient permissions.",
+        }),
+      );
+
+      // Act
+      const response = await request(setupApp(makeDeps(callRooms)))
+        .post(SFU_ROUTE)
+        .send(body);
+
+      // Assert
+      expect(response.status).toBe(502);
+      expect(await callRooms.get("!room:localhost")).toBe(OLD);
     });
 
     it("should converge on one new room when two replicas see it gone at once", async () => {

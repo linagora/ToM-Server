@@ -15,6 +15,8 @@ interface StateOptions {
   encrypted?: boolean;
   type?: string;
   joinRule?: string;
+  optIn?: unknown;
+  noOptIn?: boolean;
 }
 
 const state = ({
@@ -23,6 +25,10 @@ const state = ({
   encrypted = false,
   type,
   joinRule = "invite",
+  optIn = {
+    enabled: true,
+  },
+  noOptIn = false,
 }: StateOptions = {}): StateEvent[] => [
   event("m.room.join_rules", {
     join_rule: joinRule,
@@ -56,6 +62,11 @@ const state = ({
     },
     "@ed:hs",
   ),
+  ...(noOptIn
+    ? []
+    : [
+        event("app.twake.chat.public_page", optIn as Record<string, unknown>),
+      ]),
   ...(encrypted
     ? [
         event("m.room.encryption", {
@@ -322,6 +333,80 @@ describe("renderPage", () => {
 });
 
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: test suite
+describe("the opt-in", () => {
+  it("refuses a room without the event, with enabled false or not a boolean, or with malformed content", () => {
+    expect(
+      isPublic(
+        state({
+          noOptIn: true,
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      readPage(
+        "figaro",
+        state({
+          noOptIn: true,
+        }),
+        [],
+      ),
+    ).toBeNull();
+    for (const optIn of [
+      {},
+      {
+        enabled: false,
+      },
+      {
+        enabled: "true",
+      },
+      {
+        enabled: 1,
+      },
+      "enabled",
+      null,
+    ]) {
+      expect(
+        isPublic(
+          state({
+            optIn,
+          }),
+        ),
+      ).toBe(false);
+      expect(
+        readPage(
+          "figaro",
+          state({
+            optIn,
+          }),
+          [],
+        ),
+      ).toBeNull();
+    }
+  });
+
+  it("serves a room with enabled true", () => {
+    expect(isPublic(state())).toBe(true);
+    expect(readPage("figaro", state(), [])).not.toBeNull();
+  });
+
+  it("reads the event of the empty state key only", () => {
+    const other = [
+      ...state({
+        noOptIn: true,
+      }),
+      event(
+        "app.twake.chat.public_page",
+        {
+          enabled: true,
+        },
+        "x",
+      ),
+    ];
+
+    expect(isPublic(other)).toBe(false);
+  });
+});
+
 describe("renderSitemap", () => {
   const room = (extra: Record<string, unknown>): Parameters<typeof renderSitemap>[0][number] => ({
     room_id: "!r:hs",

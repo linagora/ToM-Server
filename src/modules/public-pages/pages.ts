@@ -121,10 +121,14 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const text = (value: unknown): string => (typeof value === "string" ? value : "");
 
+/** The state event (state_key "") a room carries, `{ "enabled": true }`, to have a public page and be in the sitemap. */
+export const PUBLIC_PAGE_EVENT = "app.twake.chat.public_page";
+
 /**
  * THE gate: a room has a public page when anyone may read its history (`world_readable`; a room
  * anyone may join but whose history is kept to members is not readable from outside), it is not
- * end-to-end encrypted and it is not a space. Every read of Synapse as admin goes through it.
+ * end-to-end encrypted, it is not a space and it opted in (`PUBLIC_PAGE_EVENT` with `enabled: true`;
+ * anything else is no). Every read of Synapse as admin, the sitemap included, goes through it.
  */
 export function isPublic(state: StateEvent[]): boolean {
   const of = (type: string): Record<string, unknown> =>
@@ -133,7 +137,8 @@ export function isPublic(state: StateEvent[]): boolean {
   return (
     of("m.room.history_visibility").history_visibility === "world_readable" &&
     !state.some((event) => event.type === "m.room.encryption") &&
-    of("m.room.create").type !== "m.space"
+    of("m.room.create").type !== "m.space" &&
+    of(PUBLIC_PAGE_EVENT).enabled === true
   );
 }
 
@@ -551,7 +556,11 @@ function sitemapRef(room: ListedRoom, serverName: string): string | null {
   return ROOM_ID.test(room.room_id) ? room.room_id : null;
 }
 
-/** The rooms that pass the gate, as the admin list of Synapse tells them. */
+/** What the admin list can tell of the gate; the opt-in is in the state, read by the caller (`isPublic`). */
+export const isSitemapCandidate = (room: ListedRoom): boolean =>
+  room.history_visibility === "world_readable" && !room.encryption && room.room_type !== "m.space";
+
+/** Renders the rooms the caller found to pass the gate (the admin list is prefiltered here). */
 export function renderSitemap(
   rooms: ListedRoom[],
   {
@@ -563,7 +572,7 @@ export function renderSitemap(
   },
 ): string {
   const urls = rooms
-    .filter((room) => room.history_visibility === "world_readable" && !room.encryption && room.room_type !== "m.space")
+    .filter(isSitemapCandidate)
     .map((room) => sitemapRef(room, serverName))
     .filter((ref): ref is string => ref !== null)
     .map((ref) => `  <url><loc>${escapeHtml(publicUrl + pagePath(ref))}</loc></url>`);
