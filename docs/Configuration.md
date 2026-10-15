@@ -61,7 +61,7 @@ server:
 | `host`                   No          `"0.0.0.0"`  Bind address for the HTTP server.                                                        |
 | `port`                   No          `3000`       Listen port.                                                                             |
 | `trust_x_forwarded_for`  No          `false`      Enable when behind a reverse proxy.                                                      |
-| `trusted_proxies`        No          `[]`         List of trusted proxy IPs.                                                               |
+| `trusted_proxies`        No          `[]`         IPs or subnets of the trusted proxies; required for per-IP limits to hold behind a proxy. |
 | `additional_features`    No          `false`      Enable extra company features.                                                           |
 | `enable_cron_jobs`       No          `false`      Master switch for all scheduled background jobs.                                         |
 
@@ -81,8 +81,11 @@ server:
 
 This limit applies to the GIF routes and the assistant routes (`bots/me`),
 counted per user, and to the call token service (`sfu/get`), counted per IP
-address of the caller: set `trust_x_forwarded_for` behind a proxy, or every
-caller shares the address of the proxy. Past it the answer is `429
+address of the caller: set `trust_x_forwarded_for` and list the proxies in
+`trusted_proxies` behind a proxy, or every caller shares the address of the
+proxy. With `trust_x_forwarded_for` and no `trusted_proxies`, ToM trusts any
+`X-Forwarded-For` (a client can forge it to escape the limit) and warns at
+startup. Past it the answer is `429
 M_LIMIT_EXCEEDED`.
 
 ---
@@ -665,14 +668,17 @@ Two more fields serve the calls of Twake Chat (see [Call token service](#call-to
 | `room_configuration`    | `{screen_recording_permission: authenticated, transcript_permission: authenticated, everyone_can_mute: false}` | The configuration of those rooms (`admin_owner` restricts to the owner of the room).                  |
 
 `oidc_provider` is the `idp_id` Synapse gives the OIDC provider of Twake
-(`oidc_providers` of its configuration). The OIDC subject sent to Meet is the
+(`oidc_providers` of its configuration), for example `twake`; Synapse stores
+the identity as `oidc-twake` (`oidc` for the legacy single `oidc_config`),
+and both `twake` and `oidc-twake` match it. The OIDC subject sent to Meet is the
 `external_id` of the user at that provider; with no `oidc_provider`, or when the
 user has no identity there, no subject is sent and Meet matches the user by
 email.
 
 ## Call token service
 
-Enabled with `visio` (it needs [Visio](#visio) and its `service_account_email`).
+Enabled with `visio` (it needs [Visio](#visio) and its `service_account_email`;
+without it the service is not mounted and ToM logs an error at startup).
 Serves the MatrixRTC token service (MSC4195) of the calls of Twake Chat:
 `POST /_twake/v1/video_call/sfu/get`. The homeserver names it
 in its well-known as `org.matrix.msc4143.rtc_foci[].livekit_service_url`
@@ -695,11 +701,11 @@ mints the token for the user (`POST
 /external-api/v1.0/rooms/{id}/livekit-token/`, a route of the Linagora fork),
 so that its recording, transcription and moderation know the participant. ToM
 holds no LiveKit key: without Meet (`visio` disabled, Meet down or refusing),
-the call has no token and the service answers an error. When Meet answers `404` on
-the token route, ToM asks Meet, as the service account, whether the room still
-exists (`GET /external-api/v1.0/rooms/{id}/`, scope `rooms:retrieve`); only a JSON
-`404` there replaces the room, once per request. Any other answer keeps the room and
-fails with `502`.
+the call has no token and the service answers an error. When Meet answers a JSON
+`404` on the token route (the room is gone, or was made by another application,
+for instance before `client_id` changed), ToM replaces the room, once per
+request. Any other answer, including the HTML `404` of a Meet without the
+route, keeps the room and fails with `502`.
 
 | Status | Meaning                                                                                                        |
 | ------ | -------------------------------------------------------------------------------------------------------------- |

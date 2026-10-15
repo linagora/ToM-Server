@@ -67,6 +67,16 @@ log.visio.homeserver_failure: "échec du serveur Matrix sur {{endpoint}} :
   {{reason}}"
 log.visio.sfu_mounting: "Montage de sfuRouter... activé : {{enabled}}"
 log.visio.sfu_disabled: "service de jeton d'appel désactivé"
+log.visio.no_service_account: "visio.enabled est vrai mais
+  visio.service_account_email n'est pas défini : le service de jeton d'appel
+  (sfu/get) n'est pas monté et chaque appel répond 404"
+log.config.livekit_removed: "la section livekit de la configuration n'est plus
+  lue : les appels passent par Meet (section visio)"
+log.config.trust_proxy_open: "server.trust_x_forwarded_for est vrai sans
+  server.trusted_proxies : un client peut forger X-Forwarded-For et échapper
+  à la limite par IP ; listez les proxies dans server.trusted_proxies"
+log.visio.store_failure: "échec du stockage des salons d'appel
+  (visio_call_rooms) : {{reason}}"
 log.visio.moderator_unknown: "niveaux de pouvoir illisibles : le participant
   rejoint comme membre"
 

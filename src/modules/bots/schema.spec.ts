@@ -117,6 +117,19 @@ describe("bots settings", () => {
     expect(example.backend).toBe("harness");
   });
 
+  it("takes the room ids of room version 12, which have no server part", () => {
+    expect(
+      homeRequestSchema.safeParse({
+        room_id: "!Zb3k9-opaque_Id+/x",
+      }).success,
+    ).toBe(true);
+    expect(
+      homeRequestSchema.safeParse({
+        room_id: "!opaque id",
+      }).success,
+    ).toBe(false);
+  });
+
   it("takes a room id on one line only: a newline would add lines to the .env of the bot", () => {
     expect(
       homeRequestSchema.safeParse({

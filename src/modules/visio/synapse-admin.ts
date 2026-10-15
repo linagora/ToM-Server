@@ -84,9 +84,16 @@ export class SynapseAdmin {
       displayName: body.displayname ?? null,
       email: emails.length === 1 ? (emails[0]?.address ?? null) : null,
       sub: this.#config.oidcProvider
-        ? (body.external_ids.find((id) => id.auth_provider === this.#config.oidcProvider)?.external_id ?? null)
+        ? (body.external_ids.find((id) => this.#isProvider(id.auth_provider))?.external_id ?? null)
         : null,
     };
+  }
+
+  /** Synapse stores `oidc-<idp_id>` (`oidc` for the legacy single provider): the setting may be either form. */
+  #isProvider(authProvider: string): boolean {
+    const setting = this.#config.oidcProvider;
+
+    return authProvider === setting || authProvider === `oidc-${setting}`;
   }
 
   /** The body of an admin API GET validated against `schema`, or null when the answer is 404. */

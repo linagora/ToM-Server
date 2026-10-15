@@ -1,10 +1,11 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, type Mock, mock } from "bun:test";
 
 import express, { type RequestHandler } from "express";
-import { rateLimit } from "express-rate-limit";
 import request from "supertest";
 import { createLogger } from "winston";
 
+import { makeRateLimit } from "../../app";
+import { configSchema } from "../../config/schema";
 import { BAD_GATEWAY, FORBIDDEN, INVALID_INPUT, NOT_FOUND, UNAUTHORIZED } from "../../errors/error-codes";
 import { loadMessages } from "../../i18n/index";
 import Database from "../legacy/db/database";
@@ -217,9 +218,26 @@ describe("SfuRouter", () => {
     const fetchMock = mockFetch();
     const limited = setupApp({
       ...makeDeps(),
-      rateLimit: rateLimit({
-        limit: 1,
-      }),
+      // The real factory of app.ts, with a configuration of one request
+      rateLimit: makeRateLimit(
+        configSchema.parse({
+          synapse: {
+            server_url: "https://localhost:8448",
+          },
+          database: {
+            host: "localhost",
+            name: "tom",
+            user: "tom",
+            password: "tom",
+          },
+          server: {
+            name: "localhost",
+            rate_limiting: {
+              max_requests: 1,
+            },
+          },
+        }),
+      ),
     });
 
     // Act
@@ -229,6 +247,10 @@ describe("SfuRouter", () => {
     // Assert
     expect(first.status).toBe(400);
     expect(second.status).toBe(429);
+    expect(second.body).toEqual({
+      errcode: "M_LIMIT_EXCEEDED",
+      error: "Too many requests",
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -382,6 +404,57 @@ describe("SfuRouter", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[7]?.[1].body)).role).toBe("member");
   });
 
+  it("should cut the display name to the 255 characters Meet takes as a username", async () => {
+    // Arrange
+    const name = "é".repeat(256);
+    const fetchMock = mockFetch(
+      userInfo(),
+      members(),
+      json(200, {
+        displayname: name,
+        threepids: [
+          {
+            medium: "email",
+            address: "alice@twake.test",
+          },
+        ],
+        external_ids: [],
+      }),
+      moderators(),
+      appToken(),
+      meetRoom(),
+      appToken(),
+      meetToken(),
+    );
+
+    // Act
+    const response = await request(setupApp(makeDeps())).post(SFU_ROUTE).send(body);
+
+    // Assert
+    expect(response.status).toBe(200);
+    expect(JSON.parse(String(fetchMock.mock.calls[7]?.[1].body)).username).toBe("é".repeat(255));
+  });
+
+  it("should answer 502 when the store of the call rooms fails", async () => {
+    // Arrange
+    const down = new Error("connection refused");
+    const failing: CallRooms = {
+      get: () => Promise.reject(down),
+      add: () => Promise.reject(down),
+      forget: () => Promise.reject(down),
+    };
+    mockFetch(userInfo(), members(), profile(), moderators());
+
+    // Act
+    const response = await request(setupApp(makeDeps(failing)))
+      .post(SFU_ROUTE)
+      .send(body);
+
+    // Assert
+    expect(response.status).toBe(502);
+    expect(response.body.code).toBe(BAD_GATEWAY);
+  });
+
   it("should answer 502 when Meet fails after the room was made", async () => {
     // Arrange
     const deps = makeDeps();
@@ -426,14 +499,8 @@ describe("SfuRouter", () => {
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
-  it.each([
-    // A Meet without the livekit-token route answers Django's HTML 404
-    [
-      "has no route to mint the token",
-      "<h1>Not Found</h1>",
-      "text/html; charset=utf-8",
-    ],
-  ])("should answer 502 when Meet %s", async (_case, notFound, contentType) => {
+  // A Meet without the livekit-token route answers Django's HTML 404
+  it("should answer 502 and keep the row when Meet has no route to mint the token", async () => {
     // Arrange
     mockFetch(
       userInfo(),
@@ -443,15 +510,11 @@ describe("SfuRouter", () => {
       appToken(),
       meetRoom(),
       appToken(),
-      new Response(notFound, {
+      new Response("<h1>Not Found</h1>", {
         status: 404,
         headers: {
-          "content-type": contentType,
+          "content-type": "text/html; charset=utf-8",
         },
-      }),
-      appToken(), // the service account, to ask for the room
-      json(200, {
-        id: "7c9e6679-7425-40de-944b-e07fc1f90ae7",
       }),
     );
 

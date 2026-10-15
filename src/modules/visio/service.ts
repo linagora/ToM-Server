@@ -10,6 +10,8 @@ import type { CallParticipant, MatrixProfile, VisioRoom, VisioSettings } from ".
 
 const TOKEN_PATH = "/external-api/v1.0/application/token/";
 const ROOMS_PATH = "/external-api/v1.0/rooms/";
+/** Meet takes a `username` of 255 characters at most; a Synapse display name can have 256. */
+const MAX_USERNAME_LENGTH = 255;
 
 /** The token Meet minted for a participant of the call of a Matrix room. */
 export interface CallToken {
@@ -67,7 +69,11 @@ export class VisioService {
     const accessToken = await this.#applicationToken(profile.email);
     const body = {
       identity: participant.identity,
-      username: participant.name,
+      username: [
+        ...participant.name,
+      ]
+        .slice(0, MAX_USERNAME_LENGTH)
+        .join(""),
       role: participant.role,
       ...(profile.sub && {
         sub: profile.sub,
@@ -79,7 +85,7 @@ export class VisioService {
     // still has but refuses in JSON, made before Meet recorded the application of
     // its rooms. Once per request; anything else keeps the room and fails.
     if (response.status === 404 && (await this.#isStale(meetRoomId, isJson(response)))) {
-      await this.#callRooms?.forget(matrixRoomId, meetRoomId);
+      await this.#store(() => this.#callRooms?.forget(matrixRoomId, meetRoomId));
       [path, response] = await this.#postToken(await this.#ensureRoom(matrixRoomId), body, accessToken);
     }
 
@@ -145,7 +151,31 @@ export class VisioService {
       throw new Error("VisioService has no store for the call rooms");
     }
 
-    return (await this.#callRooms.get(matrixRoomId)) ?? this.#callRooms.add(matrixRoomId, await this.#createCallRoom());
+    const callRooms = this.#callRooms;
+    const known = await this.#store(() => callRooms.get(matrixRoomId));
+    if (known !== undefined) {
+      return known;
+    }
+    const meetRoomId = await this.#createCallRoom();
+
+    return this.#store(() => callRooms.add(matrixRoomId, meetRoomId));
+  }
+
+  /** A store failure (database down) is an upstream failure, not a raw 500. */
+  async #store<T>(operation: () => Promise<T> | undefined): Promise<T | undefined> {
+    try {
+      return await operation();
+    } catch (err) {
+      this.#log.error(
+        translate("log.visio.store_failure", {
+          reason: err instanceof Error ? err.message : translate("log.net.request_failed"),
+        }),
+      );
+
+      throw new VisioUpstreamError("visio.upstream_failure", {
+        endpoint: "visio_call_rooms",
+      });
+    }
   }
 
   /** The room of a Matrix room belongs to the service account: no human enters through Meet's UI. */

@@ -603,6 +603,11 @@ const visioConfigSchema = z.object({
   visio: visioSettingsSchema.prefault({}),
 });
 
+// The removed `livekit` section is kept as is only so that startup can warn about it
+const removedLivekitSchema = z.object({
+  livekit: z.unknown().optional(),
+});
+
 const botsConfigSchema = z.object({
   bots: botsSettingsSchema.prefault({}),
 });
@@ -642,6 +647,7 @@ export const configSchema = z.object({
   ...wellKnownConfigSchema.shape,
   ...authConfigSchema.shape,
   ...visioConfigSchema.shape,
+  ...removedLivekitSchema.shape,
   ...botsConfigSchema.shape,
   ...gifsConfigSchema.shape,
   ...publicPagesConfigSchema.shape,
