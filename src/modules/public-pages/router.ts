@@ -10,6 +10,7 @@ import { translate } from "../../i18n/index";
 import {
   baseKey,
   isPublic,
+  isSitemapCandidate,
   mediaOf,
   pagePath,
   parseRef,
@@ -20,11 +21,15 @@ import {
   renderRobots,
   renderSitemap,
 } from "./pages";
-import type { Page, PagesSource, PublicPagesSettings, ReactionStore } from "./types";
+import type { ListedRoom, Page, PagesSource, PublicPagesSettings, ReactionStore } from "./types";
 
 /** How long a page is kept before the homeserver is read again. */
 const CACHE_MS = 60_000;
 const CACHE_MAX = 1000;
+/** How long a rendered sitemap is kept: the `max-age` of its answer. */
+const SITEMAP_MS = 300_000;
+/** State reads of the sitemap in flight at once. */
+const SITEMAP_READS = 8;
 
 const HTML_HEADERS = {
   "Content-Type": "text/html; charset=utf-8",
@@ -94,6 +99,12 @@ export const createPublicPagesRouter = (
   const secure = publicUrl.startsWith("https:");
   const reactLimit = makeLimiter(30, 60_000, now);
   const reportLimit = makeLimiter(5, 600_000, now);
+  const sitemapLimit = makeLimiter(30, 60_000, now);
+  let sitemap: {
+    at: number;
+    xml: string;
+  } | null = null;
+  let rendering: Promise<string> | null = null;
   const cache = new Map<
     string,
     {
@@ -177,19 +188,65 @@ export const createPublicPagesRouter = (
     res.status(502).type("text/plain").send("The homeserver did not answer.\n");
   };
 
+  /** The rooms of the admin list that pass THE gate: one state read per room the list lets through. */
+  async function optedIn(listed: ListedRoom[]): Promise<ListedRoom[]> {
+    const candidates = listed.filter(isSitemapCandidate);
+    const kept: ListedRoom[] = [];
+    for (let i = 0; i < candidates.length; i += SITEMAP_READS) {
+      const batch = candidates.slice(i, i + SITEMAP_READS);
+      // A state read that fails drops its room, not the whole sitemap
+      const states = await Promise.allSettled(batch.map((room) => source.readState(room.room_id)));
+      kept.push(
+        ...batch.filter((_, j) => {
+          const read = states[j];
+
+          return read?.status === "fulfilled" && read.value && isPublic(read.value);
+        }),
+      );
+    }
+
+    return kept;
+  }
+
   router.get("/robots.txt", (_req, res) => {
     res.type("text/plain").send(renderRobots(publicUrl));
   });
 
-  router.get("/sitemap.xml", async (_req, res) => {
+  /** The sitemap, rendered at most once per `SITEMAP_MS` and once at a time; a failed render is not kept. */
+  function sitemapXml(): Promise<string> {
+    if (sitemap && now() - sitemap.at < SITEMAP_MS) {
+      return Promise.resolve(sitemap.xml);
+    }
+    rendering ??= (async () => {
+      // The admin list carries no state: read the opt-in of each candidate, 8 at a time (`optedIn`)
+      const rooms = await optedIn(await source.listRooms());
+      const xml = renderSitemap(rooms, {
+        publicUrl,
+        serverName,
+      });
+      sitemap = {
+        at: now(),
+        xml,
+      };
+
+      return xml;
+    })().finally(() => {
+      rendering = null;
+    });
+
+    return rendering;
+  }
+
+  router.get("/sitemap.xml", async (req, res) => {
+    if (!sitemapLimit(req.ip ?? "")) {
+      res.status(429).type("text/plain").send("Too many requests.\n");
+      return;
+    }
     try {
-      const rooms = await source.listRooms();
-      res.set("Cache-Control", "public, max-age=300").type("application/xml").send(
-        renderSitemap(rooms, {
-          publicUrl,
-          serverName,
-        }),
-      );
+      res
+        .set("Cache-Control", "public, max-age=300")
+        .type("application/xml")
+        .send(await sitemapXml());
     } catch (err) {
       upstreamFailed(res, err);
     }
