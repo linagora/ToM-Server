@@ -433,12 +433,6 @@ describe("SfuRouter", () => {
       "<h1>Not Found</h1>",
       "text/html; charset=utf-8",
     ],
-    // A room Meet no longer has, or keeps for another application
-    [
-      "refuses the room",
-      '{"detail":"Not found."}',
-      "application/json",
-    ],
   ])("should answer 502 when Meet %s", async (_case, notFound, contentType) => {
     // Arrange
     mockFetch(
@@ -615,6 +609,48 @@ describe("SfuRouter", () => {
         .send(body);
       expect(roomsMade(next)).toBe(0);
       expect(next.mock.calls[5]?.[0]).toContain(`/rooms/${NEW}/livekit-token/`);
+    });
+
+    it("should replace a room Meet still has but refuses in JSON, made before Meet recorded its application", async () => {
+      // Arrange
+      const callRooms = await newCallRooms();
+      mockFetch(userInfo(), members(), profile(), moderators(), appToken(), meetRoom(), appToken(), meetToken());
+      await request(setupApp(makeDeps(callRooms)))
+        .post(SFU_ROUTE)
+        .send(body);
+      const fetchMock = mockFetch(
+        userInfo(),
+        members(),
+        profile(),
+        moderators(),
+        appToken(),
+        goneJson(), // token route: 404 in JSON
+        appToken(),
+        json(200, {
+          id: OLD,
+        }), // retrieve: the room is still there
+        appToken(),
+        json(201, {
+          id: NEW,
+          slug: "n",
+        }),
+        json(200, {
+          url: "http://synapse:7880",
+          room: NEW,
+          token: "new-jwt",
+        }),
+      );
+
+      // Act
+      const response = await request(setupApp(makeDeps(callRooms)))
+        .post(SFU_ROUTE)
+        .send(body);
+
+      // Assert
+      expect(response.status).toBe(200);
+      expect(response.body.jwt).toBe("new-jwt");
+      expect(roomsMade(fetchMock)).toBe(1);
+      expect(await callRooms.get("!room:localhost")).toBe(NEW);
     });
 
     it("should answer 502 and not loop when the new room is refused too", async () => {

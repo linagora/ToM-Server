@@ -74,10 +74,11 @@ export class VisioService {
       }),
     };
     let [path, response] = await this.#postToken(meetRoomId, body, accessToken);
-    // A 404 is not enough to drop a room (a Meet without the route, or a room of
-    // another application, answer it too): only a room Meet confirms gone is
-    // replaced, once per request. Anything else keeps the room and fails.
-    if (response.status === 404 && (await this.#isGone(meetRoomId))) {
+    // A 404 alone is not enough to drop a room (a Meet without the route answers
+    // Django's HTML 404): a room Meet confirms gone is replaced, and so is one it
+    // still has but refuses in JSON, made before Meet recorded the application of
+    // its rooms. Once per request; anything else keeps the room and fails.
+    if (response.status === 404 && (await this.#isStale(meetRoomId, isJson(response)))) {
       await this.#callRooms?.forget(matrixRoomId, meetRoomId);
       [path, response] = await this.#postToken(await this.#ensureRoom(matrixRoomId), body, accessToken);
     }
@@ -104,11 +105,12 @@ export class VisioService {
   }
 
   /**
-   * Whether Meet says the room no longer exists: a JSON 404 of the room itself,
-   * asked as its owner (the service account; the joiner has no role on it).
+   * Whether the room must be replaced, asked to Meet as its owner (the service account;
+   * the joiner has no role on it): gone (a JSON 404 of the room itself), or still there
+   * while the token route refused it in JSON (a room older than its application in Meet).
    * Refused (403, a missing `rooms:retrieve` scope), failing or unreachable: not confirmed.
    */
-  async #isGone(meetRoomId: string): Promise<boolean> {
+  async #isStale(meetRoomId: string, tokenRefusedInJson: boolean): Promise<boolean> {
     const owner = this.#config.service_account_email;
     if (!owner) {
       return false;
@@ -117,7 +119,7 @@ export class VisioService {
       const accessToken = await this.#applicationToken(owner);
       const response = await this.#http.get(`${ROOMS_PATH}${encodeURIComponent(meetRoomId)}/`, accessToken);
 
-      return response.status === 404 && (response.headers.get("content-type") ?? "").includes("application/json");
+      return (response.status === 404 && isJson(response)) || (response.ok && tokenRefusedInJson);
     } catch {
       return false;
     }
@@ -224,4 +226,9 @@ export class VisioService {
       reason,
     });
   }
+}
+
+/** Whether Meet answered from its API (JSON), not from Django's HTML pages. */
+function isJson(response: Response): boolean {
+  return (response.headers.get("content-type") ?? "").includes("application/json");
 }
