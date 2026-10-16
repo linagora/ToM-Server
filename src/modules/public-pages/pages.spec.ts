@@ -314,6 +314,21 @@ describe("renderPage", () => {
     expect(out).toContain('<a class="follow" href="https://chat.test">');
   });
 
+  it("renders the Markdown of a message and prefers a sanitized formatted_body", () => {
+    const render = (...args: Parameters<typeof post>): string =>
+      renderPage(readPage("figaro", state(), [post(...args)]) as NonNullable<ReturnType<typeof readPage>>, {
+        publicUrl: "https://pages.test",
+      });
+
+    expect(render("$1", "**gras**\n\n- un")).toContain('<div class="text"><p><strong>gras</strong></p><ul><li>un</li></ul></div>');
+    const out = render("$2", "plain", {
+      format: "org.matrix.custom.html",
+      formatted_body: '<b onclick="x">riche</b><script>alert(1)</script>',
+    });
+    expect(out).toContain('<div class="text"><b>riche</b></div>');
+    expect(out).not.toContain("onclick");
+  });
+
   it("carries the canonical URL, the Open Graph image and a JSON-LD that cannot close its script", () => {
     const out = html();
     const ld = /<script type="application\/ld\+json">(.*?)<\/script>/s.exec(out)?.[1] ?? "";
