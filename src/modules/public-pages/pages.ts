@@ -1,4 +1,5 @@
 // Reading a room as a public page and rendering it. Pure: no network, no clock.
+import { markdownToHtml, sanitizeFormatted } from "./markdown";
 import type { ListedRoom, MessageEvent, Page, Post, StateEvent } from "./types";
 
 /** The emojis a visitor may react with, in this order. */
@@ -207,6 +208,11 @@ function postsOf(messages: MessageEvent[], names: Map<string, string>): Post[] {
         author: names.get(event.sender) || event.sender,
         at: event.origin_server_ts,
         text: isImage ? "" : text(content.body),
+        ...(!isImage && content.format === "org.matrix.custom.html" && text(content.formatted_body)
+          ? {
+              formatted: text(content.formatted_body),
+            }
+          : {}),
         image: isImage
           ? {
               url: text(content.url),
@@ -457,7 +463,7 @@ function postHtml(page: Page, post: Post, lang: string, options: RenderOptions):
 
   return `<li class="post" id="post-${escapeHtml(post.id)}">
           <p class="meta"><span>${escapeHtml(post.author)}</span> · <time datetime="${iso}">${iso.slice(0, 10)}</time></p>
-          ${post.text ? `<p>${renderText(post.text)}</p>` : ""}
+          ${post.text ? `<div class="text">${(post.formatted && sanitizeFormatted(post.formatted)) || markdownToHtml(post.text)}</div>` : ""}
           ${image}
           ${reactionsHtml(page, post, lang, options)}
           ${reportHtml(page, post, lang)}
@@ -478,6 +484,9 @@ const STYLE = `
       ul { list-style: none; padding: 0; }
       .post { background: var(--card); border-radius: 12px; padding: 16px; margin: 16px 0; border-left: 4px solid var(--accent); }
       .post p { margin: 0 0 8px; overflow-wrap: anywhere; }
+      .text { overflow-wrap: anywhere; }
+      .text > * { margin: 0 0 8px; }
+      .text pre { overflow: auto; }
       .post img { max-width: 100%; border-radius: 8px; }
       a { color: var(--fg); text-decoration-color: var(--accent); }
       .avatar.initials { display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #f2d48a, #e8b276); color: #fff; font-size: 2rem; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,.4); }

@@ -12,6 +12,8 @@ export interface Post {
   author: string;
   at: number;
   text: string;
+  /** The `formatted_body` (org.matrix.custom.html), unsanitized: render it with `sanitizeFormatted`. */
+  formatted?: string;
   image: {
     url: string;
     alt: string;
