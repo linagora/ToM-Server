@@ -90,7 +90,8 @@ export function resolveMessage(locale: string, code: string, context: Record<str
   const baseLocale = locale.split("-")[0];
   const dict = dictionaries.get(locale) ?? dictionaries.get(baseLocale) ?? dictionaries.get("en");
 
-  const template = dict?.[code] ?? code;
+  // A key missing from a partial translation falls back to English, not to the raw key
+  const template = dict?.[code] ?? dictionaries.get("en")?.[code] ?? code;
   return interpolate(template, context);
 }
 

@@ -6,8 +6,9 @@
  * listening. That is server.ts's job.
  */
 import type { PrometheusExporter } from "@opentelemetry/exporter-prometheus";
-import type { Express } from "express";
+import type { Express, NextFunction, Request, RequestHandler, Response } from "express";
 import express from "express";
+import { rateLimit } from "express-rate-limit";
 import type { Logger } from "winston";
 
 import type { Config } from "./config/types";
@@ -18,11 +19,29 @@ import type { AuthenticatedRequest } from "./middleware/auth/types";
 import { createCorsMiddleware } from "./middleware/cors";
 import { httpLogger } from "./middleware/http-logger";
 import { requestId } from "./middleware/request-id";
+import { makeBotsBackend } from "./modules/bots/backend";
+import { createBotsRouter } from "./modules/bots/router";
+import type { BotsDeps, BotsProvisioner } from "./modules/bots/types";
+import { GifsDisabledError } from "./modules/gifs/errors";
+import { DbGifsFlag, FLAGS_SCHEMA } from "./modules/gifs/flag";
+import { createGifsRouter } from "./modules/gifs/router";
+import { GifsService } from "./modules/gifs/service";
+import type { GifsDeps } from "./modules/gifs/types";
 import { createLandingRouter } from "./modules/landing/router";
-import { createLegacyRouter } from "./modules/legacy/router";
+import Database from "./modules/legacy/db/database";
+import { createLegacyRouter, mapToLegacyConfig } from "./modules/legacy/router";
+import AdminSettingsMiddleware from "./modules/legacy/tom-server/admin-settings-api/middlewares";
+import { DbReactionStore, REACTIONS_INDEXES, REACTIONS_SCHEMA } from "./modules/public-pages/reactions";
+import { createPublicPagesRouter } from "./modules/public-pages/router";
+import { makeSynapseSource } from "./modules/public-pages/source";
+import { CALL_ROOMS_SCHEMA, DbCallRooms } from "./modules/visio/call-rooms";
 import { EmailResolver } from "./modules/visio/email-resolver";
+import { OpenIdValidator } from "./modules/visio/openid";
 import { createVisioRouter } from "./modules/visio/router";
-import type { VisioDeps } from "./modules/visio/types";
+import { VisioService } from "./modules/visio/service";
+import { createSfuRouter } from "./modules/visio/sfu-router";
+import { SynapseAdmin } from "./modules/visio/synapse-admin";
+import type { SfuDeps, VisioDeps } from "./modules/visio/types";
 import { createWellKnownClientRouter } from "./modules/well-known/router";
 
 function mountWellKnownClient(config: Config, logger: Logger, app: Express): void {
@@ -50,6 +69,81 @@ function mountWellKnownClient(config: Config, logger: Logger, app: Express): voi
   );
   logger.info(`Mounting wellKnownRouter... client: ${config.well_known.client.enabled}`);
   app.use(wellKnownRouter);
+}
+
+/** The limit of `server.rate_limiting`, counted per `key` (the IP of the caller when none). */
+export function makeRateLimit(config: Config, key?: (req: Request) => string): RequestHandler {
+  return rateLimit({
+    windowMs: config.server.rate_limiting.window_ms,
+    limit: config.server.rate_limiting.max_requests,
+    ...(key
+      ? {
+          keyGenerator: key,
+        }
+      : {}),
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      errcode: "M_LIMIT_EXCEEDED",
+      error: "Too many requests",
+    },
+  });
+}
+
+function makeSynapseAdmin(config: Config, logger: Logger): SynapseAdmin {
+  return new SynapseAdmin(
+    {
+      serverUrl: config.synapse.server_url,
+      timeoutMs: config.auth.timeout_ms,
+      oidcProvider: config.visio.oidc_provider,
+      admin: {
+        login: config.synapse.admin?.login ?? "",
+        password: config.synapse.admin?.password ?? "",
+        accessToken: config.synapse.admin?.access_token ?? "",
+      },
+    },
+    logger.child({
+      module: "synapse-admin",
+    }),
+  );
+}
+
+/** The MatrixRTC token service of the calls of Twake Chat (D30): Meet behind it when `visio` is enabled. */
+async function mountSfu(config: Config, logger: Logger, app: Express, admin: SynapseAdmin): Promise<void> {
+  const sfuLogger = logger.child({
+    module: "visio-sfu",
+  });
+  let deps: SfuDeps | undefined;
+  // Without the service account that owns the rooms, Meet can make none: no token service
+  const enabled = config.visio.enabled && Boolean(config.visio.service_account_email);
+  if (config.visio.enabled && !enabled) {
+    // Not a schema error: the room route of `visio` works without a service account
+    logger.error(translate("log.visio.no_service_account"));
+  }
+  if (enabled) {
+    const db = new Database<"visio_call_rooms">(mapToLegacyConfig(config), sfuLogger as never, CALL_ROOMS_SCHEMA);
+    await db.ready;
+    deps = {
+      openId: new OpenIdValidator(
+        {
+          serverUrl: config.synapse.server_url,
+          serverName: config.server.name,
+          timeoutMs: config.auth.timeout_ms,
+        },
+        sfuLogger,
+      ),
+      admin,
+      // Anonymous by design (MSC4195), and each call costs Synapse a userinfo: counted per IP
+      rateLimit: makeRateLimit(config),
+      service: new VisioService(config.visio, sfuLogger, new DbCallRooms(db)),
+    };
+  }
+  logger.info(
+    translate("log.visio.sfu_mounting", {
+      enabled: String(enabled),
+    }),
+  );
+  app.use(createSfuRouter(deps, sfuLogger));
 }
 
 function mountVisio(config: Config, logger: Logger, app: Express): void {
@@ -89,6 +183,127 @@ function mountVisio(config: Config, logger: Logger, app: Express): void {
   app.use(createVisioRouter(config.visio, deps, visioLogger));
 }
 
+function mountBots(config: Config, logger: Logger, app: Express, admin: SynapseAdmin): void {
+  const botsLogger = logger.child({
+    module: "bots",
+  });
+  let deps: BotsDeps | undefined;
+  let service: BotsProvisioner | undefined;
+  if (config.bots.enabled) {
+    const tokenValidator = new TokenValidator(
+      {
+        serverUrl: config.synapse.server_url,
+        serverName: config.server.name,
+        timeoutMs: config.auth.timeout_ms,
+        tokenCacheSize: config.auth.token_cache_size,
+        tokenCacheTtlMs: config.auth.token_cache_ttl_ms,
+      },
+      botsLogger,
+    );
+    deps = {
+      authenticate: tokenValidator.middleware(),
+      // A provisioning holds the request while it polls Synapse: counted per user
+      rateLimit: makeRateLimit(config, (req) => (req as AuthenticatedRequest).userId ?? "anonymous"),
+    };
+    // Hermes or the agent harness, never both: they would claim the same accounts
+    service = makeBotsBackend(
+      config.bots,
+      {
+        serverUrl: config.synapse.server_url,
+        serverName: config.server.name,
+        admin,
+      },
+      botsLogger,
+    );
+  }
+  logger.info(
+    translate("log.bots.mounting", {
+      enabled: String(config.bots.enabled),
+    }),
+  );
+  app.use(createBotsRouter(config.bots, deps, service, botsLogger));
+}
+
+/** GIFs through ToM (Klipy never sees the users); the switch lives in the database of ToM. */
+async function mountGifs(config: Config, logger: Logger, app: Express): Promise<void> {
+  const gifsLogger = logger.child({
+    module: "gifs",
+  });
+  let deps: GifsDeps | undefined;
+  let service: GifsService | undefined;
+  if (config.gifs.klipy_api_key) {
+    const legacy = mapToLegacyConfig(config);
+    const db = new Database<"feature_flags">(legacy, gifsLogger as never, FLAGS_SCHEMA);
+    await db.ready;
+    const tokenValidator = new TokenValidator(
+      {
+        serverUrl: config.synapse.server_url,
+        serverName: config.server.name,
+        timeoutMs: config.auth.timeout_ms,
+        tokenCacheSize: config.auth.token_cache_size,
+        tokenCacheTtlMs: config.auth.token_cache_ttl_ms,
+      },
+      gifsLogger,
+    );
+    const adminCheck = new AdminSettingsMiddleware(legacy, gifsLogger as never).checkAdminSettingsToken;
+    deps = {
+      authenticate: tokenValidator.middleware(),
+      // an empty admin token must never open the admin API
+      authenticateAdmin: legacy.admin_access_token
+        ? (adminCheck as RequestHandler)
+        : (_req: Request, _res: Response, next: NextFunction): void => next(new GifsDisabledError("gifs.disabled")),
+      rateLimit: makeRateLimit(config, (req) => (req as AuthenticatedRequest).userId ?? "anonymous"),
+    };
+    service = new GifsService(config.gifs, new DbGifsFlag(db), config.server.base_url, gifsLogger);
+  }
+  logger.info(
+    translate("log.gifs.mounting", {
+      available: String(service !== undefined),
+    }),
+  );
+  app.use(createGifsRouter(deps, service, gifsLogger));
+}
+
+/** The public web pages of the rooms anyone may read; disabled is not mounted, so 404. */
+async function mountPublicPages(
+  config: Config,
+  logger: Logger,
+  app: Express,
+  synapseAdmin: SynapseAdmin,
+): Promise<void> {
+  if (!config.public_pages.enabled) {
+    return;
+  }
+  const pagesLogger = logger.child({
+    module: "public-pages",
+  });
+  const admin = config.synapse.admin;
+  if (!admin?.access_token && !(admin?.login && admin.password)) {
+    pagesLogger.warn(translate("log.public_pages.no_admin"));
+    return;
+  }
+  logger.info(translate("log.public_pages.mounting"));
+  const source = makeSynapseSource(synapseAdmin);
+  const db = new Database<"public_reactions">(
+    mapToLegacyConfig(config),
+    pagesLogger as never,
+    REACTIONS_SCHEMA,
+    REACTIONS_INDEXES,
+  );
+  await db.ready;
+  app.use(
+    createPublicPagesRouter(
+      config.public_pages,
+      {
+        source,
+        reactions: new DbReactionStore(db),
+        serverName: config.server.name,
+      },
+      pagesLogger,
+    ),
+  );
+}
+
 export async function createApp(
   config: Config,
   logger: Logger,
@@ -96,8 +311,14 @@ export async function createApp(
 ): Promise<Express> {
   const app = express();
 
+  if (config.livekit !== undefined) {
+    logger.warn(translate("log.config.livekit_removed"));
+  }
   if (config.server.trust_x_forwarded_for) {
     const hops = config.server.trusted_proxies;
+    if (hops.length === 0) {
+      logger.warn(translate("log.config.trust_proxy_open"));
+    }
     app.set("trust proxy", hops.length > 0 ? hops : true);
   }
 
@@ -135,6 +356,12 @@ export async function createApp(
   // --- New modules routers here ---
   mountWellKnownClient(config, logger, app);
   mountVisio(config, logger, app);
+  // One admin of the homeserver for the modules that read it: one login, not one per module
+  const synapseAdmin = makeSynapseAdmin(config, logger);
+  await mountSfu(config, logger, app, synapseAdmin);
+  mountBots(config, logger, app, synapseAdmin);
+  await mountGifs(config, logger, app);
+  await mountPublicPages(config, logger, app, synapseAdmin);
 
   // --- End of new modules ---
 

@@ -15,6 +15,9 @@ import type { TwakeLogger } from '../../../logger/index'
 import { type IAddressbookService } from '../../addressbook-api/types'
 import { AddressbookService } from '../../addressbook-api/services'
 
+// The jsonb of the settings holds anything a client wrote: only these leave the server
+const THEMES: readonly unknown[] = ['light', 'dark', 'auto']
+
 const getFirstString = (input: string | string[]): string => Array.isArray(input) ? input[0] : input;
 
 class UserInfoService implements IUserInfoService {
@@ -496,6 +499,9 @@ class UserInfoService implements IUserInfoService {
               `[UserInfoService].getBatch: mxid=${id} timezone source=settings value="${settingsRow.timezone}"`
             )
             userInfo.timezone = settingsRow.timezone
+          }
+          if (isMyProfile && THEMES.includes(settingsRow.theme)) {
+            userInfo.theme = settingsRow.theme
           }
         }
 
