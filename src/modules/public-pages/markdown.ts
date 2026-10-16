@@ -11,9 +11,9 @@ const anchor = (href: string, label: string): string =>
 /** Inline Markdown of one raw (unescaped) text: code, links, bold, italic, strike. */
 function inline(raw: string): string {
   const stash: string[] = [];
-  const keep = (html: string): string => `\u0000${stash.push(html) - 1}\u0000`;
+  const keep = (html: string): string => `\uE000${stash.push(html) - 1}\uE000`;
   const text = raw
-    .replace(/\u0000/g, "")
+    .replace(/\uE000/g, "")
     .replace(/`([^`\n]+)`/g, (_, code: string) => keep(`<code>${escapeHtml(code)}</code>`))
     .replace(/\[([^\]\n]+)\]\(([^)\s]+)\)/g, (_, label: string, href: string) => keep(anchor(href, inline(label))))
     .replace(/https?:\/\/[^\s<]+[^\s<.,;:!?)'"]/g, (url) => keep(anchor(url, escapeHtml(url))));
@@ -24,7 +24,7 @@ function inline(raw: string): string {
     .replace(/~~(?=\S)(.+?)~~/g, "<del>$1</del>")
     .replace(/\*(?=[^\s*])(.+?)\*/g, "<em>$1</em>")
     .replace(/(^|\W)_(?=[^\s_])(.+?)_(?!\w)/g, "$1<em>$2</em>")
-    .replace(/\u0000(\d+)\u0000/g, (_, i: string) => stash[Number(i)] ?? "");
+    .replace(/\uE000(\d+)\uE000/g, (_, i: string) => stash[Number(i)] ?? "");
 }
 
 /** Markdown (headings, lists, quotes, code blocks, paragraphs and the inline marks) to safe HTML. */
@@ -32,7 +32,10 @@ export function markdownToHtml(source: string): string {
   const out: string[] = [];
   const lines = source.replace(/\r\n?/g, "\n").split("\n");
   let para: string[] = [];
-  let list = null as { tag: "ul" | "ol"; items: string[] } | null;
+  let list = null as {
+    tag: "ul" | "ol";
+    items: string[];
+  } | null;
   const flush = (): void => {
     if (para.length) {
       out.push(`<p>${para.map(inline).join("<br>")}</p>`);
@@ -45,7 +48,9 @@ export function markdownToHtml(source: string): string {
   };
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i] ?? "";
-    let m: RegExpMatchArray | null;
+    const heading = line.match(/^(#{1,6})\s+(.+)$/);
+    const quote = line.match(/^>\s?(.*)$/);
+    const item = line.match(/^\s*(?:([-*+])|\d+[.)])\s+(.+)$/);
     if (line.startsWith("```")) {
       flush();
       const code: string[] = [];
@@ -53,19 +58,22 @@ export function markdownToHtml(source: string): string {
         code.push(lines[i] ?? "");
       }
       out.push(`<pre><code>${escapeHtml(code.join("\n"))}</code></pre>`);
-    } else if ((m = line.match(/^(#{1,6})\s+(.+)$/))) {
+    } else if (heading) {
       flush();
-      out.push(`<h${m[1]?.length}>${inline(m[2] ?? "")}</h${m[1]?.length}>`);
-    } else if ((m = line.match(/^>\s?(.*)$/))) {
+      out.push(`<h${heading[1]?.length}>${inline(heading[2] ?? "")}</h${heading[1]?.length}>`);
+    } else if (quote) {
       flush();
-      out.push(`<blockquote>${inline(m[1] ?? "")}</blockquote>`);
-    } else if ((m = line.match(/^\s*(?:([-*+])|\d+[.)])\s+(.+)$/))) {
-      const tag = m[1] ? "ul" : "ol";
+      out.push(`<blockquote>${inline(quote[1] ?? "")}</blockquote>`);
+    } else if (item) {
+      const tag = item[1] ? "ul" : "ol";
       if (list?.tag !== tag) {
         flush();
-        list = { tag, items: [] };
+        list = {
+          tag,
+          items: [],
+        };
       }
-      list.items.push(m[2] ?? "");
+      list.items.push(item[2] ?? "");
     } else if (line.trim() === "") {
       flush();
     } else {
@@ -80,12 +88,55 @@ export function markdownToHtml(source: string): string {
   return out.join("");
 }
 
-const TAGS = new Set(["b", "strong", "i", "em", "code", "pre", "a", "ul", "ol", "li", "p", "br", "blockquote", "del", "h1", "h2", "h3", "h4", "h5", "h6"]);
-const VOID = new Set(["br"]);
+const TAGS = new Set([
+  "b",
+  "strong",
+  "i",
+  "em",
+  "code",
+  "pre",
+  "a",
+  "ul",
+  "ol",
+  "li",
+  "p",
+  "br",
+  "blockquote",
+  "del",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+]);
+const VOID = new Set([
+  "br",
+]);
 /** Tags whose content is dropped with them. */
-const DROPPED = new Set(["script", "style", "iframe", "object", "template", "noscript", "textarea", "title"]);
+const DROPPED = new Set([
+  "script",
+  "style",
+  "iframe",
+  "object",
+  "template",
+  "noscript",
+  "textarea",
+  "title",
+]);
 const decode = (s: string): string =>
-  s.replace(/&(amp|lt|gt|quot|#39|apos);/g, (_, e: string) => ({ amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'", apos: "'" })[e] ?? "");
+  s.replace(
+    /&(amp|lt|gt|quot|#39|apos);/g,
+    (_, e: string) =>
+      ({
+        amp: "&",
+        lt: "<",
+        gt: ">",
+        quot: '"',
+        "#39": "'",
+        apos: "'",
+      })[e] ?? "",
+  );
 
 /**
  * The `formatted_body` (org.matrix.custom.html) of a message, rebuilt from the Matrix whitelist: each
@@ -96,7 +147,7 @@ export function sanitizeFormatted(html: string): string {
   const out: string[] = [];
   const open: string[] = [];
   let skip = 0;
-  for (const part of html.replace(/\u0000/g, "").split(/(<[^>]*>)/)) {
+  for (const part of html.replace(/\uE000/g, "").split(/(<[^>]*>)/)) {
     const tag = part.match(/^<(\/?)([a-zA-Z][a-zA-Z0-9]*)([^>]*)>$/);
     if (!tag) {
       if (!skip) {
@@ -111,12 +162,22 @@ export function sanitizeFormatted(html: string): string {
       if (tag[1]) {
         const at = open.lastIndexOf(name);
         if (at >= 0) {
-          out.push(...open.splice(at).reverse().map((n) => `</${n}>`));
+          out.push(
+            ...open
+              .splice(at)
+              .reverse()
+              .map((n) => `</${n}>`),
+          );
         }
       } else if (VOID.has(name)) {
         out.push(`<${name}>`);
       } else if (name === "a") {
-        const href = decode((tag[3] ?? "").match(/\shref\s*=\s*(?:"([^"]*)"|'([^']*)')/i)?.slice(1).find(Boolean) ?? "");
+        const href = decode(
+          (tag[3] ?? "")
+            .match(/\shref\s*=\s*(?:"([^"]*)"|'([^']*)')/i)
+            ?.slice(1)
+            .find(Boolean) ?? "",
+        );
         if (SAFE_HREF.test(href)) {
           open.push("a");
           out.push(`<a href="${escapeHtml(href)}" ${REL}>`);

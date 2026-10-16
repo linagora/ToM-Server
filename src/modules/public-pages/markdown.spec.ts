@@ -12,7 +12,9 @@ describe("markdownToHtml", () => {
   it("renders links with a safe rel, bare URLs included", () => {
     const html = markdownToHtml("[Twake](https://twake.app/a_b_c) https://example.org/x.");
     expect(html).toContain('<a href="https://twake.app/a_b_c" rel="noopener noreferrer nofollow">Twake</a>');
-    expect(html).toContain('<a href="https://example.org/x" rel="noopener noreferrer nofollow">https://example.org/x</a>.');
+    expect(html).toContain(
+      '<a href="https://example.org/x" rel="noopener noreferrer nofollow">https://example.org/x</a>.',
+    );
   });
 
   it("neutralizes scripts, handlers and javascript: links", () => {
@@ -32,9 +34,7 @@ describe("sanitizeFormatted", () => {
       sanitizeFormatted(
         '<p style="x" onclick="a()"><b>gras</b> <a href="https://t.app/?a=1&amp;b=2" onclick="x">lien</a></p>',
       ),
-    ).toBe(
-      '<p><b>gras</b> <a href="https://t.app/?a=1&amp;b=2" rel="noopener noreferrer nofollow">lien</a></p>',
-    );
+    ).toBe('<p><b>gras</b> <a href="https://t.app/?a=1&amp;b=2" rel="noopener noreferrer nofollow">lien</a></p>');
   });
 
   it("drops scripts, unknown tags and unsafe hrefs", () => {
