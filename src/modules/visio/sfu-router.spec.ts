@@ -383,6 +383,62 @@ describe("SfuRouter", () => {
     expect(second.status).toBe(200);
   });
 
+  it("should give Meet the Twake instance the directory holds for the participant", async () => {
+    // Arrange
+    const fetchMock = mockFetch(
+      userInfo(),
+      members(),
+      profile(),
+      moderators(),
+      appToken(),
+      meetRoom(),
+      appToken(),
+      meetToken(),
+    );
+    const twakeInstance = mock(() => Promise.resolve("alice.twake.test"));
+    const deps = {
+      ...makeDeps(),
+      directory: {
+        twakeInstance,
+      } as never,
+    };
+
+    // Act
+    const response = await request(setupApp(deps)).post(SFU_ROUTE).send(body);
+
+    // Assert
+    expect(response.status).toBe(200);
+    expect(twakeInstance).toHaveBeenCalledWith("alice");
+    expect(JSON.parse(String(fetchMock.mock.calls[7]?.[1].body)).twake_instance).toBe("alice.twake.test");
+  });
+
+  it("should mint the token without a Twake instance when the directory cannot be read", async () => {
+    // Arrange
+    const fetchMock = mockFetch(
+      userInfo(),
+      members(),
+      profile(),
+      moderators(),
+      appToken(),
+      meetRoom(),
+      appToken(),
+      meetToken(),
+    );
+    const deps = {
+      ...makeDeps(),
+      directory: {
+        twakeInstance: () => Promise.reject(new Error("ldap down")),
+      } as never,
+    };
+
+    // Act
+    const response = await request(setupApp(deps)).post(SFU_ROUTE).send(body);
+
+    // Assert
+    expect(response.status).toBe(200);
+    expect(JSON.parse(String(fetchMock.mock.calls[7]?.[1].body))).not.toHaveProperty("twake_instance");
+  });
+
   it("should let the participant join as a member when the power levels cannot be read", async () => {
     // Arrange
     const fetchMock = mockFetch(

@@ -61,7 +61,12 @@ export class VisioService {
    * A LiveKit token for a participant of the call of a Matrix room, minted by Meet
    * so that its functions (recording, transcription…) know the participant (D30).
    */
-  async mintCallToken(matrixRoomId: string, participant: CallParticipant, profile: MatrixProfile): Promise<CallToken> {
+  async mintCallToken(
+    matrixRoomId: string,
+    participant: CallParticipant,
+    profile: MatrixProfile,
+    twakeInstance: string | null = null,
+  ): Promise<CallToken> {
     if (!profile.email) {
       throw new VisioRoomUnavailableError("visio.email_unresolvable");
     }
@@ -77,6 +82,9 @@ export class VisioService {
       role: participant.role,
       ...(profile.sub && {
         sub: profile.sub,
+      }),
+      ...(twakeInstance && {
+        twake_instance: twakeInstance,
       }),
     };
     let [path, response] = await this.#postToken(meetRoomId, body, accessToken);

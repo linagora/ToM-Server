@@ -73,6 +73,8 @@ log.visio.store_failure: "call-rooms store failure (visio_call_rooms):
   {{reason}}"
 log.visio.moderator_unknown: "power levels unreadable: the participant joins as
   a member"
+log.visio.twake_instance_unknown: "directory unreadable: Meet gets no Twake
+  instance for the participant"
 
 # Bots
 bots.no_authenticated_user: "No authenticated user"

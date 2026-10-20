@@ -79,6 +79,8 @@ log.visio.store_failure: "échec du stockage des salons d'appel
   (visio_call_rooms) : {{reason}}"
 log.visio.moderator_unknown: "niveaux de pouvoir illisibles : le participant
   rejoint comme membre"
+log.visio.twake_instance_unknown: "annuaire illisible : Meet ne reçoit pas
+  l'instance Twake du participant"
 
 # Bots
 bots.no_authenticated_user: "Aucun utilisateur authentifié"

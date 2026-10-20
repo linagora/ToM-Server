@@ -29,12 +29,14 @@ import { GifsService } from "./modules/gifs/service";
 import type { GifsDeps } from "./modules/gifs/types";
 import { createLandingRouter } from "./modules/landing/router";
 import Database from "./modules/legacy/db/database";
+import UserDB from "./modules/legacy/matrix-identity-server/userdb/index";
 import { createLegacyRouter, mapToLegacyConfig } from "./modules/legacy/router";
 import AdminSettingsMiddleware from "./modules/legacy/tom-server/admin-settings-api/middlewares";
 import { DbReactionStore, REACTIONS_INDEXES, REACTIONS_SCHEMA } from "./modules/public-pages/reactions";
 import { createPublicPagesRouter } from "./modules/public-pages/router";
 import { makeSynapseSource } from "./modules/public-pages/source";
 import { CALL_ROOMS_SCHEMA, DbCallRooms } from "./modules/visio/call-rooms";
+import { TwakeDirectory } from "./modules/visio/directory";
 import { EmailResolver } from "./modules/visio/email-resolver";
 import { OpenIdValidator } from "./modules/visio/openid";
 import { createVisioRouter } from "./modules/visio/router";
@@ -108,6 +110,14 @@ function makeSynapseAdmin(config: Config, logger: Logger): SynapseAdmin {
   );
 }
 
+/** Each lookup binds anew: a directory down at startup only costs the calls their Twake instance. */
+function makeUserDb(config: Config, logger: Logger): UserDB {
+  const userDb = new UserDB(mapToLegacyConfig(config), logger as never);
+  userDb.ready.catch(() => logger.warn(translate("log.visio.twake_instance_unknown")));
+
+  return userDb;
+}
+
 /** The MatrixRTC token service of the calls of Twake Chat (D30): Meet behind it when `visio` is enabled. */
 async function mountSfu(config: Config, logger: Logger, app: Express, admin: SynapseAdmin): Promise<void> {
   const sfuLogger = logger.child({
@@ -136,6 +146,9 @@ async function mountSfu(config: Config, logger: Logger, app: Express, admin: Syn
       // Anonymous by design (MSC4195), and each call costs Synapse a userinfo: counted per IP
       rateLimit: makeRateLimit(config),
       service: new VisioService(config.visio, sfuLogger, new DbCallRooms(db)),
+      ...(config.ldap.uri && {
+        directory: new TwakeDirectory(makeUserDb(config, sfuLogger), config.ldap.uid_field, config.visio.timeout_ms),
+      }),
     };
   }
   logger.info(

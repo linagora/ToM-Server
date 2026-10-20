@@ -2,6 +2,7 @@ import type { RequestHandler } from "express";
 import type { z } from "zod";
 
 import type { AuthenticatedRequest } from "../../middleware/auth/types";
+import type { TwakeDirectory } from "./directory";
 import type { OpenIdValidator } from "./openid";
 import type { sfuGetRequestSchema, visioRoomResponseSchema, visioSettingsSchema } from "./schema";
 import type { VisioService } from "./service";
@@ -24,6 +25,8 @@ export interface SfuDeps {
   rateLimit: RequestHandler;
   /** Meet, behind the token service: the calls need it. */
   service: VisioService;
+  /** Absent without a directory: Meet then knows no Twake instance for the user. */
+  directory?: TwakeDirectory;
 }
 
 /** What LiveKit will know the participant by. */
