@@ -37,18 +37,22 @@ export async function sfuGetController(body: unknown, deps: SfuDeps, logger: Log
       detail: "device_id",
     });
   }
-  const profile = await deps.admin.profile(userId);
+  const [profile, moderator, twakeInstance] = await Promise.all([
+    deps.admin.profile(userId),
+    isModerator(deps, userId, request.room, logger),
+    twakeInstanceOf(deps, userId, logger),
+  ]);
   const participant: CallParticipant = {
     identity,
     name: profile.displayName ?? localpart(userId),
-    role: (await isModerator(deps, userId, request.room, logger)) ? "administrator" : "member",
+    role: moderator ? "administrator" : "member",
     attributes: {
       matrix_user_id: userId,
       matrix_device_id: request.device_id,
     },
   };
 
-  const { url, token } = await deps.service.mintCallToken(request.room, participant, profile);
+  const { url, token } = await deps.service.mintCallToken(request.room, participant, profile, twakeInstance);
 
   return {
     url,
@@ -64,6 +68,17 @@ async function isModerator(deps: SfuDeps, userId: string, roomId: string, logger
     logger.warn(translate("log.visio.moderator_unknown"));
 
     return false;
+  }
+}
+
+/** Where Meet saves the recordings: when the directory cannot say, the call goes on without it. */
+async function twakeInstanceOf(deps: SfuDeps, userId: string, logger: Logger): Promise<string | null> {
+  try {
+    return (await deps.directory?.twakeInstance(localpart(userId))) ?? null;
+  } catch {
+    logger.warn(translate("log.visio.twake_instance_unknown"));
+
+    return null;
   }
 }
 
