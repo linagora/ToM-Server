@@ -182,10 +182,27 @@ function mountVisio(config: Config, logger: Logger, app: Express): void {
       },
       visioLogger,
     );
+    const directory = config.ldap.uri
+      ? new TwakeDirectory(makeUserDb(config, visioLogger), config.ldap.uid_field, config.visio.timeout_ms)
+      : null;
     deps = {
       authenticate: tokenValidator.middleware(),
-      resolveEmail: (req: AuthenticatedRequest): Promise<string | null> =>
-        req.accessToken ? emailResolver.resolve(req.accessToken) : Promise.resolve(null),
+      // The directory first: an account made before its owner's first sign-in has no email in Synapse
+      resolveEmail: async (req: AuthenticatedRequest): Promise<string | null> => {
+        const fromDirectory =
+          directory && req.userId
+            ? await directory
+                .entry(req.userId.slice(1, req.userId.indexOf(":")))
+                .then((entry) => entry.email)
+                .catch(() => {
+                  visioLogger.warn(translate("log.visio.twake_instance_unknown"));
+
+                  return null;
+                })
+            : null;
+
+        return fromDirectory ?? (req.accessToken ? emailResolver.resolve(req.accessToken) : null);
+      },
     };
   }
   logger.info(

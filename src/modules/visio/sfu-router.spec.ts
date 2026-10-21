@@ -395,11 +395,16 @@ describe("SfuRouter", () => {
       appToken(),
       meetToken(),
     );
-    const twakeInstance = mock(() => Promise.resolve("alice.twake.test"));
+    const entry = mock(() =>
+      Promise.resolve({
+        twakeInstance: "alice.twake.test",
+        email: null,
+      }),
+    );
     const deps = {
       ...makeDeps(),
       directory: {
-        twakeInstance,
+        entry,
       } as never,
     };
 
@@ -408,7 +413,7 @@ describe("SfuRouter", () => {
 
     // Assert
     expect(response.status).toBe(200);
-    expect(twakeInstance).toHaveBeenCalledWith("alice");
+    expect(entry).toHaveBeenCalledWith("alice");
     expect(JSON.parse(String(fetchMock.mock.calls[7]?.[1].body)).twake_instance).toBe("alice.twake.test");
   });
 
@@ -427,7 +432,7 @@ describe("SfuRouter", () => {
     const deps = {
       ...makeDeps(),
       directory: {
-        twakeInstance: () => Promise.reject(new Error("ldap down")),
+        entry: () => Promise.reject(new Error("ldap down")),
       } as never,
     };
 
@@ -532,6 +537,41 @@ describe("SfuRouter", () => {
     // Assert
     expect(response.status).toBe(502);
     expect(response.body.jwt).toBeUndefined();
+  });
+
+  it("should take the email of the directory for a participant Synapse has none for", async () => {
+    // Arrange
+    const fetchMock = mockFetch(
+      userInfo(),
+      members(),
+      json(200, {
+        displayname: "Alice",
+        threepids: [],
+        external_ids: [],
+      }),
+      moderators(),
+      appToken(),
+      meetRoom(),
+      appToken(),
+      meetToken(),
+    );
+    const deps = {
+      ...makeDeps(),
+      directory: {
+        entry: () =>
+          Promise.resolve({
+            twakeInstance: null,
+            email: "alice@twake.test",
+          }),
+      } as never,
+    };
+
+    // Act
+    const response = await request(setupApp(deps)).post(SFU_ROUTE).send(body);
+
+    // Assert: Meet is asked for a token in the name of the directory's email
+    expect(response.status).toBe(200);
+    expect(JSON.parse(String(fetchMock.mock.calls[6]?.[1].body)).scope).toBe("alice@twake.test");
   });
 
   it("should answer 404 for a participant without an email", async () => {

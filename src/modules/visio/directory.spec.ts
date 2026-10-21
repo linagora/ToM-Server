@@ -3,9 +3,9 @@ import { describe, expect, it, type Mock, mock } from "bun:test";
 import { TwakeDirectory } from "./directory";
 
 const directoryOf = (
-  answer: Promise<Array<Record<string, string>>>,
+  answer: Promise<Array<Record<string, string | string[]>>>,
 ): {
-  get: Mock<() => Promise<Array<Record<string, string>>>>;
+  get: Mock<() => Promise<Array<Record<string, string | string[]>>>>;
   directory: TwakeDirectory;
 } => {
   const get = mock(() => answer);
@@ -23,26 +23,31 @@ const directoryOf = (
 };
 
 describe("TwakeDirectory", () => {
-  it("should read the instance of the user by its uid", async () => {
+  it("should read the instance and the email of the user by its uid", async () => {
     // Arrange
     const { get, directory } = directoryOf(
       Promise.resolve([
         {
           twakeWorkspaceUrl: "alice.twake.test",
+          mail: "Alice@Twake.test",
         },
       ]),
     );
 
     // Act
-    const instance = await directory.twakeInstance("alice");
+    const entry = await directory.entry("alice");
 
     // Assert
-    expect(instance).toBe("alice.twake.test");
+    expect(entry).toEqual({
+      twakeInstance: "alice.twake.test",
+      email: "alice@twake.test",
+    });
     expect(get).toHaveBeenCalledWith(
       "users",
       [
         "twakeWorkspaceUrl",
         "workspaceurl",
+        "mail",
       ],
       {
         uid: "alice",
@@ -61,10 +66,30 @@ describe("TwakeDirectory", () => {
     );
 
     // Act
-    const instance = await directory.twakeInstance("alice");
+    const entry = await directory.entry("alice");
 
     // Assert
-    expect(instance).toBe("alice.twake.test");
+    expect(entry.twakeInstance).toBe("alice.twake.test");
+  });
+
+  it("should know no email for a user with several", async () => {
+    // Arrange
+    const { directory } = directoryOf(
+      Promise.resolve([
+        {
+          mail: [
+            "alice@twake.test",
+            "alice@other.test",
+          ],
+        },
+      ]),
+    );
+
+    // Act
+    const entry = await directory.entry("alice");
+
+    // Assert
+    expect(entry.email).toBeNull();
   });
 
   it("should know no instance for a user the directory does not have", async () => {
@@ -72,10 +97,13 @@ describe("TwakeDirectory", () => {
     const { directory } = directoryOf(Promise.resolve([]));
 
     // Act
-    const instance = await directory.twakeInstance("alice");
+    const entry = await directory.entry("alice");
 
     // Assert
-    expect(instance).toBeNull();
+    expect(entry).toEqual({
+      twakeInstance: null,
+      email: null,
+    });
   });
 
   it("should give up on a directory that does not answer", async () => {
@@ -83,7 +111,7 @@ describe("TwakeDirectory", () => {
     const { directory } = directoryOf(new Promise(() => undefined));
 
     // Act
-    const lookup = directory.twakeInstance("alice");
+    const lookup = directory.entry("alice");
 
     // Assert
     await expect(lookup).rejects.toThrow("directory timeout");

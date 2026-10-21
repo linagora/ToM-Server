@@ -80,7 +80,7 @@ log.visio.store_failure: "échec du stockage des salons d'appel
 log.visio.moderator_unknown: "niveaux de pouvoir illisibles : le participant
   rejoint comme membre"
 log.visio.twake_instance_unknown: "annuaire illisible : Meet ne reçoit pas
-  l'instance Twake du participant"
+  l'instance Twake du participant, et l'e-mail vient de Synapse"
 
 # Bots
 bots.no_authenticated_user: "Aucun utilisateur authentifié"

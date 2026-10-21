@@ -3,6 +3,7 @@ import type { Logger } from "winston";
 import { DomainError } from "../../errors/domain-error";
 import { INVALID_INPUT } from "../../errors/error-codes";
 import { translate } from "../../i18n/index";
+import type { DirectoryEntry } from "./directory";
 import { VisioForbiddenError } from "./errors";
 import { sfuGetRequestSchema } from "./schema";
 import type { CallParticipant, SfuDeps, SfuGetRequest } from "./types";
@@ -37,10 +38,10 @@ export async function sfuGetController(body: unknown, deps: SfuDeps, logger: Log
       detail: "device_id",
     });
   }
-  const [profile, moderator, twakeInstance] = await Promise.all([
+  const [profile, moderator, entry] = await Promise.all([
     deps.admin.profile(userId),
     isModerator(deps, userId, request.room, logger),
-    twakeInstanceOf(deps, userId, logger),
+    directoryEntryOf(deps, userId, logger),
   ]);
   const participant: CallParticipant = {
     identity,
@@ -52,7 +53,16 @@ export async function sfuGetController(body: unknown, deps: SfuDeps, logger: Log
     },
   };
 
-  const { url, token } = await deps.service.mintCallToken(request.room, participant, profile, twakeInstance);
+  // The directory first: an account made before its owner's first sign-in has no email in Synapse
+  const { url, token } = await deps.service.mintCallToken(
+    request.room,
+    participant,
+    {
+      ...profile,
+      email: entry.email ?? profile.email,
+    },
+    entry.twakeInstance,
+  );
 
   return {
     url,
@@ -71,14 +81,19 @@ async function isModerator(deps: SfuDeps, userId: string, roomId: string, logger
   }
 }
 
-/** Where Meet saves the recordings: when the directory cannot say, the call goes on without it. */
-async function twakeInstanceOf(deps: SfuDeps, userId: string, logger: Logger): Promise<string | null> {
+const NO_ENTRY: DirectoryEntry = {
+  twakeInstance: null,
+  email: null,
+};
+
+/** Email and Twake instance: when the directory cannot say, the call goes on with what Synapse knows. */
+async function directoryEntryOf(deps: SfuDeps, userId: string, logger: Logger): Promise<DirectoryEntry> {
   try {
-    return (await deps.directory?.twakeInstance(localpart(userId))) ?? null;
+    return (await deps.directory?.entry(localpart(userId))) ?? NO_ENTRY;
   } catch {
     logger.warn(translate("log.visio.twake_instance_unknown"));
 
-    return null;
+    return NO_ENTRY;
   }
 }
 
