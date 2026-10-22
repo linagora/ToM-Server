@@ -1,8 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
+import { load } from "js-yaml";
 import { createLogger } from "winston";
 
 import { loadMessages, resolveMessage, translate } from "./index";
@@ -12,6 +13,18 @@ const silentLogger = createLogger({
 });
 
 const I18N_DIR = "assets/i18n";
+
+function readLocale(file: string): Record<string, string> {
+  return load(readFileSync(resolve(I18N_DIR, file), "utf-8")) as Record<string, string>;
+}
+
+function placeholders(message: string): string[] {
+  return [
+    ...message.matchAll(/\{\{(\w+)\}\}/g),
+  ]
+    .map((m) => m[1] ?? "")
+    .sort();
+}
 
 describe("i18n", () => {
   beforeAll(() => {
@@ -62,4 +75,25 @@ describe("i18n fallback", () => {
   it("should return the key when no locale knows it", () => {
     expect(resolveMessage("xx", "NOWHERE")).toBe("NOWHERE");
   });
+});
+
+describe("i18n catalogs", () => {
+  const source = readLocale("en.yaml");
+  const locales = readdirSync(I18N_DIR).filter((f) => f.endsWith(".yaml") && f !== "en.yaml");
+
+  for (const file of locales) {
+    const target = readLocale(file);
+
+    it(`${file} should have the same keys as en.yaml`, () => {
+      expect(Object.keys(target)).toEqual(Object.keys(source));
+    });
+
+    it(`${file} should keep the placeholders of en.yaml`, () => {
+      for (const [key, message] of Object.entries(source)) {
+        expect(typeof target[key]).toBe("string");
+        expect(target[key]?.trim()).not.toBe("");
+        expect(placeholders(target[key] ?? "")).toEqual(placeholders(message));
+      }
+    });
+  }
 });
