@@ -9,6 +9,8 @@ export const ERROR_CODES = [
   "M_SERVICE_UNAVAILABLE",
   "M_BAD_GATEWAY",
   "M_UNPROCESSABLE",
+  "M_BOT_RECOVERY_NEEDED",
+  "M_BOT_NOT_FOUND",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -24,3 +26,5 @@ export const INTERNAL: ErrorCode = "M_UNKNOWN";
 export const SERVICE_UNAVAILABLE: ErrorCode = "M_SERVICE_UNAVAILABLE";
 export const BAD_GATEWAY: ErrorCode = "M_BAD_GATEWAY";
 export const UNPROCESSABLE: ErrorCode = "M_UNPROCESSABLE";
+export const BOT_RECOVERY_NEEDED: ErrorCode = "M_BOT_RECOVERY_NEEDED";
+export const BOT_NOT_FOUND: ErrorCode = "M_BOT_NOT_FOUND";

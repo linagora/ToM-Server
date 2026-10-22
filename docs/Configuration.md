@@ -39,6 +39,8 @@ Optional fields are commented out with their defaults shown.
 - [Matrix Client Discovery (Well-Known)](#matrix-client-discovery-well-known)
 - [Matrix Authentication](#matrix-authentication)
 - [Visio](#visio)
+- [GIFs](#gifs)
+- [Public pages](#public-pages)
 - [Telemetry (OpenTelemetry)](#telemetry-opentelemetry)
 
 ---
@@ -59,7 +61,7 @@ server:
 | `host`                   No          `"0.0.0.0"`  Bind address for the HTTP server.                                                        |
 | `port`                   No          `3000`       Listen port.                                                                             |
 | `trust_x_forwarded_for`  No          `false`      Enable when behind a reverse proxy.                                                      |
-| `trusted_proxies`        No          `[]`         List of trusted proxy IPs.                                                               |
+| `trusted_proxies`        No          `[]`         IPs or subnets of the trusted proxies; required for per-IP limits to hold behind a proxy. |
 | `additional_features`    No          `false`      Enable extra company features.                                                           |
 | `enable_cron_jobs`       No          `false`      Master switch for all scheduled background jobs.                                         |
 
@@ -76,6 +78,15 @@ server:
 | --------------  ---------  --------------------------------------------- |
 | `window_ms`     `60000`    Rate-limit window in milliseconds (1 minute). |
 | `max_requests`  `100`      Maximum requests per window.                  |
+
+This limit applies to the GIF routes and the assistant routes (`bots/me`),
+counted per user, and to the call token service (`sfu/get`), counted per IP
+address of the caller: set `trust_x_forwarded_for` and list the proxies in
+`trusted_proxies` behind a proxy, or every caller shares the address of the
+proxy. With `trust_x_forwarded_for` and no `trusted_proxies`, ToM trusts any
+`X-Forwarded-For` (a client can forge it to escape the limit) and warns at
+startup. Past it the answer is `429
+M_LIMIT_EXCEEDED`.
 
 ---
 
@@ -649,6 +660,62 @@ The route authenticates the user as described in
 from the homeserver (`/account/3pid`): Synapse must store exactly one email
 for each user, e.g. through the `email_template` of its OIDC user mapping.
 
+Two more fields serve the calls of Twake Chat (see [Call token service](#call-token-service)):
+
+| Field                   | Default                                                                                                        | Description                                                                                           |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `service_account_email` | —                                                                                                              | The account that owns the rooms made for the Matrix rooms. Required for Meet to mint the call tokens. |
+| `room_configuration`    | `{screen_recording_permission: authenticated, transcript_permission: authenticated, everyone_can_mute: false}` | The configuration of those rooms (`admin_owner` restricts to the owner of the room).                  |
+
+`oidc_provider` is the `idp_id` Synapse gives the OIDC provider of Twake
+(`oidc_providers` of its configuration), for example `twake`; Synapse stores
+the identity as `oidc-twake` (`oidc` for the legacy single `oidc_config`),
+and both `twake` and `oidc-twake` match it. The OIDC subject sent to Meet is the
+`external_id` of the user at that provider; with no `oidc_provider`, or when the
+user has no identity there, no subject is sent and Meet matches the user by
+email.
+
+## Call token service
+
+Enabled with `visio` (it needs [Visio](#visio) and its `service_account_email`;
+without it the service is not mounted and ToM logs an error at startup).
+Serves the MatrixRTC token service (MSC4195) of the calls of Twake Chat:
+`POST /_twake/v1/video_call/sfu/get`. The homeserver names it
+in its well-known as `org.matrix.msc4143.rtc_foci[].livekit_service_url`
+(`https://tom.example.com/_twake/v1/video_call`, the client appends
+`/sfu/get`). The LiveKit server and its key are Meet's: ToM answers the `url`
+Meet gives and holds no LiveKit setting.
+
+The request carries the OpenID token of the user (`openid_token`), the room
+and the device, as MSC4195 says: no Matrix access token. The service checks
+the token on the homeserver (`/_matrix/federation/v1/openid/userinfo`, only
+users of `server.name`), that the user is a member of the room (admin API),
+then answers `{"url", "jwt"}`, both from Meet. The LiveKit identity is always
+`{user id}:{device id}`, the one MatrixRTC clients derive for the media keys.
+
+The room of a Matrix room is made once on Meet (owner:
+`service_account_email`, `room_access_level`, `room_configuration`) and the
+room is kept in the table `visio_call_rooms` (shared by every ToM replica, kept across
+restarts: a call never splits in two). Meet
+mints the token for the user (`POST
+/external-api/v1.0/rooms/{id}/livekit-token/`, a route of the Linagora fork),
+so that its recording, transcription and moderation know the participant. ToM
+holds no LiveKit key: without Meet (`visio` disabled, Meet down or refusing),
+the call has no token and the service answers an error. When Meet answers a JSON
+`404` on the token route (the room is gone, or was made by another application,
+for instance before `client_id` changed), ToM replaces the room, once per
+request. Any other answer, including the HTML `404` of a Meet without the
+route, keeps the room and fails with `502`.
+
+| Status | Meaning                                                                                                        |
+| ------ | -------------------------------------------------------------------------------------------------------------- |
+| `200`  | `{"url": "wss://…", "jwt": "…"}`                                                                               |
+| `400`  | The body is not an MSC4195 request.                                                                            |
+| `401`  | The homeserver rejected the OpenID token.                                                                      |
+| `403`  | The token is for another homeserver, or the user is not in the room.                                           |
+| `404`  | The service is disabled (`visio` off), or Meet cannot make a room for the user (no email, no service account). |
+| `502`  | The homeserver or Meet is unreachable, failing or refusing: no token is given.                                 |
+
 ### Route
 
 `POST /_twake/v1/video_call/rooms`, authenticated with the user's Matrix
@@ -681,6 +748,115 @@ link itself.
   `OIDC_FALLBACK_TO_EMAIL_FOR_IDENTIFICATION=True` and
   `OIDC_USER_SUB_FIELD_IMMUTABLE=False`. Otherwise the route answers `404` for
   them.
+
+---
+
+## GIFs
+
+Off by default. Serves the GIFs of Twake Chat through ToM, so that Klipy (a
+Tenor-compatible GIF API) never sees the IP address, the User-Agent or any
+header of the users: ToM calls Klipy itself and streams the media from its CDN.
+
+```yaml
+gifs:
+  enabled: true
+  klipy_api_key: "<KLIPY_API_KEY>"
+```
+
+| Field                   | Default                  | Description                                                                                     |
+| ----------------------- | ------------------------ | ----------------------------------------------------------------------------------------------- |
+| `enabled`               | `false`                  | Default of the run time switch. The admin API overrides it (stored in the database of ToM).     |
+| `klipy_api_key`         | `""`                     | Secret. Without it the feature is off, whatever the switch says.                                |
+| `klipy_base_url`        | `https://api.klipy.com`  | The Klipy API.                                                                                  |
+| `customer_id_secret`    | `""`                     | Keys the hash of the Matrix id sent as `customer_id`. The API key when unset.                   |
+| `content_filter`        | `medium`                 | `off`, `low`, `medium` or `high`.                                                               |
+| `timeout_ms`            | `15000`                  | Timeout of each request to Klipy and to its CDN.                                                |
+| `max_media_bytes`       | `15728640`               | A GIF above this size is refused.                                                               |
+| `trending_cache_ttl_ms` | `300000`                 | How long a page of trending GIFs stays in memory.                                               |
+
+Endpoints (errors are Matrix errors, `{"errcode", "error"}`):
+
+| Route                                           | Auth                                   | Answer                                                       |
+| ----------------------------------------------- | -------------------------------------- | ------------------------------------------------------------ |
+| `GET /_twake/v1/gifs/status`                    | Matrix access token                    | `{"enabled": boolean}`: key present and switch on.           |
+| `GET /_twake/v1/gifs/search?q=&page=&locale=`   | Matrix access token                    | `{"results": [Gif], "next_page": number or null}`.           |
+| `GET /_twake/v1/gifs/trending?page=&locale=`    | Matrix access token                    | The same.                                                    |
+| `GET /_twake/v1/gifs/media/:id/:variant`        | Signed URL (`exp`, `sig`)              | The file. `variant` is `preview` or `full`.                  |
+| `GET /_twake/v1/admin/features/gifs`            | `synapse.admin.access_token` as Bearer | `{"enabled": boolean, "available": boolean}`.                |
+| `PUT /_twake/v1/admin/features/gifs`            | The same                               | Body `{"enabled": boolean}`, answers as the GET.             |
+
+A `Gif` is `{"id", "title", "preview_url", "url", "width", "height"}`. Both
+URLs point at the media route of ToM, signed for one hour: an `<img>` loads
+them without a header. `q` is required (100 characters at most), `page` starts
+at 1, `locale` is `fr`, `fr-FR`... (a country code for Klipy). Search and
+trending are limited per user (`server.rate_limiting`, 429 `M_LIMIT_EXCEEDED`).
+When the feature is off or has no key, `search`, `trending`, `media` and the
+admin routes answer 404 `M_NOT_FOUND`, and `status` answers
+`{"enabled": false}`. The admin routes are closed while
+`synapse.admin.access_token` is empty.
+
+The state is not in the well-known: the document is built once at start, and
+the switch changes at run time. Clients call `status` after the sign-in.
+
+---
+
+## Public pages
+
+Off by default. Serves a read-only, server-rendered HTML page (Open Graph tags,
+JSON-LD `ProfilePage`, canonical URL) for each Matrix room anyone may read,
+for people with no account. Needs `synapse.admin` (a token, or a login).
+
+```yaml
+public_pages:
+  enabled: true
+  public_url: "https://chat.example.com"
+  chat_url: "https://chat.example.com"
+```
+
+| Field        | Default | Description                                                                |
+| ------------ | ------- | -------------------------------------------------------------------------- |
+| `enabled`    | `false` | Disabled: the routes are not mounted (404).                                |
+| `public_url` | `""`    | **Required when enabled.** Origin of the pages: canonical, OG and sitemap. |
+| `chat_url`   | `""`    | Target of the « Follow in Twake Chat » link. No link when empty.           |
+| `lang`       | `en`    | `lang` attribute of the pages.                                             |
+
+A room is served only if its `m.room.history_visibility` is `world_readable`
+(a room anyone may join, whose history is kept to members, is not), it has no
+`m.room.encryption` state, it is not a space **and it opted in**: it carries the
+state event `app.twake.chat.public_page` (state key `""`) with the content
+`{ "enabled": true }`. No event, `enabled` false or not a boolean, or malformed
+content means no page: the routes answer what they answer for a private room
+(`404`, same body) and the sitemap leaves the room out. There is no server-wide
+setting to bypass the opt-in. Messages sent before the latest change of its
+history visibility are not shown. This gate runs on the state of the room before
+any message or media is read, for pages, media, reactions, reports and the
+sitemap alike (ToM reads Synapse as admin, so it reads every room).
+
+| Route                                   | Answer                                                                                                                                                                                       |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /b/<ref>`                          | The page. `<ref>` is a slug (alias `#slug:<server.name>`) or a URL-encoded room id.                                                                                                          |
+| `GET /b/<ref>/media/<server>/<id>`      | A media the page shows (images, audio, video only), sandboxed.                                                                                                                               |
+| `POST /b/<ref>/react`                   | A visitor's emoji reaction (form: `event_id`, `key` among 👍 ❤️ 😂 😮 😢 🎉); pressing again removes it. `303` back to `#post-<id>`.                                                         |
+| `POST /b/<ref>/report`                  | Reports a post to the Synapse moderators (form: `event_id`, `reason`, `comment`). `303` to `?reported=1#post-<id>`.                                                                          |
+| `GET /_twake/v1/public-pages/reactions` | `?room_id=…&event_id=…` (repeat, max 100): `{"reactions": {"<event_id>": {"👍": 3}}}`, visitor counts only. No auth, `Access-Control-Allow-Origin: *`; `404` for a room that fails the gate. |
+| `GET /sitemap.xml`                      | The served rooms that pass the gate: one state read each, 8 at a time, per render.                                                                                                           |
+| `GET /robots.txt`                       | Allows `/b/`, names the sitemap.                                                                                                                                                             |
+
+Visitors have no account and the page runs no script: reactions and reports are
+plain forms (the CSP is `form-action 'self'`). A visitor is a random id in the
+cookie `tom_visitor` (HttpOnly, SameSite=Lax, path `/b/`, 1 year, Secure when
+`public_url` is https). Reactions live in the table `public_reactions` of the ToM
+database (unique per room, event, key, visitor) and are shown added to the
+members' Matrix reactions. A POST must name a post shown on the page of a room
+that passes the gate. Limits per IP: 30 POSTs a minute, 5 reports per 10 minutes.
+A report goes to Synapse (`POST /_matrix/client/v3/rooms/{roomId}/report/{eventId}`,
+as the admin) with the reason and comment only, never the IP or the cookie. The
+texts of these controls, and of the page, follow `lang` (English, French). A room
+with no avatar shows its initials.
+
+A page is the latest 30 posts of the main timeline (edits applied, thread
+replies left out), cached for 60 s. Text is escaped; `formatted_body` is never
+used. Unknown or refused rooms answer `404`; a homeserver failure `502`.
 
 ---
 
