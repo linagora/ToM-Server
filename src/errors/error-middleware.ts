@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 
-import { resolveMessage } from "../i18n/index";
+import { negotiateLocale, resolveMessage } from "../i18n/index";
 import type { I18nConfig } from "../i18n/types";
 import type { TomRequest } from "../types";
 import { DomainError } from "./domain-error";
@@ -25,8 +25,9 @@ export function errorMiddleware(i18nConfig: I18nConfig) {
   return (err: unknown, req: Request, res: Response, _next: NextFunction): void => {
     if (err instanceof DomainError) {
       const status = STATUS_MAP[err.code] ?? 500;
-      const locale = req.headers["accept-language"]?.split(",")[0] ?? i18nConfig.locale;
+      const locale = negotiateLocale(req.headers["accept-language"], i18nConfig.locale);
 
+      res.setHeader("Content-Language", locale);
       res.status(status).json({
         errcode: err.code,
         error: resolveMessage(locale, err.message, err.context),
