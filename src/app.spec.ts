@@ -1,8 +1,9 @@
 import { afterEach, beforeAll, describe, expect, it, type Mock, mock } from "bun:test";
+import { Writable } from "node:stream";
 
 import { Router } from "express";
 import request from "supertest";
-import { createLogger } from "winston";
+import { createLogger, transports } from "winston";
 
 import { createApp } from "./app";
 import { configSchema } from "./config/schema";
@@ -250,5 +251,135 @@ describe("createApp video call rooms", () => {
     // Assert
     expect(response.status).toBe(404);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+const collectLogs = (): {
+  logger: ReturnType<typeof createLogger>;
+  logs: {
+    level: string;
+    message: string;
+  }[];
+} => {
+  const logs: {
+    level: string;
+    message: string;
+  }[] = [];
+  const stream = new Writable({
+    write(chunk, _encoding, next) {
+      logs.push(JSON.parse(String(chunk)));
+      next();
+    },
+  });
+  const logger = createLogger({
+    transports: [
+      new transports.Stream({
+        stream,
+      }),
+    ],
+  });
+
+  return {
+    logger,
+    logs,
+  };
+};
+
+const configWith = (extra: { server?: object; livekit?: object }): typeof config =>
+  configSchema.parse({
+    synapse: {
+      server_url: "https://matrix.example.com/",
+    },
+    database: {
+      host: "localhost",
+      name: "tom",
+      user: "tom",
+      password: "tom",
+    },
+    ...extra,
+    server: {
+      name: "example.com",
+      ...extra.server,
+    },
+  });
+
+describe("createApp startup warnings", () => {
+  beforeAll(() => {
+    loadMessages("assets/i18n", silentLogger);
+  });
+
+  it("should warn when trust_x_forwarded_for is set without trusted_proxies", async () => {
+    // Arrange
+    const { logger, logs } = collectLogs();
+
+    // Act
+    await createApp(
+      configWith({
+        server: {
+          trust_x_forwarded_for: true,
+        },
+      }),
+      logger,
+      undefined,
+    );
+
+    // Assert
+    expect(logs.some((log) => log.level === "warn" && log.message.includes("trusted_proxies"))).toBe(true);
+  });
+
+  it("should not warn when the proxies are listed, or the header is not trusted", async () => {
+    // Arrange
+    const listed = collectLogs();
+    const untrusted = collectLogs();
+
+    // Act
+    await createApp(
+      configWith({
+        server: {
+          trust_x_forwarded_for: true,
+          trusted_proxies: [
+            "10.0.0.0/8",
+          ],
+        },
+      }),
+      listed.logger,
+      undefined,
+    );
+    await createApp(configWith({}), untrusted.logger, undefined);
+
+    // Assert
+    expect(listed.logs.some((log) => log.message.includes("trusted_proxies"))).toBe(false);
+    expect(untrusted.logs.some((log) => log.message.includes("trusted_proxies"))).toBe(false);
+  });
+
+  it("should warn that the livekit section is no longer read", async () => {
+    // Arrange
+    const { logger, logs } = collectLogs();
+
+    // Act
+    await createApp(
+      configWith({
+        livekit: {
+          api_key: "k",
+          api_secret: "s",
+        },
+      }),
+      logger,
+      undefined,
+    );
+
+    // Assert
+    expect(logs.some((log) => log.level === "warn" && log.message.includes("livekit"))).toBe(true);
+  });
+
+  it("should log an error when visio is enabled without service_account_email", async () => {
+    // Arrange
+    const { logger, logs } = collectLogs();
+
+    // Act
+    await createApp(config, logger, undefined);
+
+    // Assert
+    expect(logs.some((log) => log.level === "error" && log.message.includes("service_account_email"))).toBe(true);
   });
 });

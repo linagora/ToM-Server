@@ -17,6 +17,11 @@ describe("visioSettingsSchema", () => {
     if (result.success) {
       expect(result.data).toEqual({
         enabled: false,
+        room_configuration: {
+          screen_recording_permission: "authenticated",
+          transcript_permission: "authenticated",
+          everyone_can_mute: false,
+        },
         timeout_ms: 10000,
       });
     }
