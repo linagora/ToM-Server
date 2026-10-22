@@ -35,9 +35,19 @@ const validateMatrixToken = (logger: TwakeLogger) => {
             .then((userInfo) => {
               if ((userInfo as userInfoResponse).sub != null) {
                 const cmp = (userInfo as userInfoResponse).sub.match(
-                  /^@(.+?):[^:]+$/
+                  /^@([^:]+):(.+)$/
                 )
-                if (cmp != null) {
+                // The sub must belong to the server that vouched for it, else
+                // any server could mint an identity for a user of another one.
+                if (
+                  cmp != null &&
+                  cmp[2].toLowerCase() !== matrixServer.toLowerCase()
+                ) {
+                  logger.warn(
+                    `The Matrix homeserver ${matrixServer} returned a sub of another domain`
+                  )
+                  reject('Invalid response from Matrix Server')
+                } else if (cmp != null) {
                   resolve((userInfo as userInfoResponse).sub)
                 } else {
                   reject('Invalid response from Matrix Server')
