@@ -5,7 +5,7 @@ import { load } from "js-yaml";
 import type { Logger } from "winston";
 
 import { getShareDirs } from "../platform/paths";
-import { DEFAULT_I18N_DIRNAME } from "./schema";
+import { DEFAULT_I18N_DIRNAME, DEFAULT_LOCALE } from "./schema";
 
 type MessageDict = Record<string, string>;
 const dictionaries: Map<string, MessageDict> = new Map<string, MessageDict>();
@@ -88,9 +88,9 @@ function interpolate(template: string, vars: Record<string, unknown>): string {
 export function resolveMessage(locale: string, code: string, context: Record<string, unknown> = {}): string {
   // Try exact locale, then base language (e.g., "fr" from "fr-FR"), then fallback
   const baseLocale = locale.split("-")[0];
-  const dict = dictionaries.get(locale) ?? dictionaries.get(baseLocale) ?? dictionaries.get("en");
+  const dict = dictionaries.get(locale) ?? dictionaries.get(baseLocale) ?? dictionaries.get(DEFAULT_LOCALE);
 
-  const template = dict?.[code] ?? code;
+  const template = dict?.[code] ?? dictionaries.get(DEFAULT_LOCALE)?.[code] ?? code;
   return interpolate(template, context);
 }
 
