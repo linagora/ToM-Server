@@ -94,6 +94,42 @@ export function resolveMessage(locale: string, code: string, context: Record<str
   return interpolate(template, context);
 }
 
+/** The loaded catalog a language tag names, matched without regard to case. */
+function catalogOf(tag: string): string | undefined {
+  for (const locale of dictionaries.keys()) {
+    if (locale.toLowerCase() === tag) return locale;
+  }
+  return undefined;
+}
+
+/**
+ * The catalog an `Accept-Language` header prefers (RFC 9110 §12.5.4): its
+ * ranges by decreasing q value, the header's order between equal ones, a
+ * missing q being 1 and `q=0` a refusal. The first range with a catalog wins,
+ * by its exact tag then its base language; `*` names none. Without one, `fallback`.
+ */
+export function negotiateLocale(acceptLanguage: string | undefined, fallback: string): string {
+  const ranges = (acceptLanguage ?? "")
+    .split(",")
+    .map((range, index) => {
+      const [tag = "", ...params] = range.split(";").map((part) => part.trim());
+      const q = params.find((param) => /^q=/i.test(param));
+      return {
+        tag: tag.toLowerCase(),
+        quality: q === undefined ? 1 : Number(q.slice(2)),
+        index,
+      };
+    })
+    .filter((range) => range.tag !== "" && range.tag !== "*" && range.quality > 0)
+    .sort((a, b) => b.quality - a.quality || a.index - b.index);
+
+  for (const { tag } of ranges) {
+    const catalog = catalogOf(tag) ?? catalogOf(tag.split("-")[0] ?? "");
+    if (catalog) return catalog;
+  }
+  return fallback || DEFAULT_LOCALE;
+}
+
 /** The English message of `key`, for the English-only `log.*` keys. */
 export function translate(key: string, context: Record<string, unknown> = {}): string {
   return resolveMessage("en", key, context);
