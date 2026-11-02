@@ -75,6 +75,14 @@ describe('the Addressbook API controller', () => {
       }))
       const personalApp = express()
       personalApp.use(
+    it('should enrich from the rows it read and never send them', async () => {
+      const directoryRows = [{ uid: 'test1', cn: 'Test One' }]
+      const contacts = [
+        { id: 'test1', mxid: '@test1:server.com', display_name: 'Test One' }
+      ]
+      const getBatch = mock(async () => new Map())
+      const rowsApp = express()
+      rowsApp.use(
         router(
           {
             matrix_server: 'http://localhost:789',
@@ -98,6 +106,29 @@ describe('the Addressbook API controller', () => {
         ['test', false],
         ['test', true]
       ])
+          {
+            list: async () => ({
+              id: 'bookId',
+              owner: 'test',
+              contacts,
+              directoryRows
+            })
+          } as never,
+          { getBatch } as never
+        )
+      )
+
+      const response = await supertest(rowsApp)
+        .get(PATH)
+        .set('Authorization', 'Bearer test')
+
+      expect(getBatch.mock.calls[0]).toEqual([
+        ['@test1:server.com'],
+        'test',
+        directoryRows
+      ] as never)
+      expect(response.body.directoryRows).toBeUndefined()
+      expect(response.body.contacts).toHaveLength(1)
     })
 
     it('should try to list an addressbook', async () => {
