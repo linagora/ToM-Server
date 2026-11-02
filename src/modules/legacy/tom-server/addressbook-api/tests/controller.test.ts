@@ -67,6 +67,39 @@ app.use(
 
 describe('the Addressbook API controller', () => {
   describe('the listAddressbook handler', () => {
+    it('should read only the personal contacts with ?personal=true', async () => {
+      const list = mock(async (owner: string) => ({
+        id: 'addressbookId',
+        owner,
+        contacts: []
+      }))
+      const personalApp = express()
+      personalApp.use(
+        router(
+          {
+            matrix_server: 'http://localhost:789',
+            base_url: 'http://localhost'
+          } as unknown as Config,
+          dbMock as unknown as TwakeDB,
+          authenticatorMock,
+          loggerMock as unknown as TwakeLogger,
+          { list } as never
+        )
+      )
+
+      await supertest(personalApp)
+        .get(`${PATH}?personal=true`)
+        .set('Authorization', 'Bearer test')
+      await supertest(personalApp)
+        .get(PATH)
+        .set('Authorization', 'Bearer test')
+
+      expect(list.mock.calls).toEqual([
+        ['test', false],
+        ['test', true]
+      ])
+    })
+
     it('should try to list an addressbook', async () => {
       dbMock.get.mockImplementation((table) => {
         if (table === 'addressbooks') {

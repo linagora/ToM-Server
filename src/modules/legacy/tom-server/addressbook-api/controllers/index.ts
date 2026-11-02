@@ -126,7 +126,12 @@ export default class AddressbookApiController
         throw new Error('Missing owner')
       }
 
-      const addressbook = await this.service.list(owner)
+      // ?personal=true leaves the people of the directory out: what a client
+      // needs to show the names the user gave costs no read of the directory
+      const addressbook = await this.service.list(
+        owner,
+        req.query.personal !== 'true'
+      )
 
       // Enrich contacts with user info
       const enrichedContacts = await this._enrichContacts(
