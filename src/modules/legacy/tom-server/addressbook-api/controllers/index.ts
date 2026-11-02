@@ -2,6 +2,7 @@ import { TwakeLogger } from '../../../logger/index'
 import { AuthRequest, TwakeDB } from '../../types'
 import type {
   Contact,
+  DirectoryRow,
   EnrichedContact,
   IAddressbookApiController,
   IAddressbookService
@@ -32,11 +33,13 @@ export default class AddressbookApiController
    *
    * @param {Contact[]} contacts - Array of contacts to enrich
    * @param {string?} viewer - The viewer's user ID for visibility checks
+   * @param {DirectoryRow[]?} directoryRows - The rows of the directory already read
    * @returns {Promise<EnrichedContact[]>} Array of enriched contacts
    */
   private async _enrichContacts(
     contacts: Contact[],
-    viewer?: string
+    viewer?: string,
+    directoryRows?: DirectoryRow[]
   ): Promise<EnrichedContact[]> {
     if (!this.userInfoService || contacts.length === 0) {
       this.logger.debug(
@@ -55,7 +58,11 @@ export default class AddressbookApiController
       this.logger.debug(
         `[AddressbookApiController._enrichContacts] Enriching ${mxids.length} contacts`
       )
-      const userInfoMap = await this.userInfoService.getBatch(mxids, viewer)
+      const userInfoMap = await this.userInfoService.getBatch(
+        mxids,
+        viewer,
+        directoryRows
+      )
 
       const enrichedContacts: EnrichedContact[] = contacts.map((contact) => {
         const userInfo: UserInformation | undefined = userInfoMap.get(
@@ -128,7 +135,7 @@ export default class AddressbookApiController
 
       // ?personal=true leaves the people of the directory out: what a client
       // needs to show the names the user gave costs no read of the directory
-      const addressbook = await this.service.list(
+      const { directoryRows, ...addressbook } = await this.service.list(
         owner,
         req.query.personal !== 'true'
       )
@@ -136,7 +143,8 @@ export default class AddressbookApiController
       // Enrich contacts with user info
       const enrichedContacts = await this._enrichContacts(
         addressbook.contacts,
-        owner
+        owner,
+        directoryRows
       )
 
       res.status(200).json({
