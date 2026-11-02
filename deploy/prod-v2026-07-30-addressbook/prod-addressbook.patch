@@ -1,0 +1,313 @@
+diff --git a/packages/tom-server/src/addressbook-api/controllers/index.ts b/packages/tom-server/src/addressbook-api/controllers/index.ts
+index 84beb18..3ee191c 100644
+--- a/packages/tom-server/src/addressbook-api/controllers/index.ts
++++ b/packages/tom-server/src/addressbook-api/controllers/index.ts
+@@ -2,6 +2,7 @@ import { TwakeLogger } from '@twake/logger'
+ import { AuthRequest, TwakeDB } from '../../types'
+ import type {
+   Contact,
++  DirectoryRow,
+   EnrichedContact,
+   IAddressbookApiController,
+   IAddressbookService
+@@ -32,11 +33,13 @@ export default class AddressbookApiController
+    *
+    * @param {Contact[]} contacts - Array of contacts to enrich
+    * @param {string?} viewer - The viewer's user ID for visibility checks
++   * @param {DirectoryRow[]?} directoryRows - The rows of the directory already read
+    * @returns {Promise<EnrichedContact[]>} Array of enriched contacts
+    */
+   private async _enrichContacts(
+     contacts: Contact[],
+-    viewer?: string
++    viewer?: string,
++    directoryRows?: DirectoryRow[]
+   ): Promise<EnrichedContact[]> {
+     if (!this.userInfoService || contacts.length === 0) {
+       this.logger.debug(
+@@ -55,7 +58,11 @@ export default class AddressbookApiController
+       this.logger.debug(
+         `[AddressbookApiController._enrichContacts] Enriching ${mxids.length} contacts`
+       )
+-      const userInfoMap = await this.userInfoService.getBatch(mxids, viewer)
++      const userInfoMap = await this.userInfoService.getBatch(
++        mxids,
++        viewer,
++        directoryRows
++      )
+ 
+       const enrichedContacts: EnrichedContact[] = contacts.map((contact) => {
+         const userInfo: UserInformation | undefined = userInfoMap.get(
+@@ -126,12 +133,18 @@ export default class AddressbookApiController
+         throw new Error('Missing owner')
+       }
+ 
+-      const addressbook = await this.service.list(owner)
++      // ?personal=true leaves the people of the directory out: what a client
++      // needs to show the names the user gave costs no read of the directory
++      const { directoryRows, ...addressbook } = await this.service.list(
++        owner,
++        req.query.personal !== 'true'
++      )
+ 
+       // Enrich contacts with user info
+       const enrichedContacts = await this._enrichContacts(
+         addressbook.contacts,
+-        owner
++        owner,
++        directoryRows
+       )
+ 
+       res.status(200).json({
+diff --git a/packages/tom-server/src/addressbook-api/routes/index.ts b/packages/tom-server/src/addressbook-api/routes/index.ts
+index 0ad688d..ddf72d0 100644
+--- a/packages/tom-server/src/addressbook-api/routes/index.ts
++++ b/packages/tom-server/src/addressbook-api/routes/index.ts
+@@ -84,6 +84,12 @@ export default (
+    *   tags:
+    *   - Addressbook
+    *   description: List all contacts in the addressbook
++   *   parameters:
++   *     - in: query
++   *       name: personal
++   *       description: With true, only the contacts of the user, without the people of the directory
++   *       schema:
++   *         type: boolean
+    *   responses:
+    *    200:
+    *      description: List of contacts
+diff --git a/packages/tom-server/src/addressbook-api/services/index.ts b/packages/tom-server/src/addressbook-api/services/index.ts
+index e9a8592..4578acb 100644
+--- a/packages/tom-server/src/addressbook-api/services/index.ts
++++ b/packages/tom-server/src/addressbook-api/services/index.ts
+@@ -9,8 +9,10 @@ import type {
+   Contact,
+   ContactCreationPayload,
+   ContactUpdatePayload,
++  DirectoryRow,
+   IAddressbookService
+ } from '../types'
++import { DIRECTORY_FIELDS } from '../types'
+ 
+ export class AddressbookService implements IAddressbookService {
+   private readonly enableAdditionalFeatures: boolean
+@@ -67,9 +69,10 @@ export class AddressbookService implements IAddressbookService {
+       )
+ 
+       // 2. Get UserDB contacts (if additional_features enabled and requested)
+-      const userDbContacts = includeUserDbContacts
+-        ? await this._getUserDbContacts()
+-        : []
++      const { contacts: userDbContacts, rows: directoryRows } =
++        includeUserDbContacts
++          ? await this._getUserDbContacts()
++          : { contacts: [], rows: undefined }
+       this.logger.debug(
+         `[AddressbookService.list] Got ${userDbContacts.length} UserDB contacts.`
+       )
+@@ -116,7 +119,8 @@ export class AddressbookService implements IAddressbookService {
+       return {
+         id: userAddressbook.id,
+         owner,
+-        contacts: sortedContacts
++        contacts: sortedContacts,
++        ...(directoryRows ? { directoryRows } : {})
+       }
+     } catch (error: any) {
+       this.logger.error(
+@@ -1025,7 +1029,10 @@ export class AddressbookService implements IAddressbookService {
+    *
+    * @returns {Promise<Contact[]>} Array of contacts from UserDB
+    */
+-  private async _getUserDbContacts(): Promise<Contact[]> {
++  private async _getUserDbContacts(): Promise<{
++    contacts: Contact[]
++    rows?: DirectoryRow[]
++  }> {
+     if (!this.enableAdditionalFeatures || !this.userDb || !this.serverName) {
+       this.logger.debug(
+         '[AddressbookService._getUserDbContacts] Skipping - feature disabled or missing dependencies',
+@@ -1035,28 +1042,44 @@ export class AddressbookService implements IAddressbookService {
+           hasServerName: !!this.serverName
+         }
+       )
+-      return []
++      return { contacts: [] }
+     }
+ 
+     try {
+       this.logger.debug(
+         '[AddressbookService._getUserDbContacts] Fetching all users from UserDB'
+       )
+-      const userDbEntries = await this.userDb.getAll('users', [
+-        'uid',
+-        'cn',
+-        'displayName',
+-        'sn',
+-        'givenName',
+-        'mail',
+-        'mobile'
+-      ])
++      // Read once for the list and for its enrichment. A user database without
++      // the fields of the enrichment still lists its people, as it did
++      let rows: DirectoryRow[] | undefined
++      let userDbEntries
++      try {
++        userDbEntries = await this.userDb.getAll('users', [
++          ...DIRECTORY_FIELDS,
++          'displayName'
++        ])
++        rows = userDbEntries as unknown as DirectoryRow[]
++      } catch (error: any) {
++        this.logger.warn(
++          '[AddressbookService._getUserDbContacts] Reading without the fields of the enrichment',
++          { message: error.message }
++        )
++        userDbEntries = await this.userDb.getAll('users', [
++          'uid',
++          'cn',
++          'displayName',
++          'sn',
++          'givenName',
++          'mail',
++          'mobile'
++        ])
++      }
+ 
+       if (!Array.isArray(userDbEntries) || userDbEntries.length === 0) {
+         this.logger.debug(
+           '[AddressbookService._getUserDbContacts] No UserDB entries found'
+         )
+-        return []
++        return { contacts: [] }
+       }
+ 
+       const contacts: Contact[] = []
+@@ -1086,7 +1109,7 @@ export class AddressbookService implements IAddressbookService {
+       this.logger.info(
+         `[AddressbookService._getUserDbContacts] Converted ${contacts.length} UserDB entries to contacts`
+       )
+-      return contacts
++      return { contacts, rows }
+     } catch (error: any) {
+       this.logger.error(
+         '[AddressbookService._getUserDbContacts] Failed to fetch UserDB entries',
+@@ -1095,7 +1118,7 @@ export class AddressbookService implements IAddressbookService {
+           stack: error.stack
+         }
+       )
+-      return []
++      return { contacts: [] }
+     }
+   }
+ 
+diff --git a/packages/tom-server/src/addressbook-api/types.ts b/packages/tom-server/src/addressbook-api/types.ts
+index 73f2e63..d2ea29c 100644
+--- a/packages/tom-server/src/addressbook-api/types.ts
++++ b/packages/tom-server/src/addressbook-api/types.ts
+@@ -33,8 +33,25 @@ export interface AddressbookListResponse {
+   id: string
+   owner: string
+   contacts: Contact[]
++  /** The rows of the directory read for this list: never sent to a client */
++  directoryRows?: DirectoryRow[]
+ }
+ 
++export type DirectoryRow = Record<string, string | string[]>
++
++/** What the user info needs of a person of the directory */
++export const DIRECTORY_FIELDS: string[] = [
++  'uid',
++  'cn',
++  'sn',
++  'givenname',
++  'givenName',
++  'mail',
++  'mobile',
++  'workspaceurl',
++  'twakeWorkspaceUrl'
++]
++
+ // Extended contact with enrichment data from UserInfoService
+ export interface EnrichedContact extends Contact, UserEnrichmentFields {
+   // Deprecated fields for backward compatibility
+diff --git a/packages/tom-server/src/user-info-api/services/index.ts b/packages/tom-server/src/user-info-api/services/index.ts
+index 2a77903..26458f9 100644
+--- a/packages/tom-server/src/user-info-api/services/index.ts
++++ b/packages/tom-server/src/user-info-api/services/index.ts
+@@ -12,7 +12,10 @@ import {
+ import type { TwakeDB, Config } from '../../types'
+ import { getLocalPart } from '@twake/utils'
+ import type { TwakeLogger } from '@twake/logger'
+-import { type IAddressbookService } from '../../addressbook-api/types'
++import {
++  DIRECTORY_FIELDS,
++  type IAddressbookService
++} from '../../addressbook-api/types'
+ import { AddressbookService } from '../../addressbook-api/services'
+ 
+ const getFirstString = (input: string | string[]): string => Array.isArray(input) ? input[0] : input;
+@@ -97,11 +100,13 @@ class UserInfoService implements IUserInfoService {
+    * Retrieves user information for multiple users in batch (optimized for performance)
+    * @param {string[]} ids Array of user IDs to fetch
+    * @param {string} viewer Optional viewer ID for visibility checks
++   * @param knownDirectoryRows Rows of the directory already read, with DIRECTORY_FIELDS
+    * @returns {Promise<Map<string, UserInformation>>} Map of user ID to user information
+    */
+   getBatch = async (
+     ids: string[],
+-    viewer?: string
++    viewer?: string,
++    knownDirectoryRows?: Array<Record<string, string | string[]>>
+   ): Promise<Map<string, UserInformation>> => {
+     this.logger.debug(
+       `[UserInfoService].getBatch: Gathering information on ${ids.length} user${ids.length > 1 ? 's' : ''
+@@ -153,22 +158,18 @@ class UserInfoService implements IUserInfoService {
+       })()
+ 
+       const directoryPromise = (async () => {
+-        const rows = (await this.userDb.get(
+-          'users',
+-          [
+-            'uid',
+-            'cn',
+-            'sn',
+-            'givenname',
+-            'givenName',
+-            'mail',
+-            'mobile',
+-            'workspaceurl',
+-            'twakeWorkspaceUrl'
+-          ],
+-          { uid: localParts }
+-        )) as unknown as Array<Record<string, string | string[]>>
+-        return rows ?? []
++        // Who is already read costs no second search of the directory
++        const wanted = new Set(localParts)
++        const known = (knownDirectoryRows ?? []).filter((row) =>
++          wanted.has(row.uid as string)
++        )
++        const knownIds = new Set(known.map((row) => row.uid as string))
++        const missing = localParts.filter((uid) => !knownIds.has(uid))
++        if (missing.length === 0) return known
++        const rows = (await this.userDb.get('users', DIRECTORY_FIELDS, {
++          uid: missing
++        })) as unknown as Array<Record<string, string | string[]>>
++        return [...known, ...(rows ?? [])]
+       })()
+ 
+       const settingsPromise = (async () => {
+diff --git a/packages/tom-server/src/user-info-api/types.ts b/packages/tom-server/src/user-info-api/types.ts
+index 93c2a6b..09fa48d 100644
+--- a/packages/tom-server/src/user-info-api/types.ts
++++ b/packages/tom-server/src/user-info-api/types.ts
+@@ -9,7 +9,8 @@ export interface IUserInfoService {
+   get: (id: string, viewer?: string) => Promise<UserInformation | null>
+   getBatch: (
+     ids: string[],
+-    viewer?: string
++    viewer?: string,
++    knownDirectoryRows?: Array<Record<string, string | string[]>>
+   ) => Promise<Map<string, UserInformation>>
+   getVisibility: (id: string) => Promise<UserProfileSettingsPayloadT | null>
+   updateVisibility: (
