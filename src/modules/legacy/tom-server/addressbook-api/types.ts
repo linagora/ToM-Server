@@ -40,7 +40,7 @@ export interface AddressbookListResponse {
 export type DirectoryRow = Record<string, string | string[]>
 
 /** What the user info needs of a person of the directory */
-export const DIRECTORY_FIELDS = [
+export const DIRECTORY_FIELDS: string[] = [
   'uid',
   'cn',
   'sn',
