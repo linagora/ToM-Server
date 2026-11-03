@@ -571,7 +571,8 @@ class UserInfoService implements IUserInfoService {
     try {
       const r = (await this.db.insert('profileSettings', {
         matrix_id: userId,
-        ...visibilitySettings
+        visibility: visibilitySettings.visibility,
+        visible_fields: visibilitySettings.visible_fields
       } as unknown as Record<string, string | number>)) as unknown as UserProfileSettingsT[]
 
       if (!Array.isArray(r) || r.length === 0) {
@@ -628,7 +629,10 @@ class UserInfoService implements IUserInfoService {
     try {
       const updateResult = (await this.db.update(
         'profileSettings',
-        visibilitySettings as unknown as Record<string, string | number>,
+        {
+          visibility: visibilitySettings.visibility,
+          visible_fields: visibilitySettings.visible_fields
+        } as unknown as Record<string, string | number>,
         'matrix_id',
         userId
       )) as unknown as UserProfileSettingsT[]

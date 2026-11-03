@@ -116,6 +116,35 @@ describe('the user visibility API controller', () => {
 
     expect(updateVisibilityMock).toHaveBeenCalledWith(userId, payload)
   })
+
+  it.each([
+    { visibility: 'contacts', visible_fields: ['email'], matrix_id: '@other:docker.localhost' },
+    { visibility: 'everyone', visible_fields: ['email'] },
+    { visibility: 'public', visible_fields: ['email', 'password'] },
+    { visibility: 'public', visible_fields: 'email' },
+    { visibility: 'public', visible_fields: ['email', 'email'] },
+    { visibility: 'public' }
+  ])('should refuse an invalid payload %p', async (payload) => {
+    updateVisibilityMock.mockClear()
+    const response = await supertest(app)
+      .post(`${PATH}/${encodeURIComponent('@dwho:docker.localhost')}/visibility`)
+      .send(payload)
+      .set('Accept', 'application/json')
+    expect(response.status).toBe(400)
+    expect(updateVisibilityMock).not.toHaveBeenCalled()
+  })
+
+  it('should accept the caller own matrix_id in the payload', async () => {
+    updateVisibilityMock.mockClear()
+    const userId = '@dwho:docker.localhost'
+    const payload = { matrix_id: userId, visibility: 'private', visible_fields: ['phone'] }
+    const response = await supertest(app)
+      .post(`${PATH}/${encodeURIComponent(userId)}/visibility`)
+      .send(payload)
+      .set('Accept', 'application/json')
+    expect(response.status).toBe(200)
+    expect(updateVisibilityMock).toHaveBeenCalledWith(userId, payload)
+  })
 })
 
 describe('UserInfoController – additional branch coverage (unit)', () => {

@@ -7255,6 +7255,40 @@ describe('User Info Service updateVisibility', () => {
       expect(result.visible_fields).toEqual(payload.visible_fields)
     })
   })
+
+  describe('Payload with extra keys', () => {
+    const payload = {
+      visibility: ProfileVisibility.Private,
+      visible_fields: [ProfileField.Email, ProfileField.Phone],
+      matrix_id: '@other:example.com'
+    } as unknown as UserProfileSettingsPayloadT
+
+    it('Should insert under the caller only', async () => {
+      twakeDBMock.get.mockResolvedValue([])
+      await svc.updateVisibility(MATRIX_MXID, payload).catch(() => undefined)
+      expect(twakeDBMock.insert).toHaveBeenCalledWith('profileSettings', {
+        matrix_id: MATRIX_MXID,
+        visibility: ProfileVisibility.Private,
+        visible_fields: [ProfileField.Email, ProfileField.Phone]
+      })
+    })
+
+    it('Should update the visibility columns only', async () => {
+      twakeDBMock.get.mockResolvedValue([
+        { matrix_id: MATRIX_MXID, visibility: ProfileVisibility.Public, visible_fields: [] }
+      ])
+      await svc.updateVisibility(MATRIX_MXID, payload).catch(() => undefined)
+      expect(twakeDBMock.update).toHaveBeenCalledWith(
+        'profileSettings',
+        {
+          visibility: ProfileVisibility.Private,
+          visible_fields: [ProfileField.Email, ProfileField.Phone]
+        },
+        'matrix_id',
+        MATRIX_MXID
+      )
+    })
+  })
 })
 
 describe('User Info Service getBatch', () => {

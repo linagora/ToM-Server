@@ -3,7 +3,9 @@ import {
   type IUserInfoService,
   type IUserInfoController,
   type UserProfileSettingsT,
-  ForbiddenError
+  ForbiddenError,
+  ProfileField,
+  ProfileVisibility
 } from '../types'
 import type { Response, NextFunction } from 'express'
 import { type TwakeDB, type AuthRequest, type Config } from '../../types'
@@ -89,6 +91,26 @@ class UserInfoController implements IUserInfoController {
       const updatedSettings = req.body as UserProfileSettingsT
       if (userId !== req.userId) {
         res.status(403).json({ error: errCodes.forbidden })
+        return
+      }
+      const body = req.body as Record<string, unknown> | undefined
+      if (
+        body == null ||
+        Object.keys(body).some(
+          (key) =>
+            key !== 'visibility' &&
+            key !== 'visible_fields' &&
+            // Space Chat sends its own matrix_id along with the settings
+            !(key === 'matrix_id' && body.matrix_id === req.userId)
+        ) ||
+        !Object.values<unknown>(ProfileVisibility).includes(body.visibility) ||
+        !Array.isArray(body.visible_fields) ||
+        new Set(body.visible_fields).size !== body.visible_fields.length ||
+        !body.visible_fields.every((field) =>
+          Object.values<unknown>(ProfileField).includes(field)
+        )
+      ) {
+        res.status(400).json({ error: errCodes.invalidParam })
         return
       }
       const userVisibilitySettings =
