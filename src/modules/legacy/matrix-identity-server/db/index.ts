@@ -66,6 +66,9 @@ interface keyPair {
   keyId: string;
 }
 
+// PostgreSQL folds the unquoted keyID column to keyid
+export const keyIdOf = (row?: Record<string, unknown>): string => String(row?.keyID ?? row?.keyid ?? "");
+
 type Insert<T> = (table: T, values: Record<string, string | number>) => Promise<DbGetResult>;
 type Update<T> = (
   table: T,
@@ -589,13 +592,14 @@ class IdentityServerDb<T extends string = never> implements IdDbBackend<Collecti
     return new Promise((resolve, reject) => {
       const _type = type === "current" ? "currentKey" : "previousKey";
       this.db
-        .getAll("longTermKeypairs", ["keyID", "public", "private"])
+        .get("longTermKeypairs", ["keyID", "public", "private"], { name: _type })
         .then((rows) => {
           if (rows.length === 0) {
             reject(new Error(`No ${_type} found`));
+            return;
           }
           resolve({
-            keyId: rows[0].keyID as string,
+            keyId: keyIdOf(rows[0]),
             publicKey: rows[0].public as string,
             privateKey: rows[0].private as string,
           });
@@ -604,6 +608,23 @@ class IdentityServerDb<T extends string = never> implements IdDbBackend<Collecti
           reject(e);
         });
     });
+  }
+
+  async ensureSigningKey(): Promise<void> {
+    const isEd25519 = (row?: Record<string, unknown>): boolean => keyIdOf(row).startsWith("ed25519:");
+    const rows = await this.db.getAll("longTermKeypairs", ["name", "keyID"]);
+    // Older store-invite stored curve25519 pairs here and sent their private key to the client
+    for (const row of rows.filter((row) => !isEd25519(row))) {
+      await this.db.deleteEqual("longTermKeypairs", "name", row.name as string);
+    }
+    if (rows.some((row) => row.name === "currentKey" && isEd25519(row))) return;
+    try {
+      await this.createKeypair("longTerm", "ed25519");
+    } catch (error) {
+      // Another replica may have inserted it first
+      const current = await this.db.get("longTermKeypairs", ["keyID"], { name: "currentKey" });
+      if (!isEd25519(current[0])) throw error;
+    }
   }
 
   /**
@@ -641,7 +662,7 @@ class IdentityServerDb<T extends string = never> implements IdDbBackend<Collecti
       this.logger.error(`Failed to update ${type} Key Pair`, error);
     }
 
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       this.db
         .insert(type === "longTerm" ? "longTermKeypairs" : "shortTermKeypairs", {
           keyID: keyPair.keyId,
@@ -655,6 +676,7 @@ class IdentityServerDb<T extends string = never> implements IdDbBackend<Collecti
         .catch((err) => {
           /* istanbul ignore next */
           this.logger.error(`Failed to insert ${type} Key Pair`, err);
+          reject(err);
         });
     });
   }

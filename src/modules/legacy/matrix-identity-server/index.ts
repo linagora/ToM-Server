@@ -164,7 +164,15 @@ export default class MatrixIdentityServer<T extends string = never> {
       ))
       this.authenticate = utilsAuthenticate<T>(db, this.logger)
       this.ready = new Promise((resolve, reject) => {
-        Promise.all([db!.ready, userDB.ready])
+        Promise.all([
+          db!.ready.then(async () => {
+            // Without a signing key only store-invite and bind fail: keep the rest of the server up
+            await db!.ensureSigningKey().catch((e) => {
+              this.logger.error('Unable to set up the long-term signing key', e)
+            })
+          }),
+          userDB.ready
+        ])
           .then(() => {
             this.cronTasks = cronAlreadyStarted
               ? undefined

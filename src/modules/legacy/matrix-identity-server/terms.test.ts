@@ -203,3 +203,69 @@ describe('When "terms of use" exists', () => {
     })
   })
 })
+
+describe('/_matrix/identity/v2/store-invite keys', () => {
+  it('should neither disclose a private key nor replace the long-term key', async () => {
+    // @ts-expect-error mock is unknown
+    fetch.mockImplementation(async () => ({
+      status: 200,
+      json: async () => ({ mappings: {} })
+    }))
+    idServer.conf.base_url = 'http://example.com/'
+    // The caller must have signed the terms; clear any pending policy left by the
+    // terms tests above so this test does not depend on their order.
+    await idServer.db.deleteEqual(
+      'userPolicies',
+      'user_id',
+      '@dwho:matrix.example.com'
+    )
+    const before = await idServer.db.get(
+      'longTermKeypairs',
+      ['keyID', 'public'],
+      { name: 'currentKey' }
+    )
+    const response = await request(app)
+      .post('/_matrix/identity/v2/store-invite')
+      .set('Authorization', `Bearer ${validToken}`)
+      .send({
+        medium: 'email',
+        address: 'bob@example.com',
+        room_id: '!room:example.com',
+        sender: '@dwho:matrix.example.com'
+      })
+    expect(response.statusCode).toBe(200)
+    const privates = [
+      ...(await idServer.db.getAll('longTermKeypairs', ['private'])),
+      ...(await idServer.db.getAll('shortTermKeypairs', ['private']))
+    ].map((row) => row.private)
+    for (const key of response.body.public_keys) {
+      expect(privates).not.toContain(key.public_key)
+    }
+    const stored = JSON.stringify(
+      await idServer.db.listInvitationTokens('bob@example.com')
+    )
+    for (const key of privates) expect(stored).not.toContain(key as string)
+    const after = await idServer.db.get(
+      'longTermKeypairs',
+      ['keyID', 'public'],
+      { name: 'currentKey' }
+    )
+    expect(before).toHaveLength(1)
+    expect(after).toEqual(before)
+    expect(response.body.public_keys[0].public_key).toBe(before[0]?.public)
+    const ephemeral = await request(app)
+      .get('/_matrix/identity/v2/pubkey/ephemeral/isvalid')
+      .query({ public_key: response.body.public_keys[1].public_key })
+    expect(ephemeral.body).toEqual({ valid: true })
+  })
+
+  it('should replace a curve25519 long-term key at start', async () => {
+    await idServer.db.deleteEqual('longTermKeypairs', 'name', 'currentKey')
+    await idServer.db.createKeypair('longTerm', 'curve25519')
+    await idServer.db.ensureSigningKey()
+    const rows = await idServer.db.getAll('longTermKeypairs', ['name', 'keyID'])
+    expect(rows.length).toBeGreaterThan(0)
+    for (const row of rows) expect(String(row.keyID)).toStartWith('ed25519:')
+    expect(rows.map((row) => row.name)).toContain('currentKey')
+  })
+})

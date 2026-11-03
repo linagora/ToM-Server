@@ -1,5 +1,6 @@
 import { Hash, signJson } from '../../crypto/index'
 import type MatrixIdentityServer from '..'
+import { keyIdOf } from '../db'
 import {
   errMsg,
   jsonContent,
@@ -122,22 +123,26 @@ const bind = <T extends string = never>(
                       ts: rows[0].submit_time as number
                     }
                     idServer.db
-                      .get('longTermKeypairs', ['keyID', 'private'], {})
-                      .then((keyrows) => {
+                      .get('longTermKeypairs', ['keyID', 'private'], {
+                        name: 'currentKey'
+                      })
+                      .then(([key]) => {
                         if (
-                          typeof keyrows[0].private === 'string' &&
-                          typeof keyrows[0].keyID === 'string'
+                          typeof key?.private === 'string' &&
+                          keyIdOf(key) !== ''
                         ) {
                           send(
                             res,
                             200,
                             signJson(
                               body,
-                              keyrows[0].private,
+                              key.private,
                               idServer.conf.server_name,
-                              keyrows[0].keyID
+                              keyIdOf(key)
                             )
                           )
+                        } else {
+                          send(res, 500, errMsg('unknown', 'No signing key'))
                         }
                       })
                       .catch((err) => {

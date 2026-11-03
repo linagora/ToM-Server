@@ -276,12 +276,15 @@ const StoreInvit = <T extends string = never>(
               } else if (response.status === 200 && !foundMappings) {
                 // Create invitation token
                 const ephemeralKey = await idServer.db.createKeypair(
-                  'longTerm',
-                  'curve25519'
+                  'shortTerm',
+                  'ed25519'
                 )
                 const objWithKey = {
                   ...(obj as storeInvitationArgs),
-                  key: ephemeralKey
+                  key: {
+                    keyId: ephemeralKey.keyId,
+                    publicKey: ephemeralKey.publicKey
+                  }
                 }
                 const token = await idServer.db.createInvitationToken(
                   mediumAddress,
@@ -345,7 +348,7 @@ const StoreInvit = <T extends string = never>(
                         },
                         {
                           key_validity_url: `https://${idServer.conf.server_name}/_matrix/identity/v2/pubkey/ephemeral/isvalid`,
-                          public_key: ephemeralKey.privateKey
+                          public_key: ephemeralKey.publicKey
                         }
                       ],
                       token
