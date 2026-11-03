@@ -49,6 +49,8 @@ const bind = <T extends string = never>(
             send(res, 400, errMsg('invalidParam', 'invalid client_secret'))
           } else if (!mxidRe.test(mxid)) {
             send(res, 400, errMsg('invalidParam', 'invalid Matrix user ID'))
+          } else if (mxid !== data.sub) {
+            send(res, 403, errMsg('forbidden', 'mxid is not the caller'))
           } else if (!sidRe.test(sid)) {
             send(res, 400, errMsg('invalidParam', 'invalid session ID'))
           } else {

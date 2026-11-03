@@ -1,3 +1,4 @@
+import { Hash } from '../../crypto/index'
 import type MatrixIdentityServer from '..'
 import {
   errMsg,
@@ -28,6 +29,34 @@ const schema = {
   threepid: true
 }
 
+const removeBinding = async <T extends string>(
+  idServer: MatrixIdentityServer<T>,
+  mxid: string,
+  address: string,
+  medium: string
+): Promise<void> => {
+  const field = medium === 'email' ? 'mail' : 'msisdn'
+  const hash = new Hash()
+  await hash.ready
+  const rows = await idServer.db.get('hashes', ['hash', 'pepper'], {
+    value: mxid,
+    type: field
+  })
+  await Promise.all(
+    rows
+      .filter(
+        (row) =>
+          row.hash === hash.sha256(`${address} ${field} ${row.pepper as string}`)
+      )
+      .map(async (row) => {
+        await idServer.db.deleteWhere('hashes', [
+          { field: 'hash', operator: '=', value: row.hash as string },
+          { field: 'value', operator: '=', value: mxid }
+        ])
+      })
+  )
+}
+
 const unbind = <T extends string = never>(
   idServer: MatrixIdentityServer<T>
 ): expressAppHandler => {
@@ -46,17 +75,19 @@ const unbind = <T extends string = never>(
               send(res, 400, errMsg('invalidParam', 'invalid client_secret'))
             } else if (!mxidRe.test(mxid)) {
               send(res, 400, errMsg('invalidParam', 'invalid Matrix user ID'))
+            } else if (mxid !== data.sub) {
+              send(res, 403, errMsg('forbidden', 'mxid is not the caller'))
             } else if (!sidRe.test(sid)) {
               // istanbul ignore next
               send(res, 400, errMsg('invalidParam', 'invalid session ID'))
             } else {
               idServer.db
-                .get('mappings', ['address'], {
+                .get('mappings', ['address', 'medium', 'valid'], {
                   session_id: sid,
                   client_secret: clientSecret
                 })
-                .then((rows) => {
-                  if (rows.length === 0) {
+                .then(([session]) => {
+                  if (session == null) {
                     send(
                       res,
                       403,
@@ -65,15 +96,21 @@ const unbind = <T extends string = never>(
                         'invalid session ID or client_secret'
                       )
                     )
+                  } else if (session.valid === 0) {
+                    send(res, 400, errMsg('sessionNotValidated'))
                   } else {
                     if (
                       (obj as RequestTokenArgs).threepid.address !==
-                      rows[0].address
+                      session.address
                     ) {
                       send(res, 403, errMsg('invalidParam', 'invalid address'))
                     } else {
-                      idServer.db
-                        .deleteEqual('hashes', 'value', mxid)
+                      removeBinding(
+                        idServer,
+                        mxid,
+                        session.address as string,
+                        session.medium as string
+                      )
                         .then(() => {
                           send(res, 200, {})
                         })
