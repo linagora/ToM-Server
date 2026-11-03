@@ -9,6 +9,8 @@ import {
 import type TwakeIdentityServer from '..'
 import { type expressAppHandler } from '../../types'
 
+const allowedFields = ['uid', 'mail', 'mobile']
+
 const schema = {
   since: true,
   fields: false,
@@ -38,6 +40,15 @@ const diff = (
       const timestamp = epoch()
       jsonContent(req, res, logger, (obj) => {
         validateParameters(res, schema, obj, logger, (data) => {
+          const requested = (data as DiffQueryBody).fields
+          if (
+            requested != null &&
+            (!Array.isArray(requested) ||
+              !requested.every((field) => allowedFields.includes(field)))
+          ) {
+            send(res, 400, errMsg('invalidParam', 'unknown field'))
+            return
+          }
           idServer.db
             .getHigherThan(
               'userHistory',
