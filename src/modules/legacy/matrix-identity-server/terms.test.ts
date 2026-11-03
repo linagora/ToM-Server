@@ -134,5 +134,72 @@ describe('When "terms of use" exists', () => {
         })
       expect(response.statusCode).toBe(200)
     })
+    it('should record the acceptance for the caller when the url has a query string', async () => {
+      const policy = 'privacy_policy 1.2'
+      await idServer.db.insert('accessTokens', {
+        id: 'secondUserToken',
+        data: JSON.stringify({ sub: '@other:matrix.example.com', epoch: 0 })
+      })
+      await idServer.db.insert('userPolicies', {
+        user_id: '@other:matrix.example.com',
+        policy_name: policy,
+        accepted: 0
+      })
+      await idServer.db.insert('userPolicies', {
+        user_id: '@dwho:matrix.example.com',
+        policy_name: policy,
+        accepted: 0
+      })
+      const response = await request(app)
+        .post('/_matrix/identity/v2/terms?lang=fr')
+        .set('Authorization', 'Bearer secondUserToken')
+        .send({
+          user_accepts: ['https://example.org/somewhere/privacy-1.2-en.html']
+        })
+      expect(response.statusCode).toBe(200)
+      const accepted = async (userId: string): Promise<unknown> =>
+        (
+          await idServer.db.get('userPolicies', ['accepted'], {
+            user_id: userId,
+            policy_name: policy
+          })
+        )[0]?.accepted
+      expect(await accepted('@other:matrix.example.com')).toBe(1)
+      expect(await accepted('@dwho:matrix.example.com')).toBe(0)
+    })
+    it('should record the acceptance for the header user when the query holds another token', async () => {
+      const policy = 'privacy_policy 1.2'
+      const entries: Array<[string, string]> = [
+        ['thirdUserToken', '@third:matrix.example.com'],
+        ['fourthUserToken', '@fourth:matrix.example.com']
+      ]
+      for (const [token, user] of entries) {
+        await idServer.db.insert('accessTokens', {
+          id: token,
+          data: JSON.stringify({ sub: user, epoch: 0 })
+        })
+        await idServer.db.insert('userPolicies', {
+          user_id: user,
+          policy_name: policy,
+          accepted: 0
+        })
+      }
+      const response = await request(app)
+        .post('/_matrix/identity/v2/terms?access_token=fourthUserToken')
+        .set('Authorization', 'Bearer thirdUserToken')
+        .send({
+          user_accepts: ['https://example.org/somewhere/privacy-1.2-en.html']
+        })
+      expect(response.statusCode).toBe(200)
+      const accepted = async (userId: string): Promise<unknown> =>
+        (
+          await idServer.db.get('userPolicies', ['accepted'], {
+            user_id: userId,
+            policy_name: policy
+          })
+        )[0]?.accepted
+      expect(await accepted('@third:matrix.example.com')).toBe(1)
+      expect(await accepted('@fourth:matrix.example.com')).toBe(0)
+    })
   })
 })

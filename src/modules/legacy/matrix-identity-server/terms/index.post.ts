@@ -63,7 +63,7 @@ const PostTerms = <T extends string = never>(
     idServer.authenticate(
       req,
       res,
-      (data, id) => {
+      (tokenData) => {
         jsonContent(req, res, idServer.logger, (data) => {
           validateParameters(
             res,
@@ -84,42 +84,22 @@ const PostTerms = <T extends string = never>(
                 })
               })
               if (done.length > 0) {
-                let token: string = ''
-                // @ts-expect-error req.query exists
-                if (req.query && Object.keys(req.query).length > 0) {
-                  // @ts-expect-error req.query.access_token may be null
-                  token = req.query.access_token
-                } else if (req.headers.authorization != null) {
-                  token = req.headers.authorization.split(' ')[1]
-                }
-                idServer.db
-                  .get('accessTokens', ['data'], { id: token })
-                  .then((rows) => {
-                    const userId = JSON.parse(rows[0].data as string).sub
-                    done.forEach((policyName) => {
-                      idServer.db
-                        .updateAnd(
-                          'userPolicies',
-                          { accepted: 1 },
-                          { field: 'user_id', value: userId },
-                          { field: 'policy_name', value: policyName }
-                        )
-                        .then(() => {})
-                        .catch((e) => {
-                          // istanbul ignore next
-                          idServer.logger.error(
-                            'Error updating user policies',
-                            e
-                          )
-                          // istanbul ignore next
-                          send(res, 500, errMsg('unknown'))
-                        })
-                    })
+                Promise.all(
+                  done.map((policyName) =>
+                    idServer.db.updateAnd(
+                      'userPolicies',
+                      { accepted: 1 },
+                      { field: 'user_id', value: tokenData.sub },
+                      { field: 'policy_name', value: policyName }
+                    )
+                  )
+                )
+                  .then(() => {
                     send(res, 200, {})
                   })
                   .catch((e) => {
                     // istanbul ignore next
-                    idServer.logger.error('Error getting user data', e)
+                    idServer.logger.error('Error updating user policies', e)
                     // istanbul ignore next
                     send(res, 500, errMsg('unknown'))
                   })
