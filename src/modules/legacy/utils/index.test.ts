@@ -79,6 +79,44 @@ describe("Utility Functions", () => {
       });
     });
 
+    const streamed = (raw: string): Request =>
+      ({
+        headers: { "content-type": "text/plain" },
+        on: (event: string, callback: any) => {
+          if (event === "data") callback(raw);
+          if (event === "end") callback();
+        },
+      }) as unknown as Request;
+
+    it.each(["null", "5", '"x"', "true", "[]"])("should answer 400 for a body that is not a JSON object (%s)", (raw) => {
+      const callback = mock();
+      expect(() =>
+        jsonContent(streamed(raw), mockResponse as Response, mockLogger, (obj) =>
+          validateParameters(mockResponse as Response, { access_token: true }, obj, mockLogger, callback),
+        ),
+      ).not.toThrow();
+      expect(callback).not.toHaveBeenCalled();
+      expect(mockResponse.writeHead).toHaveBeenCalledWith(400, expect.any(Object));
+      expect(mockResponse.write).toHaveBeenCalledWith(expect.stringContaining("M_BAD_JSON"));
+    });
+
+    it("should answer 400 for a body already parsed as an array", () => {
+      const callback = mock();
+      const req = { headers: { "content-type": "application/json" }, body: [], on: () => {} } as unknown as Request;
+      jsonContent(req, mockResponse as Response, mockLogger, callback);
+      expect(callback).not.toHaveBeenCalled();
+      expect(mockResponse.write).toHaveBeenCalledWith(expect.stringContaining("M_BAD_JSON"));
+    });
+
+    it("should answer 500 when the handler throws", () => {
+      expect(() =>
+        jsonContent(streamed("{}"), mockResponse as Response, mockLogger, () => {
+          throw new TypeError("handler bug");
+        }),
+      ).not.toThrow();
+      expect(mockResponse.writeHead).toHaveBeenCalledWith(500, expect.any(Object));
+    });
+
     it("should handle JSON parsing errors", () => {
       const req = {
         headers: { "content-type": "application/json" },

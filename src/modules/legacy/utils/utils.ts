@@ -56,7 +56,18 @@ export const jsonContent = (
       send(res, 400, errMsg("unknown", err as string));
       accept = false;
     }
-    if (accept) callback(obj);
+    if (!accept) return;
+    if (obj === null || typeof obj !== "object" || Array.isArray(obj)) {
+      send(res, 400, errMsg("badJson", "body must be a JSON object"));
+      return;
+    }
+    // Runs from the request "end" listener, where an uncaught error stops the process
+    try {
+      callback(obj);
+    } catch (err) {
+      logger.error("Request handler error", err);
+      if (!res.headersSent) send(res, 500, errMsg("unknown"));
+    }
   };
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment, @typescript-eslint/prefer-ts-expect-error
   /* istanbul ignore if */ // @ts-expect-error
