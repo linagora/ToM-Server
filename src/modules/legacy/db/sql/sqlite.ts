@@ -279,23 +279,22 @@ class SQLite<T extends string> extends SQL<T> implements DbBackend<T> {
         ): string => {
           let localCondition = "";
 
+          // A key without a value, or with an empty list, matches no row
           Object.keys(filterFields)
-            .filter(
-              (key) =>
-                filterFields[key] !== null &&
-                filterFields[key] !== undefined &&
-                filterFields[key].toString() !== [].toString(),
-            )
             .forEach((key) => {
               localCondition += localCondition !== "" ? " AND " : "";
-              if (Array.isArray(filterFields[key])) {
-                localCondition += `(${(filterFields[key] as Array<string | number>)
-                  .map((val) => {
-                    index++;
-                    values.push(val.toString());
-                    return `${key}${op}$${index}`;
-                  })
-                  .join(" OR ")})`;
+              if (filterFields[key] === null || filterFields[key] === undefined) {
+                localCondition += "1=0";
+              } else if (Array.isArray(filterFields[key])) {
+                localCondition += `(${
+                  (filterFields[key] as Array<string | number>)
+                    .map((val) => {
+                      index++;
+                      values.push(val.toString());
+                      return `${key}${op}$${index}`;
+                    })
+                    .join(" OR ") || "1=0"
+                })`;
               } else {
                 index++;
                 values.push(filterFields[key].toString());
@@ -529,23 +528,22 @@ class SQLite<T extends string> extends SQL<T> implements DbBackend<T> {
         ): string => {
           let localCondition = "";
 
+          // A key without a value, or with an empty list, matches no row
           Object.keys(filterFields)
-            .filter(
-              (key) =>
-                filterFields[key] !== null &&
-                filterFields[key] !== undefined &&
-                filterFields[key].toString() !== [].toString(),
-            )
             .forEach((key) => {
               localCondition += localCondition !== "" ? " AND " : "";
-              if (Array.isArray(filterFields[key])) {
-                localCondition += `(${(filterFields[key] as Array<string | number>)
-                  .map((val) => {
-                    index++;
-                    values.push(val.toString());
-                    return `${key}${op}$${index}`;
-                  })
-                  .join(" OR ")})`;
+              if (filterFields[key] === null || filterFields[key] === undefined) {
+                localCondition += "1=0";
+              } else if (Array.isArray(filterFields[key])) {
+                localCondition += `(${
+                  (filterFields[key] as Array<string | number>)
+                    .map((val) => {
+                      index++;
+                      values.push(val.toString());
+                      return `${key}${op}$${index}`;
+                    })
+                    .join(" OR ") || "1=0"
+                })`;
               } else {
                 index++;
                 values.push(filterFields[key].toString());
