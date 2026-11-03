@@ -1,3 +1,4 @@
+import { DIRECTORY_FIELDS } from '../types'
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
 import { TwakeDB } from '../../types'
 import { AddressbookService } from '../services'
@@ -709,5 +710,82 @@ describe('the addressbooK API service', () => {
 
       expect(result).toBeUndefined()
     })
+  })
+})
+
+describe('the directory read by the list of an addressbook', () => {
+  const rows = [{ uid: 'colleague', cn: 'A Colleague', mail: 'c@server.com' }]
+  const setUp = (getAll: ReturnType<typeof mock>): AddressbookService => {
+    const db = {
+      get: mock().mockImplementation((table: string) =>
+        table === 'addressbooks' ? [{ id: 'bookId', owner: 'owner' }] : []
+      )
+    }
+    return new AddressbookService(
+      db as never,
+      {
+        error: mock(),
+        warn: mock(),
+        info: mock(),
+        debug: mock(),
+        silly: mock()
+      } as never,
+      { getAll } as never,
+      { additional_features: true, server_name: 'server.com' } as never
+    )
+  }
+
+  it('should hand over its rows, with every field of the enrichment', async () => {
+    const getAll = mock().mockResolvedValue(rows)
+
+    const book = await setUp(getAll).list('owner')
+
+    expect(getAll).toHaveBeenCalledTimes(1)
+    expect(getAll.mock.calls[0][1]).toEqual(
+      expect.arrayContaining(DIRECTORY_FIELDS)
+    )
+    expect(book.directoryRows).toEqual(rows)
+    expect(book.contacts.map((contact) => contact.mxid)).toEqual([
+      '@colleague:server.com'
+    ])
+  })
+
+  it('should read the directory once, and keep the contacts of the owner when it fails', async () => {
+    const getAll = mock().mockRejectedValue(new Error('LDAP is down'))
+    const db = {
+      get: mock().mockImplementation((table: string) =>
+        table === 'addressbooks'
+          ? [{ id: 'bookId', owner: 'owner' }]
+          : [
+              {
+                id: 'contactId',
+                mxid: '@friend:server.com',
+                display_name: 'A Friend',
+                addressbook_id: 'bookId',
+                active: 1
+              }
+            ]
+      )
+    }
+    const service = new AddressbookService(
+      db as never,
+      {
+        error: mock(),
+        warn: mock(),
+        info: mock(),
+        debug: mock(),
+        silly: mock()
+      } as never,
+      { getAll } as never,
+      { additional_features: true, server_name: 'server.com' } as never
+    )
+
+    const book = await service.list('owner')
+
+    expect(getAll).toHaveBeenCalledTimes(1)
+    expect(book.directoryRows).toBeUndefined()
+    expect(book.contacts.map((contact) => contact.mxid)).toEqual([
+      '@friend:server.com'
+    ])
   })
 })

@@ -9,7 +9,8 @@ export interface IUserInfoService {
   get: (id: string, viewer?: string) => Promise<UserInformation | null>
   getBatch: (
     ids: string[],
-    viewer?: string
+    viewer?: string,
+    knownDirectoryRows?: Array<Record<string, string | string[]>>
   ) => Promise<Map<string, UserInformation>>
   getVisibility: (id: string) => Promise<UserProfileSettingsPayloadT | null>
   updateVisibility: (

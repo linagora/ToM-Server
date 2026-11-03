@@ -7267,6 +7267,65 @@ describe('User Info Service getBatch', () => {
     mock.clearAllMocks()
   })
 
+  describe('with the rows of the directory already read', () => {
+    const rows = [
+      {
+        uid: 'user1',
+        cn: 'User One',
+        sn: 'One',
+        givenName: 'User',
+        mail: 'user1@example.com',
+        mobile: '+33600000001',
+        twakeWorkspaceUrl: 'https://one.example.com'
+      },
+      {
+        uid: 'user2',
+        cn: 'User Two',
+        sn: 'Two',
+        givenName: 'User',
+        mail: 'user2@example.com',
+        mobile: '+33600000002',
+        workspaceurl: 'https://two.example.com'
+      }
+    ]
+    const stubOtherSources = (): void => {
+      matrixDBMock.get.mockResolvedValue([
+        { user_id: 'user1', displayname: 'Matrix One', avatar_url: 'one.png' }
+      ])
+      twakeDBMock.get.mockResolvedValue([])
+      addressBookServiceMock.list.mockResolvedValue(null)
+    }
+
+    it('Should answer the same as a search of the directory, without one', async () => {
+      stubOtherSources()
+      userDBMock.get.mockResolvedValue(rows)
+      const searched = await svc.getBatch([MXID_1, MXID_2], MXID_3)
+      expect(userDBMock.get).toHaveBeenCalledTimes(1)
+
+      mock.clearAllMocks()
+      stubOtherSources()
+      const reused = await svc.getBatch([MXID_1, MXID_2], MXID_3, [
+        ...rows.map((row) => ({ ...row, displayName: 'not used' })),
+        { uid: 'somebodyelse', cn: 'Somebody Else' }
+      ])
+
+      expect(userDBMock.get).not.toHaveBeenCalled()
+      expect(reused).toEqual(searched)
+      expect(reused.size).toBe(2)
+    })
+
+    it('Should search the directory only for who is not read yet', async () => {
+      stubOtherSources()
+      userDBMock.get.mockResolvedValue([rows[1]])
+
+      const result = await svc.getBatch([MXID_1, MXID_2], MXID_3, [rows[0]])
+
+      expect(userDBMock.get).toHaveBeenCalledTimes(1)
+      expect(userDBMock.get.mock.calls[0][2]).toEqual({ uid: ['user2'] })
+      expect(result.size).toBe(2)
+    })
+  })
+
   it('Should return empty map for empty input array', async () => {
     const result = await svc.getBatch([])
 

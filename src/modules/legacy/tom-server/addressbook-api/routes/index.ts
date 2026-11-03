@@ -84,6 +84,12 @@ export default (
    *   tags:
    *   - Addressbook
    *   description: List all contacts in the addressbook
+   *   parameters:
+   *     - in: query
+   *       name: personal
+   *       description: With true, only the contacts of the user, without the people of the directory
+   *       schema:
+   *         type: boolean
    *   responses:
    *    200:
    *      description: List of contacts

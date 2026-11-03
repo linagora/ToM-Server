@@ -12,7 +12,10 @@ import {
 import type { TwakeDB, Config } from '../../types'
 import { getLocalPart } from '../../../utils/index'
 import type { TwakeLogger } from '../../../logger/index'
-import { type IAddressbookService } from '../../addressbook-api/types'
+import {
+  DIRECTORY_FIELDS,
+  type IAddressbookService
+} from '../../addressbook-api/types'
 import { AddressbookService } from '../../addressbook-api/services'
 
 // The jsonb of the settings holds anything a client wrote: only these leave the server
@@ -100,11 +103,13 @@ class UserInfoService implements IUserInfoService {
    * Retrieves user information for multiple users in batch (optimized for performance)
    * @param {string[]} ids Array of user IDs to fetch
    * @param {string} viewer Optional viewer ID for visibility checks
+   * @param knownDirectoryRows Rows of the directory already read, with DIRECTORY_FIELDS
    * @returns {Promise<Map<string, UserInformation>>} Map of user ID to user information
    */
   getBatch = async (
     ids: string[],
-    viewer?: string
+    viewer?: string,
+    knownDirectoryRows?: Array<Record<string, string | string[]>>
   ): Promise<Map<string, UserInformation>> => {
     this.logger.debug(
       `[UserInfoService].getBatch: Gathering information on ${ids.length} user${ids.length > 1 ? 's' : ''
@@ -156,22 +161,18 @@ class UserInfoService implements IUserInfoService {
       })()
 
       const directoryPromise = (async () => {
-        const rows = (await this.userDb.get(
-          'users',
-          [
-            'uid',
-            'cn',
-            'sn',
-            'givenname',
-            'givenName',
-            'mail',
-            'mobile',
-            'workspaceurl',
-            'twakeWorkspaceUrl'
-          ],
-          { uid: localParts }
-        )) as unknown as Array<Record<string, string | string[]>>
-        return rows ?? []
+        // Who is already read costs no second search of the directory
+        const wanted = new Set(localParts)
+        const known = (knownDirectoryRows ?? []).filter((row) =>
+          wanted.has(row.uid as string)
+        )
+        const knownIds = new Set(known.map((row) => row.uid as string))
+        const missing = localParts.filter((uid) => !knownIds.has(uid))
+        if (missing.length === 0) return known
+        const rows = (await this.userDb.get('users', DIRECTORY_FIELDS, {
+          uid: missing
+        })) as unknown as Array<Record<string, string | string[]>>
+        return [...known, ...(rows ?? [])]
       })()
 
       const settingsPromise = (async () => {

@@ -9,8 +9,10 @@ import type {
   Contact,
   ContactCreationPayload,
   ContactUpdatePayload,
+  DirectoryRow,
   IAddressbookService
 } from '../types'
+import { DIRECTORY_FIELDS } from '../types'
 
 export class AddressbookService implements IAddressbookService {
   private readonly enableAdditionalFeatures: boolean
@@ -67,9 +69,10 @@ export class AddressbookService implements IAddressbookService {
       )
 
       // 2. Get UserDB contacts (if additional_features enabled and requested)
-      const userDbContacts = includeUserDbContacts
-        ? await this._getUserDbContacts()
-        : []
+      const { contacts: userDbContacts, rows: directoryRows } =
+        includeUserDbContacts
+          ? await this._getUserDbContacts()
+          : { contacts: [], rows: undefined }
       this.logger.debug(
         `[AddressbookService.list] Got ${userDbContacts.length} UserDB contacts.`
       )
@@ -116,7 +119,8 @@ export class AddressbookService implements IAddressbookService {
       return {
         id: userAddressbook.id,
         owner,
-        contacts: sortedContacts
+        contacts: sortedContacts,
+        ...(directoryRows ? { directoryRows } : {})
       }
     } catch (error: any) {
       this.logger.error(
@@ -1025,7 +1029,10 @@ export class AddressbookService implements IAddressbookService {
    *
    * @returns {Promise<Contact[]>} Array of contacts from UserDB
    */
-  private async _getUserDbContacts(): Promise<Contact[]> {
+  private async _getUserDbContacts(): Promise<{
+    contacts: Contact[]
+    rows?: DirectoryRow[]
+  }> {
     if (!this.enableAdditionalFeatures || !this.userDb || !this.serverName) {
       this.logger.debug(
         '[AddressbookService._getUserDbContacts] Skipping - feature disabled or missing dependencies',
@@ -1035,28 +1042,25 @@ export class AddressbookService implements IAddressbookService {
           hasServerName: !!this.serverName
         }
       )
-      return []
+      return { contacts: [] }
     }
 
     try {
       this.logger.debug(
         '[AddressbookService._getUserDbContacts] Fetching all users from UserDB'
       )
+      // Read once for the list and for its enrichment. The user database is LDAP
+      // or empty (`userdb_engine`), which both take a field they do not know
       const userDbEntries = await this.userDb.getAll('users', [
-        'uid',
-        'cn',
-        'displayName',
-        'sn',
-        'givenName',
-        'mail',
-        'mobile'
+        ...DIRECTORY_FIELDS,
+        'displayName'
       ])
 
       if (!Array.isArray(userDbEntries) || userDbEntries.length === 0) {
         this.logger.debug(
           '[AddressbookService._getUserDbContacts] No UserDB entries found'
         )
-        return []
+        return { contacts: [] }
       }
 
       const contacts: Contact[] = []
@@ -1086,7 +1090,7 @@ export class AddressbookService implements IAddressbookService {
       this.logger.info(
         `[AddressbookService._getUserDbContacts] Converted ${contacts.length} UserDB entries to contacts`
       )
-      return contacts
+      return { contacts, rows: userDbEntries as unknown as DirectoryRow[] }
     } catch (error: any) {
       this.logger.error(
         '[AddressbookService._getUserDbContacts] Failed to fetch UserDB entries',
@@ -1095,7 +1099,7 @@ export class AddressbookService implements IAddressbookService {
           stack: error.stack
         }
       )
-      return []
+      return { contacts: [] }
     }
   }
 

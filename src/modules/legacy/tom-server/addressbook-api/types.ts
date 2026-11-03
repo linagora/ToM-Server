@@ -33,7 +33,24 @@ export interface AddressbookListResponse {
   id: string
   owner: string
   contacts: Contact[]
+  /** The rows of the directory read for this list: never sent to a client */
+  directoryRows?: DirectoryRow[]
 }
+
+export type DirectoryRow = Record<string, string | string[]>
+
+/** What the user info needs of a person of the directory */
+export const DIRECTORY_FIELDS: string[] = [
+  'uid',
+  'cn',
+  'sn',
+  'givenname',
+  'givenName',
+  'mail',
+  'mobile',
+  'workspaceurl',
+  'twakeWorkspaceUrl'
+]
 
 // Extended contact with enrichment data from UserInfoService
 export interface EnrichedContact extends Contact, UserEnrichmentFields {
