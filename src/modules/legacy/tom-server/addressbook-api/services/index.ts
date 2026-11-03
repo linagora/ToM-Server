@@ -1049,31 +1049,12 @@ export class AddressbookService implements IAddressbookService {
       this.logger.debug(
         '[AddressbookService._getUserDbContacts] Fetching all users from UserDB'
       )
-      // Read once for the list and for its enrichment. A user database without
-      // the fields of the enrichment still lists its people, as it did
-      let rows: DirectoryRow[] | undefined
-      let userDbEntries
-      try {
-        userDbEntries = await this.userDb.getAll('users', [
-          ...DIRECTORY_FIELDS,
-          'displayName'
-        ])
-        rows = userDbEntries as unknown as DirectoryRow[]
-      } catch (error: any) {
-        this.logger.warn(
-          '[AddressbookService._getUserDbContacts] Reading without the fields of the enrichment',
-          { message: error.message }
-        )
-        userDbEntries = await this.userDb.getAll('users', [
-          'uid',
-          'cn',
-          'displayName',
-          'sn',
-          'givenName',
-          'mail',
-          'mobile'
-        ])
-      }
+      // Read once for the list and for its enrichment. The user database is LDAP
+      // or empty (`userdb_engine`), which both take a field they do not know
+      const userDbEntries = await this.userDb.getAll('users', [
+        ...DIRECTORY_FIELDS,
+        'displayName'
+      ])
 
       if (!Array.isArray(userDbEntries) || userDbEntries.length === 0) {
         this.logger.debug(
@@ -1109,7 +1090,7 @@ export class AddressbookService implements IAddressbookService {
       this.logger.info(
         `[AddressbookService._getUserDbContacts] Converted ${contacts.length} UserDB entries to contacts`
       )
-      return { contacts, rows }
+      return { contacts, rows: userDbEntries as unknown as DirectoryRow[] }
     } catch (error: any) {
       this.logger.error(
         '[AddressbookService._getUserDbContacts] Failed to fetch UserDB entries',
