@@ -4,7 +4,7 @@ import sqlite3 from 'sqlite3'
 
 const token: tokenDetail = {
   value: 'accessTokenddddddddddddddddddddddddddddddddddddddddddddddddddddd',
-  content: { sub: 'userId', epoch: 1 }
+  content: { sub: 'userId', epoch: Date.now() }
 }
 
 // eslint-disable-next-line @typescript-eslint/promise-function-async

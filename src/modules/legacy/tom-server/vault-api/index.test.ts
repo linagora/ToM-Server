@@ -162,6 +162,22 @@ describe('Vault API server', () => {
     })
   })
 
+  it('refuses a stale cached token once Synapse revoked it and never leaks the recovery key', async () => {
+    const revokedToken = accessToken.replace('accessToken', 'revokedTokn')
+    // Same user as above (who saved words), but last seen long ago.
+    await vaultApiServer.db?.insert('matrixTokens', {
+      id: revokedToken,
+      data: JSON.stringify({ sub: 'userId', epoch: 1 })
+    })
+    // Synapse no longer accepts the token.
+    fetchMock.mockResolvedValue({ json: mock().mockResolvedValue({}) })
+    const response = await request(app)
+      .get(endpoint)
+      .set('Authorization', `Bearer ${revokedToken}`)
+    expect(response.statusCode).toBe(401)
+    expect(response.body.words).toBeUndefined()
+  })
+
   it('get words in database user authenticated whose access_token is not stored without recovery sentence', async () => {
     const response = await request(app)
       .get(endpoint)

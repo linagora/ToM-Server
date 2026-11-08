@@ -33,7 +33,7 @@ const mockLogger: Partial<TwakeLogger> = {
 
 const token: tokenDetail = {
   value: 'accessTokenddddddddddddddddddddddddddddddddddddddddddddddddddddd',
-  content: { sub: 'userId', epoch: 1 }
+  content: { sub: 'userId', epoch: Date.now() }
 }
 
 const matrixUnauthorizedError = {

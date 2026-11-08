@@ -11,6 +11,11 @@ export interface WhoAmIResponse {
   device_id?: string
 }
 
+// A token found in the cache is trusted for this long before ToM checks it
+// against Synapse again. Without it a token revoked upstream would stay valid
+// here forever, since the matrixTokens table has no expiry column.
+const TOKEN_CACHE_TTL_MS = 60_000
+
 const Authenticate = (
   db: TwakeDB,
   conf: Config,
@@ -36,7 +41,16 @@ const Authenticate = (
           if (rows.length === 0) {
             throw Error()
           }
-          callback(JSON.parse(rows[0].data as string), token)
+          const data = JSON.parse(rows[0].data as string) as tokenContent
+          if (epoch() - data.epoch >= TOKEN_CACHE_TTL_MS) {
+            // Stale: drop the row and re-validate against Synapse below.
+            return db
+              .deleteEqual('matrixTokens', 'id', token as string)
+              .then(() => {
+                throw Error()
+              })
+          }
+          callback(data, token)
         })
         .catch((e) => {
           // Try to get token from matrix
