@@ -666,6 +666,67 @@ describe('the RoomService', () => {
     expect(encEvents.length).toBe(1)
   })
 
+  it.each([
+    [{ type: 'm.room.encryption' }],
+    [
+      {
+        type: 'm.room.encryption',
+        state_key: 'x',
+        content: { algorithm: 'm.megolm.v1.aes-sha2' }
+      }
+    ],
+    [{ type: 'm.room.encryption', state_key: '', content: { algorithm: 'none' } }]
+  ])(
+    'enforces megolm even when the client sends %p',
+    async (event) => {
+      const enforcedConfig = {
+        ...testConfig,
+        features: {
+          ...testConfig.features,
+          createroom_proxy: {
+            ...testConfig.features.createroom_proxy,
+            encryption: 'enforced'
+          }
+        }
+      } as unknown as Config
+
+      const Service = (await import('../services')).default
+      const enforcedService = new Service(
+        enforcedConfig,
+        loggerMock as unknown as TwakeLogger
+      )
+
+      global.fetch = mock(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ room_id: 'room_id' }),
+          clone: () => ({
+            json: () => Promise.resolve({ room_id: 'room_id' }),
+            text: () => Promise.resolve('')
+          }),
+          status: 200
+        })
+      ) as Mock<(...args: any[]) => any>
+
+      const ownerUser = '@user:server.com'
+      enforcedService.create(
+        { invite: [ownerUser], initial_state: [event] } as any,
+        'Bearer token',
+        ownerUser
+      )
+
+      const callBody = JSON.parse(
+        (global.fetch as Mock<(...args: any[]) => any>).mock.calls[0][1].body
+      )
+      const enc = (callBody.initial_state ?? []).filter(
+        (e: { type: string; state_key?: string }) =>
+          e.type === 'm.room.encryption' && (e.state_key ?? '') === ''
+      )
+      expect(enc).toHaveLength(1)
+      expect(enc[0].content.algorithm).toBe('m.megolm.v1.aes-sha2')
+    }
+  )
+
   it('should strip m.room.encryption from initial_state when encryption=disabled', async () => {
     const disabledConfig = {
       ...testConfig,

@@ -346,22 +346,20 @@ export default class RoomService {
     if (policy === 'allowed') return
 
     if (policy === 'enforced') {
-      const alreadySet = (body.initial_state ?? []).some(
-        (e) => e.type === 'm.room.encryption'
-      )
-      if (!alreadySet) {
-        body.initial_state = [
-          ...(body.initial_state ?? []),
-          {
-            type: 'm.room.encryption',
-            state_key: '',
-            content: { algorithm: 'm.megolm.v1.aes-sha2' }
-          }
-        ]
-        this.logger.info(
-          'Encryption enforced: injected m.room.encryption event.'
-        )
-      }
+      // A client m.room.encryption event (missing content, a wrong algorithm or a
+      // non-empty state_key) must not pass for the enforced one. Drop every client
+      // encryption event and set the megolm state event ourselves.
+      body.initial_state = [
+        ...(body.initial_state ?? []).filter(
+          (e) => e.type !== 'm.room.encryption'
+        ),
+        {
+          type: 'm.room.encryption',
+          state_key: '',
+          content: { algorithm: 'm.megolm.v1.aes-sha2' }
+        }
+      ]
+      this.logger.info('Encryption enforced: set m.room.encryption event.')
       return
     }
 
