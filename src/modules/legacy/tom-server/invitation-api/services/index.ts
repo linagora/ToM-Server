@@ -743,7 +743,8 @@ export default class InvitationService implements IInvitationService {
       senderName,
       to,
       link,
-      this.notificationService.emailFrom
+      this.notificationService.emailFrom,
+      true
     )
 
     if (!text || !html) {

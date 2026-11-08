@@ -1,6 +1,14 @@
 import fs from 'fs'
 import { randomString } from '../../../crypto/index'
 
+const htmlEscape = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+
 /**
  * builds the email body from a template
  *
@@ -14,17 +22,29 @@ export const buildEmailBody = (
   inviter: string,
   destination: string,
   link: string,
-  from: string
+  from: string,
+  escapeHtml = false
 ): string | undefined => {
   const templateContent = fs.readFileSync(templatePath).toString()
-  return templateContent
-    .replace(/__from__/g, from)
-    .replace(/__to__/g, destination)
-    .replace(/__multipart_boundary__/g, randomString(32))
-    .replace(/__inviter_name__/g, inviter)
-    .replace(/__link__/g, link)
-    .replace(/__date__/g, new Date().toUTCString())
-    .replace(/__messageid__/g, randomString(32))
+  const values: Record<string, string> = {
+    from,
+    to: destination,
+    multipart_boundary: randomString(32),
+    inviter_name: inviter,
+    link,
+    date: new Date().toUTCString(),
+    messageid: randomString(32)
+  }
+  // One pass with a function replacer: a value is never read as a replacement
+  // pattern ($&, $1...) and a value inserted earlier is not rescanned. For the
+  // HTML template the values are HTML-escaped so markup in them stays text.
+  return templateContent.replace(
+    /__(from|to|multipart_boundary|inviter_name|link|date|messageid)__/g,
+    (_match, key: string) => {
+      const value = values[key] ?? ''
+      return escapeHtml ? htmlEscape(value) : value
+    }
+  )
 }
 
 /**

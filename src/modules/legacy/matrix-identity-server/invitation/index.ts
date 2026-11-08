@@ -93,7 +93,15 @@ const inviteLink = (
   }
 }
 
-const mailBody = (
+const htmlEscape = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+
+export const mailBody = (
   template: string,
   // eslint-disable-next-line @typescript-eslint/naming-convention
   inviter_name: string,
@@ -111,24 +119,32 @@ const mailBody = (
   // eslint-disable-next-line @typescript-eslint/naming-convention
   room_alias?: string
 ): string => {
-  return (
-    template
-      // set "To"
-      .replace(/__to__/g, dst)
-      // Set __inviter_name__
-      .replace(/__inviter_name__/g, inviter_name)
-      // set date
-      .replace(/__date__/g, new Date().toUTCString())
-      // initialize message id
-      .replace(/__messageid__/g, randomString(32))
-      .replace(/__room_name__/g, room_name)
-      .replace(/__room_avatar__/g, room_avatar)
-      .replace(/__room_type__/g, room_type)
-      .replace(
-        /__link__/g,
-        inviteLink(server_name_creating_invitation, sender_user_id, room_alias)
-      )
-  )
+  const values: Record<string, string> = {
+    to: dst,
+    inviter_name,
+    date: new Date().toUTCString(),
+    messageid: randomString(32),
+    room_name,
+    room_avatar,
+    room_type,
+    link: inviteLink(server_name_creating_invitation, sender_user_id, room_alias)
+  }
+  const placeholder =
+    /__(to|inviter_name|date|messageid|room_name|room_avatar|room_type|link)__/g
+  // One pass with a function replacer: a value is never read as a replacement
+  // pattern and a value inserted earlier (the address in the To header) is not
+  // rescanned by a later placeholder. Only the text/html part escapes its
+  // values so inviter-chosen markup stays text.
+  const fill = (part: string, escapeHtml: boolean): string =>
+    part.replace(placeholder, (_match, key: string) => {
+      const value = values[key] ?? ''
+      return escapeHtml ? htmlEscape(value) : value
+    })
+  const htmlAt = template.search(/^Content-Type: text\/html/m)
+  if (htmlAt === -1) {
+    return fill(template, false)
+  }
+  return fill(template.slice(0, htmlAt), false) + fill(template.slice(htmlAt), true)
 }
 
 // To complete if another 3PID is added for this endpoint
