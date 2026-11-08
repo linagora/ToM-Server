@@ -13,7 +13,8 @@ const app = express()
 const smsConfig = {
   sms_api_key: 'test',
   sms_api_login: 'test',
-  sms_api_url: 'http://url/'
+  sms_api_url: 'http://url/',
+  server_name: 'example.com'
 }
 
 mock.module('node-fetch', () => ({
@@ -24,7 +25,7 @@ const mockFetch = fetch as Mock<(...args: any[]) => any>
 
 const authenticatorMock = mock()
   .mockImplementation((req, res, callbackMethod) => {
-    callbackMethod('test', 'test')
+    callbackMethod({ sub: '@user:example.com' }, 'test')
   })
 
 mock.module('../middlewares/index', () => {
@@ -102,6 +103,35 @@ describe('the SMS API controller', () => {
     })
 
     expect(response.status).toEqual(200)
+  })
+
+  it('should reject a caller from another homeserver with 403', async () => {
+    authenticatorMock.mockImplementationOnce((req, res, callbackMethod) => {
+      callbackMethod({ sub: '@user:other.org' }, 'test')
+    })
+    mockFetch.mockClear()
+
+    const response = await supertest(app).post(PATH).send({
+      to: '0000000000000',
+      text: 'test'
+    })
+
+    expect(response.status).toBe(403)
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('should reject a request with too many recipients with 400', async () => {
+    mockFetch.mockClear()
+
+    const response = await supertest(app)
+      .post(PATH)
+      .send({
+        to: Array(6).fill('0000000000000'),
+        text: 'test'
+      })
+
+    expect(response.status).toBe(400)
+    expect(mockFetch).not.toHaveBeenCalled()
   })
 
   it('should return 500 is something wrong happens', async () => {
