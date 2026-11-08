@@ -1,4 +1,4 @@
-import { describe, expect, it, test } from "bun:test";
+import { describe, expect, it, spyOn, test } from "bun:test";
 import { canonicalJson, generateKeyPair, Hash, randomString, signJson } from "./index";
 
 const sha256Results: Record<string, string> = {
@@ -33,9 +33,22 @@ describe("Hash methods", () => {
   });
 });
 
-test("randomString", () => {
-  const res = randomString(64);
-  expect(res).toMatch(/^[a-zA-Z0-9]{64}$/);
+test.each([1, 32, 64, 255])("randomString(%p) is alphanumeric of that length", (n) => {
+  expect(randomString(n)).toMatch(new RegExp(`^[A-Za-z0-9]{${n}}$`));
+});
+
+test("randomString draws every alphanumeric character", () => {
+  expect(new Set(randomString(20000)).size).toBe(62);
+});
+
+test("randomString does not use Math.random", () => {
+  const spy = spyOn(Math, "random");
+  try {
+    randomString(64);
+    expect(spy).not.toHaveBeenCalled();
+  } finally {
+    spy.mockRestore();
+  }
 });
 
 describe("generateKeyPair", () => {

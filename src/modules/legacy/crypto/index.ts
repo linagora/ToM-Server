@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import _nacl, { type Nacl } from "js-nacl";
 import nacl from "tweetnacl";
 import naclUtil from "tweetnacl-util";
@@ -39,14 +40,18 @@ export class Hash {
   }
 }
 
-export const randomChar = (): string => {
-  return Math.random().toString(36).slice(-1);
-};
+const ALPHANUMERIC = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+// The largest multiple of 62 below 256: bytes above it are dropped so every character is equally likely
+const UNBIASED_BYTE_LIMIT = 256 - (256 % ALPHANUMERIC.length);
 
+// These strings are used as bearer tokens, one-time e-mail validation tokens,
+// invitation tokens and the lookup pepper, so the generator must be cryptographic.
 export const randomString = (n: number): string => {
   let res = "";
-  for (let i = 0; i < n; i++) {
-    res += randomChar();
+  while (res.length < n) {
+    for (const byte of randomBytes(n - res.length + 8)) {
+      if (byte < UNBIASED_BYTE_LIMIT && res.length < n) res += ALPHANUMERIC[byte % ALPHANUMERIC.length];
+    }
   }
   return res;
 };
