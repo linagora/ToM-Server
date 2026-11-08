@@ -305,14 +305,24 @@ class UserDBLDAP implements UserDBBackend {
               `[UserDBLDAP][get] Building OR filter for field "${key}" with ${value.length} values`
             )
             const arrayValueFilters = value
-              .map((val) => `(${key}=${val})`)
+              .map((val) =>
+                new ldapts.EqualityFilter({
+                  attribute: key,
+                  value: String(val)
+                }).toString()
+              )
               .join('')
             individualFilters.push(`(|${arrayValueFilters})`)
           } else {
             this.logger.silly(
               `[UserDBLDAP][get] Building filter for field "${key}" = "${value}"`
             )
-            individualFilters.push(`(${key}=${value.toString()})`)
+            individualFilters.push(
+              new ldapts.EqualityFilter({
+                attribute: key,
+                value: value.toString()
+              }).toString()
+            )
           }
         })
 
@@ -370,7 +380,13 @@ class UserDBLDAP implements UserDBBackend {
     }
 
     let specificFilter = searchFields.reduce((prev, current) => {
-      return `${prev}(${current}=${value ? `*${value}*` : '*'})`
+      const term = value
+        ? new ldapts.SubstringFilter({
+            attribute: current,
+            any: [value.toString()]
+          }).toString()
+        : `(${current}=*)`
+      return `${prev}${term}`
     }, '')
 
     if (searchFields.length > 1) {

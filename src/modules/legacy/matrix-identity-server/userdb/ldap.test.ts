@@ -162,7 +162,9 @@ describe('UserDBLDAP', () => {
 
   beforeAll(async () => {
     logger = getLogger()
+    const actualLdapts = await import('ldapts')
     mock.module('ldapts', () => ({
+      ...actualLdapts,
       Client: FakeLDAPClient
     }))
     const module = await import('./ldap')
@@ -251,7 +253,7 @@ describe('UserDBLDAP', () => {
 
     it('should handle array values with OR logic', async () => {
       const results = await userDB.get('', ['uid', 'mail'], {
-        mail: ['*skywalker@example.com', 'dwho@example.com']
+        mail: ['lskywalker@example.com', 'dwho@example.com']
       })
 
       expect(results).toHaveLength(2)
@@ -269,16 +271,12 @@ describe('UserDBLDAP', () => {
       expect(results[0]).toEqual({ uid: 'dwho', givenName: 'Doctor' })
     })
 
-    it('should support wildcard patterns in filter values', async () => {
+    it('treats filter metacharacters in a value literally, not as a wildcard', async () => {
       const results = await userDB.get('', ['uid', 'mail'], {
         mail: 'l*walker@example.com'
       })
 
-      expect(results).toHaveLength(1)
-      expect(results[0]).toEqual({
-        uid: 'lskywalker',
-        mail: 'lskywalker@example.com'
-      })
+      expect(results).toHaveLength(0)
     })
 
     it('should return empty array for non-matching complex filter', async () => {
@@ -433,5 +431,46 @@ describe('UserDBLDAP', () => {
 
       expect(results).toHaveLength(0)
     })
+  })
+})
+
+describe('UserDBLDAP filter escaping (RFC 4515)', () => {
+  const makeDb = async (): Promise<{
+    db: UserDBLDAP
+    lastFilter: () => string
+  }> => {
+    const { default: UserDBLDAPImpl } = await import('./ldap')
+    const db = Object.create(UserDBLDAPImpl.prototype) as UserDBLDAP
+    const noop = (): void => {}
+    let filter = ''
+    Object.assign(db, {
+      base: 'ou=users,dc=example,dc=com',
+      filter: '(objectClass=inetOrgPerson)',
+      logger: { debug: noop, silly: noop, info: noop, warn: noop, error: noop }
+    })
+    ;(db as unknown as { _get: unknown })._get = async (
+      _t: string,
+      f: string
+    ): Promise<[]> => {
+      filter = f
+      return []
+    }
+    return { db, lastFilter: () => filter }
+  }
+
+  it('escapes the search term of match()', async () => {
+    const { db, lastFilter } = await makeDb()
+    await db.match('users', ['uid'], ['uid', 'mail'], 'a*)(cn=\\')
+    expect(lastFilter()).toBe(
+      '(&(objectClass=inetOrgPerson)(|(uid=*a\\2a\\29\\28cn=\\5c*)(mail=*a\\2a\\29\\28cn=\\5c*)))'
+    )
+  })
+
+  it('escapes the value of get()', async () => {
+    const { db, lastFilter } = await makeDb()
+    await db.get('users', ['uid'], { uid: 'a)(cn=*' })
+    expect(lastFilter()).toBe(
+      '(&(objectClass=inetOrgPerson)(uid=a\\29\\28cn=\\2a))'
+    )
   })
 })
