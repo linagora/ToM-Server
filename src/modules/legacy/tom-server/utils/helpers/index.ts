@@ -41,7 +41,9 @@ export const buildEmailBody = (
   return templateContent.replace(
     /__(from|to|multipart_boundary|inviter_name|link|date|messageid)__/g,
     (_match, key: string) => {
-      const value = values[key] ?? ''
+      // Strip CR/LF so a value cannot add a header line or a MIME boundary to the
+      // raw message; the fields are all single-line.
+      const value = (values[key] ?? '').replace(/[\r\n]+/g, ' ')
       return escapeHtml ? htmlEscape(value) : value
     }
   )

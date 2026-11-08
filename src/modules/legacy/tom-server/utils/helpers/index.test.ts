@@ -18,6 +18,19 @@ describe('buildEmailBody', () => {
     expect(html).not.toContain('<b>"Bob"')
   })
 
+  it('strips CR/LF from a value', () => {
+    const html = buildEmailBody(
+      htmlTemplate,
+      'Bob\r\n--boundary\r\nContent-Type: text/evil',
+      'to@example.org',
+      'https://chat.example/?t=1',
+      'from@example.org',
+      true
+    )
+    expect(html).not.toMatch(/\n--boundary/)
+    expect(html).not.toMatch(/\nContent-Type: text\/evil/)
+  })
+
   it('keeps the value literal for the text template', () => {
     const text = buildEmailBody(
       textTemplate,

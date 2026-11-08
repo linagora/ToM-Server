@@ -57,6 +57,15 @@ describe('mailBody', () => {
     expect(raw).toContain("$&-$`-$'")
   })
 
+  it('strips CR/LF from a value so it cannot add a header or MIME line', () => {
+    const raw = render({
+      roomName: 'Room\r\n--boundary\r\nContent-Type: text/evil'
+    })
+    // The value stays on a single line: no new header/boundary line appears.
+    expect(raw).not.toMatch(/\n--boundary/)
+    expect(raw).not.toMatch(/\nContent-Type: text\/evil/)
+  })
+
   it('HTML-escapes inviter-chosen values in the text/html part', () => {
     const raw = render({
       inviter: '<p>x</p>',
