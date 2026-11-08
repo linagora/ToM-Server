@@ -168,6 +168,21 @@ class Pg<T extends string> extends SQL<T> implements IdDbBackend<T> {
     })
   }
 
+  /**
+   * Rejects any table, column or field name that is not a plain identifier.
+   * The write sinks interpolate these names into the statement, so a caller
+   * that spreads an untrusted object would otherwise inject SQL (CWE-89).
+   */
+  #guardIdentifiers(context: string, names: string[]): void {
+    const invalid = names.find(
+      (name) => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)
+    )
+    if (invalid != null) {
+      this.logger.error(`[Pg][${context}] Invalid identifier`, { invalid })
+      throw new Error(`Invalid identifier: ${invalid}`)
+    }
+  }
+
   insert(
     table: T,
     values: Record<string, string | number>
@@ -178,6 +193,7 @@ class Pg<T extends string> extends SQL<T> implements IdDbBackend<T> {
         this.logger.error('[Pg][insert] DB not ready', { table })
         throw new Error('Wait for database to be ready')
       }
+      this.#guardIdentifiers('insert', [table, ...Object.keys(values)])
       const names: string[] = []
       const vals:
         | (string[] & Array<string | number>)
@@ -227,6 +243,7 @@ class Pg<T extends string> extends SQL<T> implements IdDbBackend<T> {
         this.logger.error('[Pg][update] DB not ready', { table, field })
         reject(new Error('Wait for database to be ready'))
       } else {
+        this.#guardIdentifiers('update', [table, field, ...Object.keys(values)])
         const names: string[] = []
         const vals:
           | (string[] & Array<string | number>)
@@ -282,6 +299,12 @@ class Pg<T extends string> extends SQL<T> implements IdDbBackend<T> {
         })
         reject(new Error('Wait for database to be ready'))
       } else {
+        this.#guardIdentifiers('updateAnd', [
+          table,
+          condition1.field,
+          condition2.field,
+          ...Object.keys(values)
+        ])
         const names: string[] = []
         const vals:
           | (string[] & Array<string | number>)
