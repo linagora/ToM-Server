@@ -15,6 +15,12 @@ FROM docker.io/oven/bun:debian AS builder
 
 WORKDIR /app
 
+# node-gyp needs Python and a C++ toolchain to build native modules (sqlite3)
+# from source when no prebuilt binary is available.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
+
 COPY package.json bun.lock bunup.config.ts tsconfig.json ./
 COPY src/ ./src/
 
