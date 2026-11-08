@@ -123,21 +123,24 @@ class UserInfoService implements IUserInfoService {
     }
 
     try {
-      // Build mapping of full ID to local part
+      // Build mapping of full ID to local part. The profiles and users rows
+      // describe local users, so only IDs whose server part is ours get a local
+      // part here: a remote ID with the same localpart must not inherit a local
+      // user's profile or directory data.
       const idToLocalPart = new Map<string, string>()
-      const localPartToId = new Map<string, string>()
+      const validIds: string[] = []
       for (const id of ids) {
         const localPart = getLocalPart(id)
-        if (localPart) {
+        if (!localPart) continue
+        validIds.push(id)
+        if (id.endsWith(`:${this.config.server_name}`)) {
           idToLocalPart.set(id, localPart)
-          localPartToId.set(localPart, id)
         }
       }
 
       const localParts = Array.from(idToLocalPart.values())
-      const validIds = Array.from(idToLocalPart.keys())
 
-      if (localParts.length === 0) {
+      if (validIds.length === 0) {
         this.logger.warn(
           '[UserInfoService].getBatch: No valid user IDs provided'
         )
@@ -148,6 +151,7 @@ class UserInfoService implements IUserInfoService {
       // 1 - Batch fetch from all sources in parallel
       // ------------------------------------------------------------------
       const matrixPromise = (async () => {
+        if (localParts.length === 0) return []
         const rows = (await this.matrixDb.get(
           'profiles',
           ['user_id', 'displayname', 'avatar_url'],
@@ -161,7 +165,9 @@ class UserInfoService implements IUserInfoService {
       })()
 
       const directoryPromise = (async () => {
-        // Who is already read costs no second search of the directory
+        // localParts holds only local-server ids (see the loop above), and who
+        // is already read costs no second search of the directory. An empty
+        // localParts yields no missing uid, so no query runs.
         const wanted = new Set(localParts)
         const known = (knownDirectoryRows ?? []).filter((row) =>
           wanted.has(row.uid as string)
@@ -277,12 +283,13 @@ class UserInfoService implements IUserInfoService {
       // ------------------------------------------------------------------
       for (const id of validIds) {
         const localPart = idToLocalPart.get(id)
-        if (!localPart) continue
 
         const userInfo: Partial<UserInformation> = { uid: id }
 
-        const matrixRow = matrixMap.get(localPart)
-        const directoryRow = directoryMap.get(localPart)
+        const matrixRow =
+          localPart != null ? matrixMap.get(localPart) : undefined
+        const directoryRow =
+          localPart != null ? directoryMap.get(localPart) : undefined
         const settingsRow = settingsMap.get(id)
         const addressbookContact = addressbookContactMap.get(id)
 

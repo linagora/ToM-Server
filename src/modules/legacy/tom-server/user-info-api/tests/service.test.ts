@@ -7293,9 +7293,9 @@ describe('User Info Service updateVisibility', () => {
 
 describe('User Info Service getBatch', () => {
   const svc = createService(true, false)
-  const MXID_1 = '@user1:docker.localhost'
-  const MXID_2 = '@user2:docker.localhost'
-  const MXID_3 = '@user3:docker.localhost'
+  const MXID_1 = '@user1:example.org'
+  const MXID_2 = '@user2:example.org'
+  const MXID_3 = '@user3:example.org'
 
   beforeEach(() => {
     mock.clearAllMocks()
@@ -7550,5 +7550,32 @@ describe('User Info Service GET theme: Common settings ON', () => {
 
     expect(user).not.toBeNull()
     expect(user).not.toHaveProperty('theme')
+  })
+})
+
+describe('User Info Service getBatch server binding', () => {
+  it('does not attach a local user data to a remote ID with the same localpart', async () => {
+    const svc = createService(true, false)
+    mockMatrix({ displayName: true, avatar: true })
+    mockUserDB({ displayName: true, lastName: true, mail: true })
+
+    const result = await svc.getBatch(['@dwho:other.org'], '@viewer:example.org')
+    const info = result.get('@dwho:other.org')
+
+    expect(info?.display_name).not.toBe(MOCK_DATA.MATRIX.displayname)
+    expect(info?.display_name).not.toBe(MOCK_DATA.LDAP.cn)
+    expect(info?.sn).toBeUndefined()
+    expect(info?.emails).toBeUndefined()
+  })
+
+  it('still attaches local data to a local ID', async () => {
+    const svc = createService(true, false)
+    mockMatrix({ displayName: true })
+    mockUserDB({ displayName: true })
+
+    const result = await svc.getBatch([MATRIX_MXID], '@viewer:example.org')
+    const info = result.get(MATRIX_MXID)
+
+    expect(info?.display_name).toBe(MOCK_DATA.MATRIX.displayname)
   })
 })
