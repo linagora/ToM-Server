@@ -33,6 +33,11 @@ RUN bunx bunup
 # -----------------------------------------------------------------------------
 FROM docker.io/debian:stable-slim AS runtime
 
+# The base image lags behind Debian security updates
+RUN apt-get update \
+  && apt-get upgrade -y --no-install-recommends \
+  && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /usr/share/twake/chat/tom
 
 COPY ./assets/i18n/ ./i18n/
